@@ -9,9 +9,10 @@ pe = pokereval.PokerEval()
 d = Deck()
 
 num_players = 2
-#some of these aren't valid, e.g [(0,1),(0,1)]
-#but the impossible ones are excluded later
-all_hole_cards = product( combinations(d.cards,2), repeat=num_players )
+#some hole card assignments will be impossible
+#e.g 2c2d 2c7h
+#but these impossible ones are excluded later by deck.remove below
+all_hole_cards = combinations( combinations(d.cards,2), num_players )
 
 count = 0
 
@@ -19,6 +20,7 @@ count = 0
 board = ["__"]*5
 
 #store the accumlated EV's for each of the 169 distinct HCs
+#[acc_ev,num_trials]
 results = {}
 for hole_cards in all_hole_cards :
     #start with a new deck each time
@@ -39,17 +41,25 @@ for hole_cards in all_hole_cards :
             EV = evl["ev"]
             dhc = d.collapseHC( hc )
             if dhc in results :
-                results[dhc] += EV 
+                results[dhc][0] += EV 
+                results[dhc][1] += 1
+                
             else :
-                results[dhc] = 0
+                results[dhc] = []
+                results[dhc].append( EV )
+                results[dhc].append( 1 )
+
         print "\n"
     
     count += 1
-    if count > 300 : break
+    #if count > 300 : break
 
 print 'adsfasdfadsf'
+fresults = open( "%s_player_rollout.txt" % num_players, 'w' )
 for r in results :
     print r, results[r]
+    fresults.write( "%s, %s" % (r,results[r]) )
+fresults.close()
 
 
 #a = list(d.draw(2))
