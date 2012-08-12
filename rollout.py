@@ -43,7 +43,6 @@ def rollout( hole_cards ) :
             else :
                 results[dhc] = EV
 
-        print "\n"
     
     #count += 1
     #if count > 100 : break
