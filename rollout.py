@@ -1,12 +1,92 @@
 from itertools import combinations, product
-from deck import Deck
+from deck import Deck, makeMachine, makeHuman, canonical
 import pokereval
 from multiprocessing import Process, Queue, Pool
 from time import time
+import globles
 
+pe = pokereval.PokerEval()
 
-def square(x) : 
-    return x*x
+#take what information is known and return the EV's of all possible pockets
+#first create an iter of all combinations of pockets
+#apply rolloutPocketAssignment to each one
+#combine the results and return the {pocket:EV} dicitonary 
+def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
+    deck = Deck()
+    deck.remove( board )
+    for pocket in known_pockets :
+        deck.remove( pocket )
+    remaining_cards = deck.cards
+
+    remaining_pockets = combinations( remaining_cards, globles.POCKET_SIZE )
+    num_opponents = num_players - len(known_pockets)
+    all_pocket_assignments = combinations( remaining_pockets, num_opponents )
+
+    #map
+    p = Pool(processes=num_threads)
+    a = time()
+    all_pockets_plus_globals = wrapWithGlobals( all_pocket_assignments, \
+                                                known_pockets, \
+                                                remaining_cards, \
+                                                board )
+    mapped = p.map( rolloutPocketAssignment, all_pockets_plus_globals )
+    b  = time()
+    print "mapping took: %fs" % (b-a)
+    
+    #reduce
+    results = {}
+    c = time()
+    for ev_dict in mapped :
+        for pocket in ev_dict :
+            if pocket in results :
+                results[pocket][0] += ev_dict[pocket]
+                results[pocket][1] += 1
+            else :
+                results[pocket] = []
+                results[pocket].append( ev_dict[pocket] )
+                results[pocket].append( 1 )
+    d = time()
+    print "reducing took %fs" % (d-c)
+
+    average_evs = {}
+    for pocket in results :
+        average_evs[pocket] = float(results[pocket][0]) / results[pocket][1] 
+
+    p.close()
+    p.join()
+    return average_evs
+
+# rolloutPocketAssignments job is to rollout a specific pocket_assignment
+# BUT, it also needs the global information (i.e what we know beforehand) 
+# this function takes an iterator of all the pocket assignment 
+# and returns it with the global info
+#TODO is this where all the memory is getting gobbled, I thought it was lazy
+#     or maybe the results is what is taking all the room, can I reduce as I go?
+def wrapWithGlobals( all_pocket_assignments, \
+                     known_pockets, \
+                     remaining_cards, \
+                     board ) :
+    for pa in all_pocket_assignments :
+        yield [pa, known_pockets, remaining_cards, board]
+
+#apply the rollout procedure to a specific pocket assignment
+def rolloutPocketAssignment( data ) :
+    [pocket_assignment, known_pockets, remaining_cards, board] = data
+    results = {}
+    d = Deck(set(remaining_cards))
+    valid = all([d.remove(p) for p in pocket_assignment])
+    if valid :
+        pocket_assignment = [list(pp) for pp in pocket_assignment]
+        pocket_assignment = pocket_assignment + known_pockets
+        r = pe.poker_eval( game=globles.GAME, \
+                           pockets=pocket_assignment, \
+                           board=board )
+        for pocket,evl in zip( pocket_assignment, r["eval"] ) :
+            results[canonical(pocket)] = evl["ev"] / float(globles.EV_RANGE)
+
+    return results
+
+########################################################################
 
 def rollout( hole_cards ) :
     game = "holdem"
@@ -14,7 +94,6 @@ def rollout( hole_cards ) :
     num_known_board = 0
     board = ["__"]*(5-num_known_board)
     d = Deck()
-    pe = pokereval.PokerEval()
     #store the accumlated EV's for each of the 169 distinct HCs
     #[acc_ev,num_trials]
     results = {}
@@ -36,14 +115,13 @@ def rollout( hole_cards ) :
         #add the EV's up
         for hc,evl in zip(hole_cards,r["eval"]) :
             EV = evl["ev"]
-            dhc = d.collapseHC( hc )
+            dhc = d.collapsePocket( hc )
             if dhc in results :
                 results[dhc] += EV 
                 
             else :
                 results[dhc] = EV
 
-        print "\n"
     
     #count += 1
     #if count > 100 : break
@@ -51,28 +129,17 @@ def rollout( hole_cards ) :
     return results
 
 #hole card rollout for arbitrary number of players
-def main() :
+def rolloutMapReduce() :
     num_threads = 4 
     
     num_players = 2
     d = Deck()
     #some hole card assignments will be impossible
     #e.g 2c2d 2c7h
-    #but these impossible ones are excluded later by deck.remove below
+    #but these impossible ones are excluded later by deck.remove in rollout 
     all_hole_cards = combinations( combinations(d.cards,2), num_players )
 
-    #test = []
-    #for i in range(3000) :
-        #test.append( all_hole_cards.next() )
-
     results={}
-    #def callback( hand_scores ) :
-        #for hand in hand_scores :
-            #if hand in results :
-                #results[hand] += hand_scores[hand]
-            #else :
-                #results[hand] = hand_scores[hand]
-
 
     #map
     p = Pool(processes=num_threads)
@@ -93,7 +160,6 @@ def main() :
                 results[hand].append( 1 )
     d = time()
 
-    print results
     p.close()
     p.join()
 
@@ -105,11 +171,21 @@ def main() :
         fresults.write( "%s, %s\n" % (r,results[r]) )
     fresults.close()
 
+#########################################################################
+
+def main() :
+    board = ['2c','2d','Td','__','__']
+    pocket1 = ['2h','As']
+    pocket2 = ['2s','Kd']
+    results = computeEVs( [pocket1,pocket2], board, 2 )
+    print results[canonical(pocket1)]
+    #print results
 
 
 if __name__ == "__main__" :
     #print rollout( ((0,1),(4,5)) )
     main()
+
 
 #a = list(d.draw(2))
 #b = list(d.draw(2))
