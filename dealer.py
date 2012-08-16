@@ -10,17 +10,19 @@ class Dealer() :
 
     def dealNextStreet( self ) :
         street = self.table.street
-        #TODO: conceivable all remaining players count fold before next street
+        
+        #TODO: conceivable all remaining players could fold before next street
+        #      making this number 0
         #    will handle this when start on actually asking Players for actions
         players_in_hand = sum( map( lambda hc : not hc == NA, \
                                     self.table.hole_cards ) ) 
-        print self.table.hole_cards
-        print players_in_hand
         if players_in_hand == 1 :
             self.endHand()
             return
         elif not street == "undealt" and players_in_hand < 1 :
             assert "oh" == "noes"
+        else :  #>1 players in the ongoing game
+            pass
 
         if street == "undealt" :
             cards = [self.deck.draw(2) for p in range(self.table.num_players)]
@@ -72,7 +74,6 @@ class Dealer() :
 
     def endGame(self) :
         self.table.close()
-
 
 def main() :
     t = Table( num_seats=8 )
