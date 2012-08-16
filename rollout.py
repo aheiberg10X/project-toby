@@ -97,7 +97,7 @@ def main() :
     p.close()
     p.join()
 
-    fresults = open( "%s_player_rollout.txt" % num_players, 'w' )
+    fresults = open( "%s_player_rollout_pmap.txt" % num_players, 'w' )
     fresults.write("mapping time: %s\n" % str(b-a) )
     fresults.write("reduce time: %s\n" % str(d-c) )
     for r in results :
