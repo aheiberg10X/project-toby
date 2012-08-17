@@ -104,39 +104,49 @@ def collapsePocket( hole_cards ) :
                             stringifyCardinality(c2),
                             suit) )
 
-def collapseFlop( flop ) :
-    cardinalities = [getCardinality(c) for c in flop]
-    cardinalities.sort()
-    num_cardinalities = len(set(cardinalities))
-    if   num_cardinalities == 1 : rcard = 't'
-    elif num_cardinalities == 2 : rcard = 'p'
-    else :
-        if cardinalities[0] + 2 == cardinalities[1] + 1 == cardinalities[2] :
-            rcard = 's'
+def collapseBoard( board ) :
+    if len(board) == 3 :
+        cardinalities = [getCardinality(c) for c in board]
+        cardinalities.sort()
+        num_cardinalities = len(set(cardinalities))
+        if   num_cardinalities == 1 : rcard = 't'
+        elif num_cardinalities == 2 : rcard = 'p'
         else :
-            rcard = 'h'
+            if cardinalities[0] + 2 == cardinalities[1] + 1 == cardinalities[2] :
+                rcard = 's'
+            else :
+                rcard = 'h'
 
 
-    suits = [getSuit(c) for c in flop]
-    num_suits = len(set(suits))
-    if   num_suits == 1 : rsuit = '3f'
-    elif num_suits == 2 : rsuit = '2f'
-    else                : rsuit = 'r'
+        suits = [getSuit(c) for c in board]
+        num_suits = len(set(suits))
+        if   num_suits == 1 : rsuit = '3f'
+        elif num_suits == 2 : rsuit = '2f'
+        else                : rsuit = 'r'
 
-    return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
-    #s3f  3-Straight-Flush = 12
-    #t    Trips = 13
-    #s2f 3-Straight 2-flush = 12 * 3 = 36
-    #sr   3-Straight rainbow = 12
-    #3f    3-Flush = c(13,3)-12 = 274
-    #pr   Paired rainbow = 13 *12 = 156
-    #p2f  Paired 2-flush = 13 * 12 = 156
-    #h2f  High-Card-Flops 2-flush: [c(13,3)-12] * 3 = 822
-    #hr   High-Card-Flops Rainbow: [c(13,3)-12] = 274
+        return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
+        #s3f  3-Straight-Flush = 12
+        #t    Trips = 13
+        #s2f 3-Straight 2-flush = 12 * 3 = 36
+        #sr   3-Straight rainbow = 12
+        #3f    3-Flush = c(13,3)-12 = 274
+        #pr   Paired rainbow = 13 *12 = 156
+        #p2f  Paired 2-flush = 13 * 12 = 156
+        #h2f  High-Card-Flops 2-flush: [c(13,3)-12] * 3 = 822
+        #hr   High-Card-Flops Rainbow: [c(13,3)-12] = 274
+    elif len(board) == 4 : pass
+    elif len(board) == 5 : pass
+    else :
+        pass
 
-    pass
-
-
+def computeBuckets( street ) :
+    if street == 'flop' :
+        for flop_file in os.listdir( "evdists/flops" ) :
+            print flop_file
+        pass
+    elif street == 'turn' : pass
+    elif street == 'river' : pass
+    else : pass
 #would be cool to stream possible hole card combinations given
 #our best guess at each players holding distribution.  
 
