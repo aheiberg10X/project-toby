@@ -25,6 +25,10 @@ side = 'hi'
 #           one pocket that benefits from suit (A), one that doesn't (B)
 #    The EV(B) will be the EV(A) when you symm change the suit of the flop
 
+#One thing we are not considering is the two to a flush combinations
+#3d8dJh has slightly diff dist from 3h8dJd, but we treat them as same
+#hopefully not a huge deal, will save space and time
+
 #board = ['2c','3c','Td','__','__']
 #print board
 #pocket1 = ['4c','8c']
@@ -38,7 +42,7 @@ side = 'hi'
 num_known_board = 3
 already_seen = {}
 for board in combinations( d.cards, num_known_board ) :
-    collapsed = collapseFlop( board )
+    collapsed = collapseBoard( board )
     if collapsed in already_seen : 
         continue
     else :
@@ -49,15 +53,16 @@ for board in combinations( d.cards, num_known_board ) :
             x.append( int(pocketEVs[pocket]*100) )
         x.sort()
 
-        fout = open("bucketing/%s.evdist" % collapsed, 'w')
+        fout = open("evdists/%s.evdist" % collapsed, 'w')
         fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
         fout.close()
 
         plt.hist(x,100)
-        plt.savefig("bucketing/%s_evdist.png" % collapsed)
-        #plt.show()
+        #plt.savefig("evdists/%s_evdist.png" % collapsed)
+        plt.show()
 
         already_seen[collapsed] = True
+    print "breaking"
     break
 
 
@@ -66,7 +71,7 @@ for board in combinations( d.cards, num_known_board ) :
 
 #board = ['2h','3h','4h','__','__']
 #board = ['2c','3c','4c','__','__']
-#board = ['3d','8c','Jh','__','__']
+board = ['3c','8d','Jd','__','__']
 #board = ['Jd','Jh','8c','__','__']
 #board = ['Jd','Jh','8c','__','__']
 
