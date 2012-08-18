@@ -157,7 +157,6 @@ def computeBuckets( street, bucket_percentages ) :
     fout.write( json.dumps( dflop_memprobs ) )
     fout.close()
 
-    
 flop_bucket_map = {}
 def bucketPocket( pocket, board ) :
     global flop_bucket_map

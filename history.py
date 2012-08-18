@@ -10,7 +10,6 @@ class History() :
         dt = "current"
         self.log = open( "gamelogs/%s.gamelog" % dt, 'w' )
 
-
     def __del__(self) :
         self.log.close()
 

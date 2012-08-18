@@ -70,7 +70,7 @@ class Dealer() :
 
     #end the game, figure out payouts, log the game history, reset table
     def endHand(self) :
-        self.table.reset()
+        self.table.newHand()
 
     def endGame(self) :
         self.table.close()

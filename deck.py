@@ -36,7 +36,7 @@ def getSuit( card ) :
     else :
         assert "go" == "fuck yourself"
 
-#convenience
+#take integers and output card string
 def makeHuman( cards ) :
     #if already in right format, leave alone
     if type(cards[0]) == str : return cards
@@ -48,6 +48,7 @@ def makeHuman( cards ) :
             r.append( pe.card2string(c) )
     return r
 
+#take strings and output card number
 def makeMachine( cards ) :
     #if already in right format, leave alone
     if type(cards[0]) == int : return cards
@@ -112,14 +113,18 @@ def collapseBoard( board ) :
     
     suits = [getSuit(c) for c in board]
     num_suits = len(set(suits))
+    #TODO:
+    #consider all 3C2 2flushes, also get the filenaming right
     if len(board) == 3 :
         if   num_cardinalities == 1 : rcard = 't'
         elif num_cardinalities == 2 : rcard = 'p'
         else :
-            if cardinalities[0] + 2 == cardinalities[1] + 1 == cardinalities[2] :
-                rcard = 's'
-            else :
-                rcard = 'h'
+            is_straight = cardinalities[0] + 2 == \
+                          cardinalities[1] + 1 == \
+                          cardinalities[2] :
+
+            if is_straight : rcard = 's'
+            else :           rcard = 'h'
 
 
         if   num_suits == 1 : rsuit = '3f'
@@ -155,7 +160,6 @@ def collapseBoard( board ) :
                 rsuit = '5f'
             else :
                 pass
-
     else :
         pass
 
