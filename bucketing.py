@@ -1,8 +1,10 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseFlop
+from deck import Deck, makeMachine, makeHuman, collapseBoard
 from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
+from os import listdir
+import json
 
 num_buckets = 20
 
@@ -39,45 +41,131 @@ side = 'hi'
 #plt.hist( x )
 #plt.show()
 
-num_known_board = 3
-already_seen = {}
-for board in combinations( d.cards, num_known_board ) :
-    collapsed = collapseBoard( board )
-    if collapsed in already_seen : 
-        continue
-    else :
-        board = makeHuman(board) + ['__']*(5-num_known_board)
-        pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
-        x = []
-        for pocket in pocketEVs :
-            x.append( int(pocketEVs[pocket]*100) )
-        x.sort()
+def computeEVDists() :
 
-        fout = open("evdists/%s.evdist" % collapsed, 'w')
-        fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-        fout.close()
+    num_known_board = 3
+    already_seen = {}
+    for board in combinations( d.cards, num_known_board ) :
+        board = ['Td','Jd','Qd','Kd','Ad']
+        collapsed = collapseBoard( board )
+        print collapsed
+        if collapsed in already_seen : 
+            continue
+        else :
+            board = makeHuman(board) + ['__']*(5-num_known_board)
+            pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
+            x = []
+            for pocket in pocketEVs :
+                x.append( int(pocketEVs[pocket]*100) )
+            x.sort()
 
-        plt.hist(x,100)
-        #plt.savefig("evdists/%s_evdist.png" % collapsed)
-        plt.show()
+            #fout = open("evdists/%s.evdist" % collapsed, 'w')
+            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            #fout.close()
 
-        already_seen[collapsed] = True
-    print "breaking"
-    break
+            plt.hist(x,100)
+            #plt.savefig("evdists/%s_evdist.png" % collapsed)
+            plt.show()
+
+            already_seen[collapsed] = True
+        print "breaking"
+        break
+
+def computeBuckets( street, bucket_percentages ) :
+    assert int(sum(bucket_percentages)) == 1 
+    #wtf <= works but not ==
+    #assert sum(bucket_percentages) == 1.0
+
+    dflop_memprobs = {}
+    for flop_file in listdir( "evdists/%s" % street) :
+        print flop_file
+
+        collapsed_name,ext = flop_file.split('.')
+        if not ext == 'evdist' : break
+
+        fin = open( "evdists/%s/%s" % (street, flop_file) )
+        EVs = [int(ev) for ev in fin.read().strip().split(';')]
+        num_EVs = len(EVs)
+        bucket_masses = [int(round(bp*num_EVs)) for bp in bucket_percentages]
+        #print "bucket_masses", bucket_masses
+        EVs.append(-1)
+
+        bucket_ix = 0
+        bucket_mass = 0
+        bucket_total_mass = bucket_masses[bucket_ix]
+        
+        #EV : {bucket_ix : percentage}
+        membership_probs = {}
+
+        last_seen_ev = EVs[0]
+        count = 0 
+        for ev in EVs :
+            if not ev == last_seen_ev :
+                unbucketed_count = count
+                remaining_space = bucket_total_mass - bucket_mass
+                membership_probs[last_seen_ev] = {}
+                #print "unbucketed count", unbucketed_count
+                #print "remaining_space", remaining_space
+
+                while remaining_space < unbucketed_count :
+                    #print "unbucketed count", unbucketed_count
+                    #print "remaining_space", remaining_space
+                    assert remaining_space >= 0
+                    assert count >= 0
+                    membership_probs[last_seen_ev][bucket_ix] = \
+                            float(remaining_space) / count
+                    unbucketed_count -= remaining_space
+                    bucket_ix += 1
+                    bucket_mass = 0
+                    if bucket_ix >= len(bucket_masses) : break
+                    bucket_total_mass = bucket_masses[bucket_ix]
+                    remaining_space = bucket_total_mass
+                
+                bucket_mass += unbucketed_count
+                assert unbucketed_count >= 0
+                assert count >= 0
+                membership_probs[last_seen_ev][bucket_ix] = \
+                        float(unbucketed_count) / count
 
 
-#board = ['2h','3h','4h','5h','__']
-#board = ['Jd','Jh','8c','8d','__']
+                #print last_seen_ev, membership_probs[last_seen_ev]
+                last_seen_ev = ev
+                count = 1
+            else :
+                count += 1
+            
+            dflop_memprobs[collapsed_name] = membership_probs
 
-#board = ['2h','3h','4h','__','__']
-#board = ['2c','3c','4c','__','__']
-board = ['3c','8d','Jd','__','__']
-#board = ['Jd','Jh','8c','__','__']
-#board = ['Jd','Jh','8c','__','__']
+        fin.close()
+        #break
+    #print dflop_memprobs
+    fout = open("evdists/flop/membership_probs.txt",'w')
+    fout.write( json.dumps( dflop_memprobs ) )
+    fout.close()
 
-#print board
+def main() :
+    pass
 
-#print pocketEVs['5h,9d']
-#print pocketEVs['9d,5c']
-#break
+if __name__ == '__main__' :
+    #computeEVDists()
+    
+    dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             'turn' : 20, \
+             'river': 10 }
+    computeBuckets( 'flop', dmass['flop'] )
+    
+    #board = ['2h','3h','4h','5h','__']
+    #board = ['Jd','Jh','8c','8d','__']
+
+    #board = ['2h','3h','4h','__','__']
+    #board = ['2c','3c','4c','__','__']
+    board = ['3c','8d','Jd','__','__']
+    #board = ['Jd','Jh','8c','__','__']
+    #board = ['Jd','Jh','8c','__','__']
+
+    #print board
+
+    #print pocketEVs['5h,9d']
+    #print pocketEVs['9d,5c']
+    #break
 

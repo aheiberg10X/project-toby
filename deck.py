@@ -105,10 +105,13 @@ def collapsePocket( hole_cards ) :
                             suit) )
 
 def collapseBoard( board ) :
+    cardinalities = [getCardinality(c) for c in board]
+    cardinalities.sort()
+    num_cardinalities = len(set(cardinalities))
+    
+    suits = [getSuit(c) for c in board]
+    num_suits = len(set(suits))
     if len(board) == 3 :
-        cardinalities = [getCardinality(c) for c in board]
-        cardinalities.sort()
-        num_cardinalities = len(set(cardinalities))
         if   num_cardinalities == 1 : rcard = 't'
         elif num_cardinalities == 2 : rcard = 'p'
         else :
@@ -118,13 +121,10 @@ def collapseBoard( board ) :
                 rcard = 'h'
 
 
-        suits = [getSuit(c) for c in board]
-        num_suits = len(set(suits))
         if   num_suits == 1 : rsuit = '3f'
         elif num_suits == 2 : rsuit = '2f'
         else                : rsuit = 'r'
 
-        return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
         #s3f  3-Straight-Flush = 12
         #t    Trips = 13
         #s2f 3-Straight 2-flush = 12 * 3 = 36
@@ -135,18 +135,32 @@ def collapseBoard( board ) :
         #h2f  High-Card-Flops 2-flush: [c(13,3)-12] * 3 = 822
         #hr   High-Card-Flops Rainbow: [c(13,3)-12] = 274
     elif len(board) == 4 : pass
-    elif len(board) == 5 : pass
+    elif len(board) == 5 : 
+        if   num_cardinalities == 1 : pass
+        elif num_cardinalities == 2 : pass
+        elif num_cardinalities == 3 : pass 
+        elif num_cardinalities == 4 : pass 
+        elif num_cardinalities == 5 :
+            if cardinalities[0]+4 == \
+               cardinalities[1]+3 == \
+               cardinalities[2]+2 == \
+               cardinalities[3]+1 == \
+               cardinalities[4] :
+                rcard = 's'
+            else :
+                pass
+
+            if num_suits == 1 :
+                rsuit = '5f'
+            else :
+                pass
+
     else :
         pass
 
-def computeBuckets( street ) :
-    if street == 'flop' :
-        for flop_file in os.listdir( "evdists/flops" ) :
-            print flop_file
-        pass
-    elif street == 'turn' : pass
-    elif street == 'river' : pass
-    else : pass
+
+    return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
+
 #would be cool to stream possible hole card combinations given
 #our best guess at each players holding distribution.  
 
