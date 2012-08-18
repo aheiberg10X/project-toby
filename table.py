@@ -29,6 +29,8 @@ from deck import makeHuman
         #args[0].history.update( relevant_stuff, action )
     #return inner
 
+   
+
 class Table() :
     def __init__(self, num_seats) :
         self.num_seats = num_seats

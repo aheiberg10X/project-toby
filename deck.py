@@ -105,6 +105,7 @@ def collapsePocket( hole_cards ) :
                             suit) )
 
 def collapseBoard( board ) :
+    board = truncate(board)
     cardinalities = [getCardinality(c) for c in board]
     cardinalities.sort()
     num_cardinalities = len(set(cardinalities))
@@ -161,6 +162,16 @@ def collapseBoard( board ) :
 
     return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
 
+def getStreet( board ) :
+    num_unknown = sum([c == '__' for c in board])
+    if   num_unknown == 5 : return 'preflop'
+    elif num_unknown == 2 : return 'flop'
+    elif num_unknown == 1 : return 'turn'
+    elif num_unknown == 0 : return 'river'
+
+def truncate( board ) :
+    return board[0:board.index('__')]
+ 
 #would be cool to stream possible hole card combinations given
 #our best guess at each players holding distribution.  
 

@@ -1,5 +1,5 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseBoard
+from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate
 from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
@@ -41,12 +41,15 @@ side = 'hi'
 #plt.hist( x )
 #plt.show()
 
+def makeRound( EV ) :
+    return int( EV * 100 )
+
 def computeEVDists() :
 
     num_known_board = 3
     already_seen = {}
     for board in combinations( d.cards, num_known_board ) :
-        board = ['Td','Jd','Qd','Kd','Ad']
+        #board = ['Td','Jd','Qd','Kd','Ad']
         collapsed = collapseBoard( board )
         print collapsed
         if collapsed in already_seen : 
@@ -56,7 +59,7 @@ def computeEVDists() :
             pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
             x = []
             for pocket in pocketEVs :
-                x.append( int(pocketEVs[pocket]*100) )
+                x.append( makeRound( pocketEVs[pocket] ) )
             x.sort()
 
             #fout = open("evdists/%s.evdist" % collapsed, 'w')
@@ -76,45 +79,58 @@ def computeBuckets( street, bucket_percentages ) :
     #wtf <= works but not ==
     #assert sum(bucket_percentages) == 1.0
 
+    #TODO: 
+    #variable names hard coded for flop
+
     dflop_memprobs = {}
     for flop_file in listdir( "evdists/%s" % street) :
         print flop_file
 
-        collapsed_name,ext = flop_file.split('.')
-        if not ext == 'evdist' : break
+        if not flop_file.endswith('evdist') : break
+        collapsed_name = flop_file.split('.')[0]
 
         fin = open( "evdists/%s/%s" % (street, flop_file) )
         EVs = [int(ev) for ev in fin.read().strip().split(';')]
-        num_EVs = len(EVs)
-        bucket_masses = [int(round(bp*num_EVs)) for bp in bucket_percentages]
-        #print "bucket_masses", bucket_masses
-        EVs.append(-1)
+        fin.close()
 
+        num_EVs = len(EVs)
+        #how many EVs does each bucket get?
+        bucket_masses = [int(round(bp*num_EVs)) for bp in bucket_percentages]
+        print "sum bucket_masses", sum(bucket_masses), "num_EVs", num_EVs
+
+
+        #Info about the bucket we are currently filling
         bucket_ix = 0
         bucket_mass = 0
         bucket_total_mass = bucket_masses[bucket_ix]
-        
+       
+        #soft bucketing
         #EV : {bucket_ix : percentage}
         membership_probs = {}
 
+        #EVs come in sorted order from the file, so we read until we see
+        #a new value
         last_seen_ev = EVs[0]
+        #count up how many of a particular EV value we see
         count = 0 
+        #append a -1 so the last run of values gets processed
+        EVs.append(-1)
         for ev in EVs :
             if not ev == last_seen_ev :
                 unbucketed_count = count
                 remaining_space = bucket_total_mass - bucket_mass
                 membership_probs[last_seen_ev] = {}
-                #print "unbucketed count", unbucketed_count
-                #print "remaining_space", remaining_space
 
+                #if we can't fit the unbucketed EVs in the current bucket
+                #fill it up and increment to the next bucket
+                #rinse repeat
                 while remaining_space < unbucketed_count :
-                    #print "unbucketed count", unbucketed_count
-                    #print "remaining_space", remaining_space
-                    assert remaining_space >= 0
-                    assert count >= 0
+                    #fill up current bucket rest of the way
                     membership_probs[last_seen_ev][bucket_ix] = \
                             float(remaining_space) / count
                     unbucketed_count -= remaining_space
+
+                    #start in on new bucket
                     bucket_ix += 1
                     bucket_mass = 0
                     if bucket_ix >= len(bucket_masses) : break
@@ -122,13 +138,10 @@ def computeBuckets( street, bucket_percentages ) :
                     remaining_space = bucket_total_mass
                 
                 bucket_mass += unbucketed_count
-                assert unbucketed_count >= 0
-                assert count >= 0
                 membership_probs[last_seen_ev][bucket_ix] = \
                         float(unbucketed_count) / count
 
-
-                #print last_seen_ev, membership_probs[last_seen_ev]
+                print last_seen_ev, membership_probs[last_seen_ev]
                 last_seen_ev = ev
                 count = 1
             else :
@@ -136,12 +149,38 @@ def computeBuckets( street, bucket_percentages ) :
             
             dflop_memprobs[collapsed_name] = membership_probs
 
-        fin.close()
-        #break
+        print "bucket counts", bucket_counts, "sum", sum(bucket_counts)
+        print "num EVs bucketed:", tcount
+        break
     #print dflop_memprobs
     fout = open("evdists/flop/membership_probs.txt",'w')
     fout.write( json.dumps( dflop_memprobs ) )
     fout.close()
+
+    
+flop_bucket_map = {}
+def bucketPocket( pocket, board ) :
+    global flop_bucket_map
+
+    collapsed = collapseBoard( board )
+    EV = makeRound( rollout.computeEV( pocket, board ) )
+    street = getStreet( board )
+    if street == 'flop' :
+        if not flop_bucket_map :
+            fflop = open("evdists/flop/membership_probs.txt")
+            flop_bucket_map = json.loads( fflop.read() )
+            fflop.close()
+        memberships = flop_bucket_map[collapsed]
+        keys = memberships.keys()
+        keys.sort()
+        for k in keys :
+            print k, memberships[k]
+        #TODO:
+        #right, so what do we do with the membership probs?
+        #the idea is to reduce the complexity, having another float 
+    else :
+        pass
+
 
 def main() :
     pass
@@ -153,6 +192,8 @@ if __name__ == '__main__' :
              'turn' : 20, \
              'river': 10 }
     computeBuckets( 'flop', dmass['flop'] )
+
+    #print bucketPocket( ['Ah','7d'], ['Ad','7h','8c','__','__'] )
     
     #board = ['2h','3h','4h','5h','__']
     #board = ['Jd','Jh','8c','8d','__']
