@@ -7,6 +7,9 @@ import globles
 
 pe = pokereval.PokerEval()
 
+def computeEV( pocket, board ) :
+    return computeEVs( [pocket], board, 2 )[canonical(pocket)]
+
 #take what information is known and return the EV's of all possible pockets
 #first create an iter of all combinations of pockets
 #apply rolloutPocketAssignment to each one

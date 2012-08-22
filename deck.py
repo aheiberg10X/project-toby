@@ -36,7 +36,7 @@ def getSuit( card ) :
     else :
         assert "go" == "fuck yourself"
 
-#convenience
+#take integers and output card string
 def makeHuman( cards ) :
     #if already in right format, leave alone
     if type(cards[0]) == str : return cards
@@ -48,6 +48,7 @@ def makeHuman( cards ) :
             r.append( pe.card2string(c) )
     return r
 
+#take strings and output card number
 def makeMachine( cards ) :
     #if already in right format, leave alone
     if type(cards[0]) == int : return cards
@@ -104,27 +105,86 @@ def collapsePocket( hole_cards ) :
                             stringifyCardinality(c2),
                             suit) )
 
+#TODO
+#To be continued???
+#def numPocketsMakeStraight( sorted_cardinalities ) :
+    #values = []
+    #counts = {}
+    #l = len(sorted_cardinalities)
+    #max_count = 0
+    #max_value = -1
+    #for i,c in enumerate(sorted_cardinalities) :
+        #v = c+l-i
+        #if v in counts :
+            #counts[v] += 1
+        #else :
+            #counts[v] = 1
+        #if counts[v] >= max_count :
+            #max_count = counts[v]
+            #max_value = v
+        #values.append( v )
+#
+    #print max_value
+    #print max_count
+#
+    ##put a hole on the beginning and end
+    #holes = [0]*2 + map( lambda x : x == max_value, values ) + [0]*2
+
+
+def isStraight( sorted_cardinalities ) :
+    if sorted_cardinalities[-1] == 14 :
+        if isStraight( [1] + sorted_cardinalities[0:-1] ) :
+            return True
+      
+    value = -1
+    l = len(sorted_cardinalities) - 1
+    for i,c in enumerate(sorted_cardinalities) :
+        i = l - i
+        if value == -1 :
+            value = i+c
+        else :
+            if not i+c == value : return False
+    return True
+
+#def flushString( suits ) :
+    #l = len(suits)
+    #combinations( range(l), 
+
+
 def collapseBoard( board ) :
+    board = truncate(board)
+    board = sorted(board, key=lambda c : getCardinality(c))
+
+    cardinalities = [getCardinality(c) for c in board]
+    card_counts = {}
+    for c in cardinalities :
+        if c in card_counts :
+            card_counts[c] += 1
+        else :
+            card_counts[c] = 1
+    #cardinalities.sort()
+    num_cardinalities = len(card_counts.keys()) #set(cardinalities))
+    
+    suits = [getSuit(c) for c in board]
+    num_suits = len(set(suits))
     if len(board) == 3 :
-        cardinalities = [getCardinality(c) for c in board]
-        cardinalities.sort()
-        num_cardinalities = len(set(cardinalities))
         if   num_cardinalities == 1 : rcard = 't'
         elif num_cardinalities == 2 : rcard = 'p'
         else :
-            if cardinalities[0] + 2 == cardinalities[1] + 1 == cardinalities[2] :
-                rcard = 's'
-            else :
-                rcard = 'h'
+            if isStraight(cardinalities) : rcard = 's'
+            else :                         rcard = 'h'
 
-
-        suits = [getSuit(c) for c in board]
-        num_suits = len(set(suits))
         if   num_suits == 1 : rsuit = '3f'
-        elif num_suits == 2 : rsuit = '2f'
+        elif num_suits == 2 : 
+            if rcard == 'p' :
+                rsuit = '2f'
+            else :
+                if   suits[0] == suits[1] : rsuit = '2fxxo'
+                elif suits[0] == suits[2] : rsuit = '2fxox'
+                elif suits[1] == suits[2] : rsuit = '2foxx'
+                else : assert False
         else                : rsuit = 'r'
 
-        return "%s%s%s" % (''.join([str(c) for c in cardinalities]), rcard, rsuit)
         #s3f  3-Straight-Flush = 12
         #t    Trips = 13
         #s2f 3-Straight 2-flush = 12 * 3 = 36
@@ -134,19 +194,117 @@ def collapseBoard( board ) :
         #p2f  Paired 2-flush = 13 * 12 = 156
         #h2f  High-Card-Flops 2-flush: [c(13,3)-12] * 3 = 822
         #hr   High-Card-Flops Rainbow: [c(13,3)-12] = 274
-    elif len(board) == 4 : pass
-    elif len(board) == 5 : pass
+    elif len(board) == 4 : 
+        if   num_cardinalities == 1 : rcard = 'q'
+        elif num_cardinalities == 2 : 
+            counts = list(card_counts.values())
+            if counts[0] == counts[1] == 2 :
+                rcard = '2p'
+            else :
+                rcard = 't'
+        elif num_cardinalities == 3 :
+            rcard = 'p'
+        else :
+            if isStraight(cardinalities) : rcard = 's'
+            else :                         rcard = 'h'
+
+        if   num_suits == 1 : rsuit = '4f'
+        elif num_suits == 2 : 
+            #impossible with: quads, trips
+            if rcard == 'p' :
+                rsuit = '3f'
+            elif rcard == '2p' :
+                rsuit = '22f'
+            elif rcard == 'h' or rcard == 's' : 
+                if   suits[0] == suits[1] == suits[2] : rsuit = '3fxxxo'
+                elif suits[0] == suits[1] == suits[3] : rsuit = '3fxxox'
+                elif suits[0] == suits[2] == suits[3] : rsuit = '3fxoxx'
+                elif suits[1] == suits[2] == suits[3] : rsuit = '3foxxx'
+                elif suits[0] == suits[1] and suits[2] == suits[3] :
+                    rsuit = '22fxxoo'
+                elif suits[0] == suits[2] and suits[1] == suits[3] :
+                    rsuit = '22fxoxo'
+                elif suits[0] == suits[3] and suits[1] == suits[2] :
+                    rsuit = '22fxoox'
+                else :
+                    print suits
+                    assert False
+            else :
+                print rcard
+                assert False
+        elif num_suits == 3 :
+            if rcard == 'p' or rcard == 'h' or rcard == 's' :
+                if   suits[0] == suits[1] : temp = 'xxoo'
+                elif suits[0] == suits[2] : temp = 'xoxo'
+                elif suits[0] == suits[3] : temp = 'xoox'
+                elif suits[1] == suits[2] : temp = 'oxxo'
+                elif suits[1] == suits[3] : temp = 'oxox'
+                elif suits[2] == suits[3] : temp = 'ooxx'
+                else : assert False
+
+                if rcard == 'p' :
+                    for c in card_counts :
+                        if card_counts[c] == 2 :
+                            ix = cardinalities.index(c)
+                    sub = temp[ix:ix+2]
+                    if sub == 'ox' or sub == 'xo' :
+                        temp = temp[:ix] + 'x' + temp[ix+2:]
+                    elif sub == 'oo' :
+                        temp = temp[:ix] + 'o' + temp[ix+2:]
+                    else :
+                        assert False
+
+                rsuit = '2f' + temp
+
+            elif rcard == '2p' :
+                rsuit = '2f'
+            elif rcard == 't' :
+                rsuit = '2f'
+            elif rcard == 'h' :
+                pass
+            else : 
+                print rcard
+                assert False
+        else                : rsuit = 'r'
+
+    elif len(board) == 5 : 
+        if   num_cardinalities == 1 : pass
+        elif num_cardinalities == 2 : pass
+        elif num_cardinalities == 3 : pass 
+        elif num_cardinalities == 4 : pass 
+        elif num_cardinalities == 5 :
+            if cardinalities[0]+4 == \
+               cardinalities[1]+3 == \
+               cardinalities[2]+2 == \
+               cardinalities[3]+1 == \
+               cardinalities[4] :
+                rcard = 's'
+            else :
+                pass
+
+            if num_suits == 1 :
+                rsuit = '5f'
+            else :
+                pass
     else :
         pass
 
-def computeBuckets( street ) :
-    if street == 'flop' :
-        for flop_file in os.listdir( "evdists/flops" ) :
-            print flop_file
-        pass
-    elif street == 'turn' : pass
-    elif street == 'river' : pass
-    else : pass
+    crdnlts = ''.join([stringifyCardinality(c) for c in cardinalities])
+    return "%s_%s_%s" % (crdnlts, rcard, rsuit)
+
+def getStreet( board ) :
+    num_unknown = sum([c == '__' for c in board])
+    if   num_unknown == 5 : return 'preflop'
+    elif num_unknown == 2 : return 'flop'
+    elif num_unknown == 1 : return 'turn'
+    elif num_unknown == 0 : return 'river'
+
+def truncate( board ) :
+    try :
+        return board[0:board.index('__')]
+    except ValueError :
+        return board
+ 
 #would be cool to stream possible hole card combinations given
 #our best guess at each players holding distribution.  
 
@@ -184,14 +342,14 @@ class Deck:
         #return tuple( humancards[s] for s in selections )    
 
 def main() :
-    d = Deck()
-    d.remove([1,2,3])
-    d.remove([4,1])
-
-    print collapsePocket([25,51])
-    print makeMachine(['2h','As'])
-
-    print collapseFlop(['2d','3d','4d'])
+    #d = Deck()
+    #d.remove([1,2,3])
+    #d.remove([4,1])
+#
+    #print collapsePocket([25,51])
+    #print makeMachine(['2h','As'])
+    #print numPocketsMakeStraight([10,13,14])
+    print collapseBoard(['2d','3c','3d','Jh'])
 
 if __name__ == '__main__' :
     main()

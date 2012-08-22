@@ -29,12 +29,15 @@ from deck import makeHuman
         #args[0].history.update( relevant_stuff, action )
     #return inner
 
+   
+
 class Table() :
-    def __init__(self, num_seats) :
+    def __init__(self, num_seats, small_blind=1) :
         self.num_seats = num_seats
         self.num_players = 0
+        self.small_blind = small_blind
 
-        #order is relevant
+        #store Player() objects in their relative order 
         self.players = [Player(NA)]*num_seats
         self.player_names = [p.name for p in self.players]
         
@@ -42,7 +45,9 @@ class Table() :
         self.history = History()
         self.reset()
 
-    def reset(self) :
+    #TODO:
+    #should be named newHand() ?
+    def newHand(self) :
         
         self.advanceButton()
         self.hole_cards = [[FOLDED]*POCKET_SIZE]*self.num_seats
@@ -52,11 +57,8 @@ class Table() :
         self.side_pot = {}
         self.board = [WILDCARD]*5
         
-        #-1: initialized.  Players need to be added, cards need to be dealt
-        #0:preflop, 1:flop, 2:turn, 3:river
         self.streets = iter( STREET_NAMES )
         self.street = self.streets.next()
-
 
     def registerAction( self, player_ix, action, amount=0 ) :
         if action == 'k' :
@@ -81,24 +83,26 @@ class Table() :
 
     #TODO:
     #side-potting?
+    #track burned cards
     def advanceStreet( self, cards ) :
-        print "advanceStreet cards: ", cards
+        #add the last rounds bets to the pot
         self.pot += sum(self.current_bets)
+        #reset
         self.current_bets = [0]*self.num_seats
+
         if self.street == "undealt" :
+            #deal out the hole cards
             cards = iter(cards)
             for pix in range(self.num_seats) :
                 if not self.chairEmpty(pix) :
                     self.hole_cards[pix] = cards.next()
-                    print type(self.hole_cards[pix][0])
-                    
-           
+        
             human_hole_cards = [makeHuman(hc) for hc in self.hole_cards]
             self.history.newHand(self.player_names, human_hole_cards)
 
         elif self.street == "preflop" : self.board[:3] = cards
-        elif self.street == "flop" : self.board[3] = cards[0]
-        elif self.street == "turn" : self.board[4] = cards[0]
+        elif self.street == "flop"    : self.board[3]  = cards[0]
+        elif self.street == "turn"    : self.board[4]  = cards[0]
 
         self.street = self.streets.next()
         

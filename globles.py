@@ -1,7 +1,8 @@
 EVALUATOR = "pokereval"
 GAME = 'holdem'
 NA = 'xx'
-STREET_NAMES = ["undealt","preflop","flop","turn","river"]
+if GAME == 'holdem' or GAME == 'omaha' :
+    STREET_NAMES = ["undealt","preflop","flop","turn","river"]
 
 if GAME == 'holdem' :
     POCKET_SIZE = 2
