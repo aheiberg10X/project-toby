@@ -14,23 +14,6 @@ d = Deck()
 game = 'holdem'
 side = 'hi'
 
-#TODO
-#so the EV distributions for different flops/turns/rivers are very different
-#what we need to do is:
-    #pick the number of buckets and what percentage of holdings go in each them
-    #then for each flop EV dist figure out where the partition boundaries lie
-#but first need to compute the EV dist for all collapsed flops
-#so first need to collapse flops and way to iterate through all of them
-#    just maintain dict of previously seen collapsed ____'s? ignore the rest
-#    can just use the first flop representing a category, things are symm
-#    i.e hold cardinality equal.  
-#           one pocket that benefits from suit (A), one that doesn't (B)
-#    The EV(B) will be the EV(A) when you symm change the suit of the flop
-
-#One thing we are not considering is the two to a flush combinations
-#3d8dJh has slightly diff dist from 3h8dJd, but we treat them as same
-#hopefully not a huge deal, will save space and time
-
 #board = ['2c','3c','Td','__','__']
 #print board
 #pocket1 = ['4c','8c']
@@ -44,14 +27,10 @@ side = 'hi'
 def makeRound( EV ) :
     return int( EV * 100 )
 
-def computeEVDists() :
-
-    num_known_board = 3
+def computeEVDists(num_known_board=4) :
     already_seen = {}
     for board in combinations( d.cards, num_known_board ) :
-        #board = ['Td','Jd','Qd','Kd','Ad']
         collapsed = collapseBoard( board )
-        print collapsed
         if collapsed in already_seen : 
             continue
         else :
@@ -62,17 +41,18 @@ def computeEVDists() :
                 x.append( makeRound( pocketEVs[pocket] ) )
             x.sort()
 
-            #fout = open("evdists/%s.evdist" % collapsed, 'w')
-            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            #fout.close()
+            fout = open("evdists/%s.evdist" % collapsed, 'w')
+            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            fout.close()
 
-            plt.hist(x,100)
-            #plt.savefig("evdists/%s_evdist.png" % collapsed)
-            plt.show()
-
+            #plt.hist(x,100)
+            ##plt.savefig("evdists/%s_evdist.png" % collapsed)
+            #plt.show()
             already_seen[collapsed] = True
-        print "breaking"
-        break
+
+        #print "breaking"
+        #break
+
 
 def computeBuckets( street, bucket_percentages ) :
     assert int(sum(bucket_percentages)) == 1 
@@ -185,12 +165,12 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    #computeEVDists()
+    computeEVDists()
     
-    dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             'turn' : 20, \
-             'river': 10 }
-    computeBuckets( 'flop', dmass['flop'] )
+    #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             #'turn' : 20, \
+             #'river': 10 }
+    #computeBuckets( 'flop', dmass['flop'] )
 
     #print bucketPocket( ['Ah','7d'], ['Ad','7h','8c','__','__'] )
     
