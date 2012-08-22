@@ -24,6 +24,113 @@ side = 'hi'
 #plt.hist( x )
 #plt.show()
 
+def isLegal( action, outstanding ) :
+    if outstanding == 'r' or outstanding == 'b' :
+        return action == 'f' or \
+               action == 'c' or \
+               action == 'r'
+    elif outstanding == 'k' :
+        return not action == 'r' and \
+               not action == 'c' and \
+               not action == 'f'
+    else :
+        print "outstanding: ",outstanding
+        return False
+
+def isTerminal( stack, num_players ) :
+    if len(stack) >= num_players :
+        if all([a == 'k' for a in stack[-num_players:]]) :
+            return True
+        elif all([a == 'c' or a == 'f' for a in stack[-num_players+1:]]) :
+            return True
+        else :
+            return False
+    else :
+        return False
+
+#a heavily modified DFS thru iteration
+def iteratePossibleActions( num_players, max_rounds, button, player_ix ) :
+    actions = ['f','k','c','b','r']
+    final_actions = ['f','k','c']
+    stack = []
+    iters = []
+    #virtual_player % num_players represents the player in some round
+    #there are only max rounds where players are free to act (i.e keep raising)
+    #the final round players must finally decide on a terminal action
+    num_virtual = num_players * (max_rounds + 1)
+    folded = [False]*num_virtual
+    print "hello"
+    for player in range(num_virtual) :
+        if player >= num_virtual - num_players :
+            iters.append( iter(final_actions) )
+        else :
+            iters.append( iter(actions) )
+
+    #(virtual) player index
+    pix = 0
+    last_to_act = -1
+    #the action each player must deal with
+    outstanding = ['k']*num_virtual
+    while True :
+        try :
+            #print "\n\n",pix, stack#, folded
+
+            #if this player just gave an action and must do so again
+            if last_to_act == pix :
+                stack.pop()
+                #if folded and past self folded, nothing more to do
+                if folded[pix] and folded[pix-num_players] :
+                    folded[pix] = False
+                    raise StopIteration
+            
+            #past self folded, so must fold
+            if folded[pix-num_players] :
+                next_action = 'f'
+            #else get new valid action
+            else :
+                next_action = iters[pix].next()
+                while not isLegal(next_action, outstanding[pix]) :
+                    next_action = iters[pix].next()
+
+            stack.append( next_action )
+            folded[pix] = next_action == 'f'
+            last_to_act = pix
+
+            #if the action terminates the betting we dont care
+            if isTerminal( stack, num_players ) :
+                continue
+
+            #if not the last player, set the next player's outstanding action
+            #and make it so next player must act next time thru loop
+            if pix < num_virtual-1 : 
+                if next_action == 'b' or \
+                   next_action == 'r' or \
+                   next_action == 'k' :
+                    outstanding[pix+1] = next_action
+                else :
+                    outstanding[pix+1] = outstanding[pix]
+
+                pix += 1
+                #if next player is the one we are interested in, 
+                #return the decision history up until this point
+                if pix % num_players == player_ix :
+                    yield stack
+
+        #if a player runs out of moves, refill his moves and jump back to 
+        #the previous player
+        except StopIteration :
+            if pix == 0 : break
+            else :
+                #print "pix refilling", pix
+                if pix >= num_virtual - num_players :
+                    iters[pix] = iter(final_actions) 
+                else :
+                    iters[pix] = iter(actions)
+                last_to_act = pix-1
+                pix -= 1
+
+
+
 def makeRound( EV ) :
     return int( EV * 100 )
 
@@ -165,7 +272,12 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    computeEVDists()
+    for decision_stack in iteratePossibleActions( num_players=3, \
+                                                  max_rounds=2, \
+                                                  button=0, \
+                                                  player_ix=2) :
+        print decision_stack
+    #computeEVDists()
     
     #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
              #'turn' : 20, \
