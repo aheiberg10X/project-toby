@@ -349,7 +349,7 @@ def main() :
     #print collapsePocket([25,51])
     #print makeMachine(['2h','As'])
     #print numPocketsMakeStraight([10,13,14])
-    print collapseBoard(['2d','3c','3d','Jh'])
+    print collapseBoard(['3d','7c','7s','7h'])
 
 if __name__ == '__main__' :
     main()

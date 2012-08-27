@@ -4,6 +4,7 @@ from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
 from os import listdir
+from os.path import exists
 import json
 
 num_buckets = 20
@@ -25,19 +26,20 @@ side = 'hi'
 #plt.show()
 
 def isLegal( action, outstanding ) :
-    if outstanding == 'r' or outstanding == 'b' :
+    if outstanding.startswith('r') or outstanding == 'b' :
         return action == 'f' or \
                action == 'c' or \
-               action == 'r'
+               action.startswith('r')
     elif outstanding == 'k' :
-        return not action == 'r' and \
+        return not action.startswith('r') and \
                not action == 'c' and \
                not action == 'f'
     else :
         print "outstanding: ",outstanding
         return False
 
-def isTerminal( stack, num_players ) :
+def isTerminal( stack, num_players, pix ) :
+    if stack[pix] == 'f' : return True
     if len(stack) >= num_players :
         if all([a == 'k' for a in stack[-num_players:]]) :
             return True
@@ -48,63 +50,77 @@ def isTerminal( stack, num_players ) :
     else :
         return False
 
+def isFolded( stack, pix, num_players ) :
+    if 0 <= pix-num_players < len(stack) :
+        return stack[pix-num_players] == 'f'
+    else :
+        return False
+
 #a heavily modified DFS thru iteration
-def iteratePossibleActions( num_players, max_rounds, button, player_ix ) :
-    actions = ['f','k','c','b','r']
+def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
+    #actions available to players
+    actions = ['f','k','c','b','r1-2p','r1p','r3-2p','r2p']
     final_actions = ['f','k','c']
+
+    #the actions taken by the players
     stack = []
-    iters = []
+
     #virtual_player % num_players represents the player in some round
     #there are only max rounds where players are free to act (i.e keep raising)
-    #the final round players must finally decide on a terminal action
+    #the final round players must only choose from final_actions 
     num_virtual = num_players * (max_rounds + 1)
-    folded = [False]*num_virtual
-    print "hello"
-    for player in range(num_virtual) :
-        if player >= num_virtual - num_players :
-            iters.append( iter(final_actions) )
+    
+    #for each player, hold an iterator of actions
+    actions_iters = [42]*num_virtual
+
+    #refill the action iters based on the betting round they belong to
+    def refill( pix ) :
+        if pix >= num_virtual - num_players :
+            actions_iters[pix] = iter(final_actions)
         else :
-            iters.append( iter(actions) )
+            actions_iters[pix] = iter(actions)
+
+    [refill(pix) for pix in range(num_virtual)]
 
     #(virtual) player index
     pix = 0
     last_to_act = -1
-    #the action each player must deal with
+ 
+    #the action each player must base their next off of
     outstanding = ['k']*num_virtual
+
     while True :
         try :
-            #print "\n\n",pix, stack#, folded
-
             #if this player just gave an action and must do so again
             if last_to_act == pix :
                 stack.pop()
-                #if folded and past self folded, nothing more to do
-                if folded[pix] and folded[pix-num_players] :
-                    folded[pix] = False
+                #if I just acted, and my previous self folded, I am 
+                #all out of options
+                if isFolded(stack,pix,num_players ) : 
                     raise StopIteration
             
-            #past self folded, so must fold
-            if folded[pix-num_players] :
+            if isFolded(stack,pix,num_players) : 
                 next_action = 'f'
             #else get new valid action
             else :
-                next_action = iters[pix].next()
+                next_action = actions_iters[pix].next()
                 while not isLegal(next_action, outstanding[pix]) :
-                    next_action = iters[pix].next()
+                    next_action = actions_iters[pix].next()
 
             stack.append( next_action )
-            folded[pix] = next_action == 'f'
+            #print "\n\n",pix, stack 
+
             last_to_act = pix
 
             #if the action terminates the betting we dont care
-            if isTerminal( stack, num_players ) :
+            if isTerminal( stack, num_players, pix ) :
                 continue
 
             #if not the last player, set the next player's outstanding action
             #and make it so next player must act next time thru loop
             if pix < num_virtual-1 : 
                 if next_action == 'b' or \
-                   next_action == 'r' or \
+                   next_action.startswith('r') or \
                    next_action == 'k' :
                     outstanding[pix+1] = next_action
                 else :
@@ -121,11 +137,7 @@ def iteratePossibleActions( num_players, max_rounds, button, player_ix ) :
         except StopIteration :
             if pix == 0 : break
             else :
-                #print "pix refilling", pix
-                if pix >= num_virtual - num_players :
-                    iters[pix] = iter(final_actions) 
-                else :
-                    iters[pix] = iter(actions)
+                refill(pix)
                 last_to_act = pix-1
                 pix -= 1
 
@@ -136,29 +148,46 @@ def makeRound( EV ) :
 
 def computeEVDists(num_known_board=4) :
     already_seen = {}
+    count = 0
+    
+    if num_known_board == 3 : street = 'flops'
+    elif num_known_board == 4 : street = 'turns'
+    elif num_known_board == 5 : street = 'rivers'
+    else : assert False
+
     for board in combinations( d.cards, num_known_board ) :
         collapsed = collapseBoard( board )
-        if collapsed in already_seen : 
+        path = "evdists/%s/%s.evdist" % (street,collapsed)
+        if collapsed in already_seen or exists(path) : 
             continue
         else :
-            board = makeHuman(board) + ['__']*(5-num_known_board)
-            pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
-            x = []
-            for pocket in pocketEVs :
-                x.append( makeRound( pocketEVs[pocket] ) )
-            x.sort()
+            print count, collapsed
+            count += 1
+            #board = makeHuman(board) + ['__']*(5-num_known_board)
+            #pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
+            #x = []
+            #for pocket in pocketEVs :
+                #x.append( makeRound( pocketEVs[pocket] ) )
+            #x.sort()
+#
+            #fout = open(path, 'w')
+            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            #fout.close()
 
-            fout = open("evdists/%s.evdist" % collapsed, 'w')
-            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            fout.close()
-
-            #plt.hist(x,100)
-            ##plt.savefig("evdists/%s_evdist.png" % collapsed)
-            #plt.show()
             already_seen[collapsed] = True
 
         #print "breaking"
         #break
+
+def visualizeEVDist( filepath, buckets=40 ) :
+    path,filename = filepath.rsplit('/',1)
+    name,ext = filename.rsplit('.',1)
+    x = [int(n) for n in open(filepath).read().strip().split(';')]
+    #TODO:
+    #make ranges all 0-100
+    plt.hist(x,buckets)
+    plt.savefig("%s/%s.png" % (path,name) )
+    plt.clf()
 
 
 def computeBuckets( street, bucket_percentages ) :
@@ -272,12 +301,23 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    for decision_stack in iteratePossibleActions( num_players=3, \
-                                                  max_rounds=2, \
-                                                  button=0, \
-                                                  player_ix=2) :
-        print decision_stack
-    #computeEVDists()
+    #count = 0
+    #for decision_stack in iterateDecisionPoints ( num_players=2, \
+                                                  #max_rounds=2, \
+                                                  #button=0, \
+                                                  #player_ix=0) :
+        #print decision_stack
+        #count += 1
+    #print count
+    #for listing in listdir("evdists" ) :
+        #if listing.endswith("evdist") :
+            #visualizeEVDist( "evdists/%s" % listing )
+    
+    #visualizeEVDist( "evdists/37TQ_h_3fxxox.evdist" )
+    #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
+    #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
+
+    computeEVDists()
     
     #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
              #'turn' : 20, \
