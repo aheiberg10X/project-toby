@@ -15,7 +15,7 @@ DOMAIN_NAME = 'TEST'
 
 if   DOMAIN_NAME == 'TEST'  :  DOMAIN = MCTS_Test()
 elif DOMAIN_NAME == 'POKER' :  DOMAIN = MCTS_Poker()
-elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go()
+elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(9)
 
 
 #########################################################################
@@ -33,14 +33,15 @@ class Node :
         #auto mark the root
         if not self.parent :
             self.marked = True
-            self.state = DOMAIN.root_state 
+            #self.state = DOMAIN.root_state 
         else :
-            self.state = DOMAIN.applyAction( getState(parent), action )
+            #self.state = DOMAIN.applyAction( getState(parent), action )
             self.marked = False
 
     def __str__(self) :
-        derp = "State:" + str(self.state) + \
-               " Marked:" + str(self.marked)
+        #derp = "State:" + str(getState(self))+ \
+               #" Marked:" + str(self.marked)
+        derp = " Marked: " + str(self.marked)
         return derp
 #########################################################################
 ##### Interface to DATA REP
@@ -65,7 +66,11 @@ def setVisitCount( node, vc ) :
     node.visit_count = vc
 
 def getState( node ) :
-    return node.state
+    if not node.parent :
+        return DOMAIN.getRootState()
+    else :
+        return DOMAIN.applyAction( getState(node.parent), node.action )
+    #return node.state
 
 def getChildren( node ) :
     return node.children.values()
@@ -84,17 +89,18 @@ def isMarked( node ) :
 #########  CORE
 ########################################################################
 
-def uctsearch( state ) :
+def uctsearch( root_state ) :
     root = createNode( parent=False, action=False )
     node = root
 
     time_left = True
     count = 0
-    while count < 40000 :
+    #print "root_state", root_state
+    while count < 1000 :
         #print "\n====================================================="
         #print "uctsearch iteration %d" % count
-        node = treePolicy( root )
-        rewards = defaultPolicy( getState(node) )
+        node,state = treePolicy( root, DOMAIN.copyState(root_state) )
+        rewards = defaultPolicy( state ) #getState(node) )
         #print "rewards:", rewards
         backprop( node, rewards )
         #print "root", root
@@ -104,29 +110,39 @@ def uctsearch( state ) :
         child = root.children[action]
         print "Action: ", action, "Total Rewards, Visit Count", getTotalRewards(child), getVisitCount(child)
 
-    return getAction( bestChild( root, 0 ) )
+    bnode, bstate = bestChild( root, root_state, 0 )
+    return getAction( bnode )
 
-def treePolicy( node ) :
-    while isMarked( node ) and not DOMAIN.isTerminal( getState(node) ) :
-        num_poss_actions = len( DOMAIN.getAllowableActions( getState(node) ) )
+#in the final implementation won't need to associate a state with each node
+#can just build it each time from the root
+#TODO all the getState calls here are wasteful
+def treePolicy( node, state ) :
+    #print "tp, incoming state", state
+    while isMarked( node ) and not DOMAIN.isTerminal( state ) : 
+        num_poss_actions = len( DOMAIN.getAllowableActions( state ) ) 
         num_children = len( getChildren(node) )
         assert num_children <= num_poss_actions
         fully_expanded = num_children == num_poss_actions
 
         if not fully_expanded :
-            node = expand(node)
+            node,state = expand(node,state)
         else :
-            node = bestChild( node, Cp )
+            node,state = bestChild( node, state, Cp )
+        #print "Chosen:", node, state
     mark( node )
-    return node
+    #print "tp, outgoing state: ", state
+    return [node,state]
 
-def expand( parent ) :
+#updates state
+def expand( parent, pstate ) :
     tried = set(parent.children.keys())
-    possible = set(DOMAIN.getAllowableActions( getState(parent) ))
+    possible = set(DOMAIN.getAllowableActions( pstate ) )#getState(parent) ))
     action = choice( list(possible-tried) ) 
-    return createNode( parent, action )
+    node = createNode( parent, action )
+    DOMAIN.applyAction( pstate, action )
+    return [node,pstate]
 
-def bestChild( parent, c, player_ix=0 ) :
+def bestChild( parent, pstate, c, player_ix=0 ) :
     scores = []
     children = getChildren(parent)
     for child in children :
@@ -138,11 +154,14 @@ def bestChild( parent, c, player_ix=0 ) :
         scores.append( exploitation + exploration )
 
     m = max(scores)
-    return children[scores.index(m)]
+    ix = scores.index(m)
+    node = children[ix]
+    DOMAIN.applyAction( pstate, node.action )
+    return [node,pstate]
 
 def defaultPolicy( state ) :
     while not DOMAIN.isTerminal(state) :
-        state = DOMAIN.applyAction( state, DOMAIN.chooseAction(state) )
+        DOMAIN.applyAction( state, DOMAIN.chooseAction(state) )
     
     return DOMAIN.getRewards( state )
 
@@ -163,7 +182,7 @@ def applySum( a,b ) :
 
 def main() :
     action = uctsearch([])
-    print action
+    #print action
 
 if __name__ == '__main__' :
     main()

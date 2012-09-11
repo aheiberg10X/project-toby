@@ -3,7 +3,12 @@ from random import choice
 class MCTS_Test :
     def __init__(self) :
         self.actions = ['a','b','c']
-        self.root_state = []
+
+    def getRootState(self) :
+        return []
+
+    def copyState(self,state) :
+        return list(state)
 
     def getAllowableActions( self, state ) :
         if len(state) == 0 :
@@ -18,7 +23,8 @@ class MCTS_Test :
             else : assert False
 
     def applyAction( self, state, action ) :
-        return state + [action]
+        state.append(action)
+        #return state + [action]
 
     def getRewards( self, state ) :
         return [ sum([elem == 'b' for elem in state]) ]
