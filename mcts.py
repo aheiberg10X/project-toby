@@ -31,16 +31,9 @@ class Node :
         self.action = action
 
         #auto mark the root
-        if not self.parent :
-            self.marked = True
-            #self.state = DOMAIN.root_state 
-        else :
-            #self.state = DOMAIN.applyAction( getState(parent), action )
-            self.marked = False
+        self.marked = not self.parent
 
     def __str__(self) :
-        #derp = "State:" + str(getState(self))+ \
-               #" Marked:" + str(self.marked)
         derp = " Marked: " + str(self.marked)
         return derp
 #########################################################################
@@ -161,7 +154,7 @@ def bestChild( parent, pstate, c, player_ix=0 ) :
 
 def defaultPolicy( state ) :
     while not DOMAIN.isTerminal(state) :
-        DOMAIN.applyAction( state, DOMAIN.chooseAction(state) )
+        DOMAIN.applyAction( state, DOMAIN.randomAction(state) )
     
     return DOMAIN.getRewards( state )
 

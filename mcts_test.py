@@ -29,7 +29,7 @@ class MCTS_Test :
     def getRewards( self, state ) :
         return [ sum([elem == 'b' for elem in state]) ]
 
-    def chooseAction( self, state ) :
+    def returnAction( self, state ) :
         return choice( self.getAllowableActions( state ) )
 
     def isTerminal( self, state ) :

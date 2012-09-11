@@ -268,24 +268,48 @@ def collapseBoard( board ) :
         else                : rsuit = 'r'
 
     elif len(board) == 5 : 
-        if   num_cardinalities == 1 : pass
-        elif num_cardinalities == 2 : pass
-        elif num_cardinalities == 3 : pass 
-        elif num_cardinalities == 4 : pass 
+        if   num_cardinalities == 1 : 
+            assert False
+        elif num_cardinalities == 2 : 
+            if max( card_counts.values() ) == 3 :
+                rcard = 'b'#oat
+            else :
+                rcard = 'q'
+        elif num_cardinalities == 3 : 
+            if max( card_counts.values() ) == 2 :
+                rcard = '2p'
+            else :
+                rcard = 't'
+        elif num_cardinalities == 4 : 
+            rcard = 'p'
         elif num_cardinalities == 5 :
-            if cardinalities[0]+4 == \
-               cardinalities[1]+3 == \
-               cardinalities[2]+2 == \
-               cardinalities[3]+1 == \
-               cardinalities[4] :
-                rcard = 's'
-            else :
-                pass
+            if isStraight(cardinalities) : rcard = 's'
+            else                         : rcard = 'h'
 
-            if num_suits == 1 :
-                rsuit = '5f'
+        if num_suits == 1 :
+            rsuit = '5f'
+        elif num_suits == 2 :
+            if rcard == 'p' :
+                rsuit = '4f' 
             else :
+                assert False
+
+        elif num_suits == 3 :
+            if rcard == 'p' :
                 pass
+            elif rcard == '2p' :
+                pass
+            elif rcard == 't' :
+                rsuit = '3f' 
+            elif rcard == 'b' :
+                rsuit = ""
+            else :
+                assert False
+
+        elif num_suits == 4 :
+            rsuit = ""
+        else :
+            assert False
     else :
         pass
 
