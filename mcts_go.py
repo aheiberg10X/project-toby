@@ -25,25 +25,37 @@ class State :
         return ns
 
     def getNorth(self, ix) :
-        if ix < self.dim :
+        if ix < self.dim or ix < 0 :
             return -1
         else :
             return ix - self.dim
     def getSouth(self, ix) :
-        if ix >= self.dim*self.dim - self.dim :
+        if ix >= self.dim*self.dim - self.dim or ix < 0 :
             return -1
         else :
             return ix + self.dim
     def getEast(self, ix) :
-        if ix % self.dim == self.dim - 1 :
+        if ix % self.dim == self.dim - 1 or ix < 0 :
             return -1
         else :
             return ix+1
     def getWest(self, ix) :
-        if ix % self.dim == 0 :
+        if ix % self.dim == 0 or ix < 0 :
             return -1
         else :
             return ix-1
+
+    def getNorthWest(self, ix) :
+        return self.getNorth( self.getWest(ix) )
+
+    def getNorthEast(self, ix) :
+        return self.getNorth( self.getEast(ix) )
+
+    def getSouthEast(self, ix) :
+        return self.getSouth( self.getEast(ix) )
+
+    def getSouthWest(self, ix) :
+        return self.getSouth( self.getWest(ix) )
 
     def action2ix( self, action ) :
         color = self.action2color(action)
@@ -53,8 +65,14 @@ class State :
         if action > 0 : return 1
         else          : return -1
 
-    def ix2action( self, ix, color ) :
-        return (ix+1)*color
+    def ix2action( self, ix, color=False ) :
+        if not color :
+            return (ix+1)*self.ix2color(ix)
+        else :
+            return (ix+1)*color
+
+    def ix2color( self, ix ) :
+        return self.board[ix]
 
     def setBoard( self, ixs, color ) :
         if type(ixs) == int :
@@ -67,14 +85,63 @@ class State :
                 self.open_positions.add(ix)
             self.board[ix] = color
 
-    def getNeighbors( self, ix ) :
-        return [self.getNorth(ix), \
-                self.getSouth(ix), \
-                self.getEast(ix), \
-                self.getWest(ix)]
+    def getNeighbors( self, ix, adjacency=4 ) :
+        if adjacency == 4 :
+            return [self.getNorth(ix), \
+                    self.getSouth(ix), \
+                    self.getEast(ix), \
+                    self.getWest(ix)]
+        elif adjacency == 8 :
+            return [self.getNorth(ix), \
+                    self.getSouth(ix), \
+                    self.getEast(ix), \
+                    self.getWest(ix), \
+                    self.getNorthWest(ix), \
+                    self.getNorthEast(ix), \
+                    self.getSouthWest(ix), \
+                    self.getSouthEast(ix) ]
+        else : assert False
 
     def matching( self, ixs, colors=[-1,0,1] ) :
         return [ix for ix in ixs if ix >= 0 and self.board[ix] in colors]
+   
+    #returns a function that returns True if one ix in the neighbs list
+    #matches one of the colors specified
+    def hasNeighbsClosure( self, colors ) :
+        def inner( neighbs ) :
+            return len( self.matching( neighbs, colors ) ) > 0
+        return inner
+
+    def floodFill( self, q, colors, stopper, adjacency=4 ) :
+        marked = {}
+        while len(q) > 0 :
+            #print "q:", q
+            ix = q.pop()
+            #print "ix:", ix
+            marked[ix] = True
+            #print "marked:", marked
+            neighbs = self.getNeighbors( ix, adjacency=adjacency )
+            if stopper(neighbs) :
+                #print "had empty neighbs"
+                marked = {}
+                break
+            else :
+                for n in self.matching( neighbs, colors ) :
+                    if n not in marked or not marked[n] :
+                        q.append(n)
+
+        return marked.keys()
+
+    def neighboredByOneColor( self, ix, adjacency=4 ) :
+        neighbs = self.getNeighbors( ix, adjacency=4 )
+        has_white = len( self.matching( neighbs, [1] ) ) > 0
+        has_black = len( self.matching( neighbs, [-1] ) ) > 0
+        if has_white and not has_black :
+            return (True,1)
+        elif has_black and not has_white :
+            return (True, -1)
+        else :
+            return (False,42)
 
     def __str__(self) :
         print "Player:", self.player
@@ -104,6 +171,19 @@ class State :
         #row = i / self.dim + 1
         #return (row,col)
 
+class String :
+    def __init__(self,string_id,members,color) :
+        self.string_id = string_id
+        self.members = members
+        self.color = color
+        self.territories = []
+
+    def __str__(self) :
+        return "\nid: " + str(self.string_id) + \
+                "\nmembers: " + str(self.members) + \
+                "\ncolor: " + str(self.color) + \
+                "\nterritories: " + str(self.territories)
+
 class MCTS_Go :
     def __init__(self,dim) :
         self.states = [-1,State(dim)]
@@ -114,7 +194,8 @@ class MCTS_Go :
         if type(state) == int :
             return state
         return state.copy()
-
+    
+    
     ####################################################
     ####Public Interface
     ####################################################
@@ -138,24 +219,10 @@ class MCTS_Go :
             neighbs = state.getNeighbors( ix )
             opp_color = -color
             q = state.matching( neighbs, [opp_color] )
-            marked = {}
-            while len(q) > 0 :
-                print "q:", q
-                ix = q.pop()
-                print "ix:", ix
-                marked[ix] = True
-                print "marked:", marked
-                neighbs = state.getNeighbors( ix )
-                hasEmptyNeighbs = len( state.matching( neighbs, [0] ) ) > 0
-                if hasEmptyNeighbs :
-                    print "had empty neighbs"
-                    marked = {}
-                    break
-                else :
-                    for n in state.matching( neighbs, [opp_color] ) :
-                        if n not in marked or not marked[n] :
-                            q.append(n)
 
+            marked = state.floodFill( q, \
+                                     colors = [opp_color], \
+                                     stopper = state.hasNeighbsClosure([0]) )
             state.setBoard( [ix for ix in marked], 0 )
             if color == -1 : color = 0
             state.capture_counts[color] += len(marked)
@@ -177,7 +244,82 @@ class MCTS_Go :
         #Update .states
 
     def getRewards( self, state ) :
-        pass
+        #find dead strings (by virtue of the 2 eye rule)
+        #mark the eye-points
+        #mark the dames
+        #marks regions
+        #mark territories
+        #mark the regions that are in-seki
+
+        #identify strings
+        marked = {}
+        string_id = 0
+        # ix : string_id
+        string_lookup = {}
+        strings = {}
+        for ix in range( self.dim*self.dim ) :
+            if ix in state.open_positions : continue
+            if ix in marked               : continue
+            
+            color = state.ix2color(ix)
+            members = state.floodFill( [ix], \
+                                      colors=[color], \
+                                      stopper=lambda x:False, \
+                                      adjacency=8 )
+
+            if len(members) > 0 :
+                string = String( string_id, members, color )
+                for ix in members :
+                    marked[ix] = True
+                    string_lookup[ix] = string_id
+                    strings[string_id] = string
+                string_id += 1
+
+            print "color", color, "string", string
+
+        #TODO: loop this process
+        #say we decide a string is dead, that will add some ix's to
+        #open_positions and we can start again
+
+        #for now start easy and say every string is alive
+        op = list(state.open_positions)
+        marked = {}
+        #TODO: a territory can be bordered by more than one live string
+        #how will this factor in?
+        #set/list of ixs : string_id
+        territories = {}
+        terr_id = 0
+        for ix in op :
+            if ix in marked :
+                continue
+
+            color, nix = state.neighboredByOneColor( ix )
+            if color :
+                #TODO: flood fill returns a set or list, not a dict
+                territory = state.floodFill( 
+                              [ix], \
+                              colors = [0], \
+                              stopper = state.hasNeighbsClosure([-color]) \
+                            )
+                for ix in territory :
+                    marked[ix] = True
+
+                strings[string_lookup[nix]].territories.append( territory )
+                territories[terr_id] = (territory, string_lookup[nix])
+                terr_id += 1
+
+
+                #here we know ixs in group belong to color, are territories
+                
+                #now need to attribute each group to different strings
+
+            else :
+                pass
+
+        print "territories", territories
+        print "strings"
+        for st in strings :
+            print strings[st]
 
     def randomAction( self, state ) :
         return choice( self.getAllowableActions( state ) )
@@ -207,6 +349,7 @@ def main() :
     g.applyAction( s, 12 )
     print s
     print g.getAllowableActions( s )
+    print g.getRewards( s )
 
 
 
