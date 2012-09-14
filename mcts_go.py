@@ -18,11 +18,20 @@ class State :
 
     def copy(self) : 
         ns = State(self.dim)
-        ns.board = self.board
+        ns.board = list(self.board)
         ns.open_positions = self.open_positions
         ns.capture_counts = self.capture_counts
         ns.player = self.player
         return ns
+
+    def sameAs( self, state2 ) :
+        if type(state2) == int : return False
+        assert self.dim == state2.dim
+
+        for ix in range(self.dim*self.dim) : 
+            if self.board[ix] != state2.board[ix] :
+                return False
+        return True 
 
     def getNorth(self, ix) :
         if ix < self.dim or ix < 0 :
@@ -132,16 +141,43 @@ class State :
 
         return marked.keys()
 
+    #returns true 
     def neighboredByOneColor( self, ix, adjacency=4 ) :
         neighbs = self.getNeighbors( ix, adjacency=4 )
         has_white = len( self.matching( neighbs, [1] ) ) > 0
         has_black = len( self.matching( neighbs, [-1] ) ) > 0
-        if has_white and not has_black :
-            return (True,1)
-        elif has_black and not has_white :
-            return (True, -1)
-        else :
-            return (False,42)
+
+        if has_white and not has_black   : ncolor = 1
+        elif has_black and not has_white : ncolor = -1
+        else                             : ncolor = 0
+        
+        #find the ix of a neighbor stone
+        for nix in neighbs :
+            if self.ix2color( nix ) == ncolor :
+                return (ncolor,nix)
+
+        assert False
+
+    #returns whether the move will leave the group formed by it's placement
+    #no liberties
+    def isSuicide( self, action ) :
+        color = self.action2color(action)
+        ix = self.action2ix(action)
+        same_neighbs = self.matching( self.getNeighbors(ix), [color] )
+        no_liberties_left = []
+        marked = {}
+        for q in same_neighbs :
+            if q in marked : continue
+            group = self.floodFill( [q], \
+                            colors=[color], \
+                            stopper=self.hasNeighbsClosure([0]) )
+            for ix in group :
+                marked[ix] = True
+
+            no_liberties_left.append( len(group) != 0 )
+
+        print no_liberties_left
+        return any(no_liberties_left)
 
     def __str__(self) :
         print "Player:", self.player
@@ -159,18 +195,8 @@ class State :
             rows.append( " ".join(l) )
 
         return "\n".join(rows)
-    
-    #action ints are 1-81
-    #def action2Int( self, row, col, player ) :
-        ##+1 at the end to avoid 0
-        #return player * ((row-1)*self.dim + (col-1) + 1)
-#
-    #def int2Action( self, i ) :
-        #i = abs(i) - 1
-        #col = i % self.dim + 1
-        #row = i / self.dim + 1
-        #return (row,col)
-
+ 
+#adjacent pieces of the same color
 class String :
     def __init__(self,string_id,members,color) :
         self.string_id = string_id
@@ -186,7 +212,7 @@ class String :
 
 class MCTS_Go :
     def __init__(self,dim) :
-        self.states = [-1,State(dim)]
+        self.states = [State(dim)]
         self.dim = dim
         self.root_state = State(dim)
 
@@ -201,46 +227,68 @@ class MCTS_Go :
     ####################################################
     def getAllowableActions( self, state ) :
         #0 is pass
+        #Let's not allow passing, will result in ambiguous board states
+        #Also, we are not vetting moves for legality here.  Suicides are
+        #currently returned
         return [state.ix2action(op, state.player) 
                 for op 
-                in state.open_positions] + [0]
+                in state.open_positions] 
 
     def applyAction( self, state, action ) :
+        print "\n\n MOVE APPLIED"
+        legal = True
         newstates = []
         for i in range( 1, len(self.states) ) :
             newstates.append( self.copyState( self.states[i] ) )
+        current = self.copyState( state )
 
         if action != 0 :
             ix = state.action2ix(action)
             color = state.action2color(action)
             state.setBoard( ix, color )
-            
-            #TODO: resolve captures
+
+            #resolve captures
             neighbs = state.getNeighbors( ix )
             opp_color = -color
-            q = state.matching( neighbs, [opp_color] )
+            opp_neighbs = state.matching( neighbs, [opp_color] )
+            num_removed = 0
+            captured = []
+            for q in opp_neighbs :
+                marked = state.floodFill( 
+                             [q], \
+                              colors = [opp_color], \
+                              stopper = state.hasNeighbsClosure([0])  \
+                         )
+                state.setBoard( marked, 0 )
+                captured.append(marked)
+                num_removed += len(marked)
 
-            marked = state.floodFill( q, \
-                                     colors = [opp_color], \
-                                     stopper = state.hasNeighbsClosure([0]) )
-            state.setBoard( [ix for ix in marked], 0 )
-            if color == -1 : color = 0
-            state.capture_counts[color] += len(marked)
+                #set capture counts
+                if color == -1 : color = 0
+                state.capture_counts[color] += len(marked)
+
+            if state.isSuicide( action ) :
+                assert num_removed == 0
+                legal = False
+                
+            
 
         #TODO: see if legal
-        #see if the action taken will get auto-killed ... how
-        #    init the queue q above to have this ix
-        #    #TODO generalize this code to use it for scoring as well
         #see if the action taken makes the game the same as it was two states
         #ago
-        legal = True
+        if state.sameAs( self.states[0] ) :
+            print "omg legal false by komi"
+            #TODO undo captures
+            legal = False
+
         if legal :
             state.togglePlayer()
-            newstates.append( self.copyState( state ) )
-            print newstates
+            newstates.append( self.copyState( current ) )
             self.states = newstates
         else :
-            pass
+            for c in captured :
+                state.setBoard( c, opp_color )
+            state.setBoard( ix, 0 )
         #Update .states
 
     def getRewards( self, state ) :
@@ -254,25 +302,29 @@ class MCTS_Go :
         #identify strings
         marked = {}
         string_id = 0
-        # ix : string_id
+        
+        #ix : string_id
         string_lookup = {}
+        
+        #string_id : String()
         strings = {}
+
         for ix in range( self.dim*self.dim ) :
             if ix in state.open_positions : continue
             if ix in marked               : continue
             
             color = state.ix2color(ix)
             members = state.floodFill( [ix], \
-                                      colors=[color], \
-                                      stopper=lambda x:False, \
-                                      adjacency=8 )
+                                       colors=[color], \
+                                       stopper=lambda x:False, \
+                                       adjacency=8 )
 
             if len(members) > 0 :
                 string = String( string_id, members, color )
+                strings[string_id] = string
                 for ix in members :
                     marked[ix] = True
                     string_lookup[ix] = string_id
-                    strings[string_id] = string
                 string_id += 1
 
             print "color", color, "string", string
@@ -282,6 +334,8 @@ class MCTS_Go :
         #open_positions and we can start again
 
         #for now start easy and say every string is alive
+
+        #need to do this list conversion still?
         op = list(state.open_positions)
         marked = {}
         #TODO: a territory can be bordered by more than one live string
@@ -295,7 +349,6 @@ class MCTS_Go :
 
             color, nix = state.neighboredByOneColor( ix )
             if color :
-                #TODO: flood fill returns a set or list, not a dict
                 territory = state.floodFill( 
                               [ix], \
                               colors = [0], \
@@ -308,13 +361,17 @@ class MCTS_Go :
                 territories[terr_id] = (territory, string_lookup[nix])
                 terr_id += 1
 
-
                 #here we know ixs in group belong to color, are territories
                 
                 #now need to attribute each group to different strings
 
             else :
                 pass
+
+        #for string_id in strings :
+            #s = strings[string_id]
+            #if len(s.territories) == 1 : 
+                #if s.territories[0]
 
         print "territories", territories
         print "strings"
@@ -333,23 +390,44 @@ class MCTS_Go :
 def main() :
     dim = 4
     s = State(dim)
-    s.setBoard( [5,6,9,10], -1 )
-    s.setBoard( [1,2,4,7,8,13,14], 1 )
-    print s
-    g = MCTS_Go(dim)
-    g.applyAction( s, 12 )
+    s.setBoard( [2,5,7,10], 1 )
+    s.setBoard( [1,4,9], -1 )
+    print ""
     print s
     
-    s = State(dim)
-    s.setBoard( [0,1,2,3,4,8,12,13,14], 1 )
-    s.setBoard( [5,6,7,9,10,15], -1 )
-    s.togglePlayer()
-    print s
     g = MCTS_Go(dim)
-    g.applyAction( s, 12 )
+    
+    g.applyAction( s, -7 )
+    print ""
     print s
-    print g.getAllowableActions( s )
-    print g.getRewards( s )
+    for ix, state in enumerate(g.states) :
+        print "    |State| ix", ix, state
+    
+    g.applyAction( s, 6 )
+    print ""
+    print s
+    for ix,state in enumerate(g.states) :
+        print "    |State| ix", ix, state
+
+    #g.applyAction( s, -7 )
+    #print ""
+    #print s
+    #for ix,state in enumerate(g.states) :
+        #print "    |State| ix", ix, state
+
+
+    #s = State(dim)
+    #s.setBoard( [0,1,2,3,4,8,12,13,14], 1 )
+    #s.setBoard( [5,6,7,9,10,15], -1 )
+    #s.togglePlayer()
+    #print s
+    #g = MCTS_Go(dim)
+    #g.applyAction( s, 12 )
+    #print s
+    #print g.getAllowableActions( s )
+    #print g.getRewards( s )
+
+
 
 
 
