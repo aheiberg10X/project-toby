@@ -3,9 +3,7 @@ from random import choice
 class MCTS_Test :
     def __init__(self) :
         self.actions = ['a','b','c']
-
-    def getRootState(self) :
-        return []
+        self.root_state = []
 
     def copyState(self,state) :
         return list(state)
@@ -29,7 +27,7 @@ class MCTS_Test :
     def getRewards( self, state ) :
         return [ sum([elem == 'b' for elem in state]) ]
 
-    def returnAction( self, state ) :
+    def randomAction( self, state ) :
         return choice( self.getAllowableActions( state ) )
 
     def isTerminal( self, state ) :
