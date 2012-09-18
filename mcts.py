@@ -110,9 +110,6 @@ def uctsearch( root_state ) :
     bnode, bstate = bestChild( root, root_state, 0 )
     return getAction( bnode )
 
-#in the final implementation won't need to associate a state with each node
-#can just build it each time from the root
-#TODO all the getState calls here are wasteful
 def treePolicy( node, state ) :
     print "tp, incoming state", state
     print "is terminal: ", DOMAIN.isTerminal(state)
@@ -122,10 +119,18 @@ def treePolicy( node, state ) :
         assert num_tried <= num_allowable
         fully_expanded = num_tried == num_allowable
 
-        if not fully_expanded :
-            node,state = expand(node,state)
+        #TODO: DOMAIN.isChanceAction(state)
+        #for poker we treat opp choice nodes as chance, right?
+        #because don't know hole cards
+        if True :
+            if not fully_expanded :
+                node,state = expand(node,state)
+            else :
+                node,state = bestChild( node, state, Cp )
         else :
-            node,state = bestChild( node, state, Cp )
+            pass
+
+
         print "Chosen:", node.action, state
     mark( node )
     #print "tp, outgoing state: ", state

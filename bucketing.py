@@ -56,7 +56,7 @@ def isFolded( stack, pix, num_players ) :
     else :
         return False
 
-#a heavily modified DFS thru iteration
+#a heavily customized DFS thru iteration
 def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
     #actions available to players
     actions = ['f','k','c','b','r1-2p','r1p','r3-2p','r2p']

@@ -180,13 +180,14 @@ def main() :
     board = ['2c','2d','Td','__','__']
     pocket1 = ['2h','As']
     pocket2 = ['2s','Kd']
-    results = computeEVs( [pocket1,pocket2], board, 2 )
-    print results[canonical(pocket1)]
+    print computeEV( pocket1, board )
+    #results = computeEVs( [pocket1], board, 2 )
+    #print results[canonical(pocket1)]
     #print results
 
 
 if __name__ == "__main__" :
-    #print rollout( ((0,1),(4,5)) )
+    #print computeEV( ['2c','5d'], ['2h','6d','Th'] )
     main()
 
 
