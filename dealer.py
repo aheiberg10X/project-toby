@@ -33,7 +33,8 @@ class Dealer() :
         else :
             raise Exception("Already on the river, no more streets to deal")
 
-        self.table.advanceStreet( cards )
+        #self.table.advanceStreet( cards )
+        self.table.advanceStreet( self.deck )
 
     def addPlayer( self, player, ix ) :
         if not self.table.street == "undealt" :
