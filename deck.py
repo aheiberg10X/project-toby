@@ -2,6 +2,7 @@ from itertools import combinations
 from random import sample
 from pokereval import PokerEval
 import globles
+import re
 
 #DEPRECATED, just using pokereval string2card and card2string to convert
 #human-readable values for the 52 cards
@@ -76,10 +77,18 @@ def intifyCardinality( c ) :
     return d[c]
 
 #return a comma separated list of human readable cards, sorted by numeric value
-def canonical( cards ) :
+def canonicalize( cards ) :
     cards = makeMachine(cards)
     cards.sort()
     return ','.join( makeHuman(cards) )
+
+suit_split = re.compile(r'([hsdc])')
+def deCanonicalize( card_string ) :
+    splt = suit_split.split( card_string )[:-1]
+    return [ "%s%s" % (splt[i],splt[i+1]) \
+             for i \
+             in range(0,len(splt),2) ]
+
 
 #return the distinct type of hole card (1326 -> 169)
 #hole_cards are [int,int]
@@ -268,24 +277,48 @@ def collapseBoard( board ) :
         else                : rsuit = 'r'
 
     elif len(board) == 5 : 
-        if   num_cardinalities == 1 : pass
-        elif num_cardinalities == 2 : pass
-        elif num_cardinalities == 3 : pass 
-        elif num_cardinalities == 4 : pass 
+        if   num_cardinalities == 1 : 
+            assert False
+        elif num_cardinalities == 2 : 
+            if max( card_counts.values() ) == 3 :
+                rcard = 'b'#oat
+            else :
+                rcard = 'q'
+        elif num_cardinalities == 3 : 
+            if max( card_counts.values() ) == 2 :
+                rcard = '2p'
+            else :
+                rcard = 't'
+        elif num_cardinalities == 4 : 
+            rcard = 'p'
         elif num_cardinalities == 5 :
-            if cardinalities[0]+4 == \
-               cardinalities[1]+3 == \
-               cardinalities[2]+2 == \
-               cardinalities[3]+1 == \
-               cardinalities[4] :
-                rcard = 's'
-            else :
-                pass
+            if isStraight(cardinalities) : rcard = 's'
+            else                         : rcard = 'h'
 
-            if num_suits == 1 :
-                rsuit = '5f'
+        if num_suits == 1 :
+            rsuit = '5f'
+        elif num_suits == 2 :
+            if rcard == 'p' :
+                rsuit = '4f' 
             else :
+                assert False
+
+        elif num_suits == 3 :
+            if rcard == 'p' :
                 pass
+            elif rcard == '2p' :
+                pass
+            elif rcard == 't' :
+                rsuit = '3f' 
+            elif rcard == 'b' :
+                rsuit = ""
+            else :
+                assert False
+
+        elif num_suits == 4 :
+            rsuit = ""
+        else :
+            assert False
     else :
         pass
 
@@ -349,7 +382,8 @@ def main() :
     #print collapsePocket([25,51])
     #print makeMachine(['2h','As'])
     #print numPocketsMakeStraight([10,13,14])
-    print collapseBoard(['2d','3c','3d','Jh'])
+    #print collapseBoard(['3d','7c','7s','7h'])
+    print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
     main()

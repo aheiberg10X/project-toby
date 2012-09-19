@@ -56,7 +56,7 @@ def isFolded( stack, pix, num_players ) :
     else :
         return False
 
-#a heavily modified DFS thru iteration
+#a heavily customized DFS thru iteration
 def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
     #actions available to players
     actions = ['f','k','c','b','r1-2p','r1p','r3-2p','r2p']
@@ -148,7 +148,8 @@ def makeRound( EV ) :
 
 def computeEVDists(num_known_board=4) :
     already_seen = {}
-
+    count = 0
+    
     if num_known_board == 3 : street = 'flops'
     elif num_known_board == 4 : street = 'turns'
     elif num_known_board == 5 : street = 'rivers'
@@ -157,20 +158,21 @@ def computeEVDists(num_known_board=4) :
     for board in combinations( d.cards, num_known_board ) :
         collapsed = collapseBoard( board )
         path = "evdists/%s/%s.evdist" % (street,collapsed)
-        if collapsed in already_seen or exists(path) :
-            print "skipping %s" % collapsed
+        if collapsed in already_seen or exists(path) : 
             continue
         else :
-            board = makeHuman(board) + ['__']*(5-num_known_board)
-            pocketEVs = rollout.computeEVs( [], board, 2, num_threads=8 )
-            x = []
-            for pocket in pocketEVs :
-                x.append( makeRound( pocketEVs[pocket] ) )
-            x.sort()
+            print count, collapsed
+            count += 1
+            #board = makeHuman(board) + ['__']*(5-num_known_board)
+            #pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
+            #x = []
+            #for pocket in pocketEVs :
+                #x.append( makeRound( pocketEVs[pocket] ) )
+            #x.sort()
 #
-            fout = open(path, 'w')
-            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            fout.close()
+            #fout = open(path, 'w')
+            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            #fout.close()
 
             already_seen[collapsed] = True
 
