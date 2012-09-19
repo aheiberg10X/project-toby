@@ -2,6 +2,7 @@ from itertools import combinations
 from random import sample
 from pokereval import PokerEval
 import globles
+import re
 
 #DEPRECATED, just using pokereval string2card and card2string to convert
 #human-readable values for the 52 cards
@@ -76,10 +77,18 @@ def intifyCardinality( c ) :
     return d[c]
 
 #return a comma separated list of human readable cards, sorted by numeric value
-def canonical( cards ) :
+def canonicalize( cards ) :
     cards = makeMachine(cards)
     cards.sort()
     return ','.join( makeHuman(cards) )
+
+suit_split = re.compile(r'([hsdc])')
+def deCanonicalize( card_string ) :
+    splt = suit_split.split( card_string )[:-1]
+    return [ "%s%s" % (splt[i],splt[i+1]) \
+             for i \
+             in range(0,len(splt),2) ]
+
 
 #return the distinct type of hole card (1326 -> 169)
 #hole_cards are [int,int]
@@ -373,7 +382,8 @@ def main() :
     #print collapsePocket([25,51])
     #print makeMachine(['2h','As'])
     #print numPocketsMakeStraight([10,13,14])
-    print collapseBoard(['3d','7c','7s','7h'])
+    #print collapseBoard(['3d','7c','7s','7h'])
+    print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
     main()

@@ -42,6 +42,9 @@ class Table() :
         self.small_blind = small_blind
         self.logging = logging
 
+        self.toby_ix = toby_ix
+        self.toby_pockets = toby_pockets
+
         #store Player() objects in their relative order 
         #self.players = [Player(NA)]*num_seats
         self.players = players
@@ -131,7 +134,8 @@ class Table() :
             if not is_folded :
                 return self.current_bets[ix]
 
-        assert False
+        #everyone has folded
+        return 0
 
     #TODO:
     #side-potting?
@@ -144,10 +148,11 @@ class Table() :
 
         if self.street == "undealt" :
             #deal out the hole cards
-            #cards = iter(cards)
+            cards = iter(cards)
             for pix in range(self.num_seats) :
                 if not self.chairEmpty(pix) :
-                    self.pockets[pix] = deck.draw(POCKET_SIZE)
+                    self.pockets[pix] = cards.next()
+                    #deck.draw(POCKET_SIZE)
         
             human_pockets = [makeHuman(hc) for hc in self.pockets]
             

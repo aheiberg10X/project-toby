@@ -17,7 +17,7 @@ class State :
         self.open_positions = set(range(dim*dim))
         self.capture_counts = [0,0]
         self.player = BLACK 
-        self.action = 0
+        self.action = -1 
         self.allowable_actions = [self.ix2action(ix,self.player) \
                                   for ix \
                                   in range(dim*dim) ]
@@ -31,6 +31,7 @@ class State :
         ns.open_positions = set(self.open_positions)
         ns.capture_counts = list(self.capture_counts)
         ns.player = self.player
+        ns.action = self.action
         return ns
 
     def copyInto( self, state ) :
@@ -38,6 +39,7 @@ class State :
         state.open_positions = self.open_positions
         state.capture_counts = self.capture_counts
         state.player = self.player
+        state.action = self.action
 
     def sameAs( self, state2 ) :
         if type(state2) == int : return False
@@ -238,7 +240,7 @@ class String :
 
 class MCTS_Go :
     def __init__(self,dim) :
-        self.states = [State(dim)]
+        self.states = [State(dim)]*10
         self.dim = dim
         self.root_state = State(dim)
 
@@ -258,7 +260,8 @@ class MCTS_Go :
             if is_legal :
                 allowable_actions.append( action )
         
-        state.allowable_actions = allowable_actions
+        if len(allowable_actions) == 0 : state.allowable_actions = [PASS]
+        else : state.allowable_actions = allowable_actions
    
     ####################################################
     ####Public Interface
@@ -306,11 +309,15 @@ class MCTS_Go :
             
         #Proposed changes have been applied to state.  See it this makes
         #state the same as it was a turn ago
-        if action != PASS and state.sameAs( self.states[0] ) :
-            legal = False
+        if action != PASS :
+            for past_state in self.states :
+                if state.sameAs( past_state ) :
+                    legal = False
+                    break
 
         if legal :
             if side_effects :
+                state.action = action
                 state.togglePlayer()
                 newstates.append( frozen )
                 self.states = newstates
@@ -432,26 +439,41 @@ class MCTS_Go :
         return scores[0], scores[2]
 
     def randomAction( self, state ) :
-        if len(state.allowable_actions) == 0 : return 0
-        else : return choice( state.allowable_actions )
-        #is_legal = False
-        #allowable = self.getAllowableActions( state )
-        #while not is_legal :
-            #action = choice( list(allowable) )
-            #print "considering", action
-            #is_legal = self.applyAction( state, action )
-            #allowable.remove( action )
+        return choice( state.allowable_actions )
 
+    def isChanceAction( self, state ) :
+        return False
 
     def isTerminal( self, state ) :
-        no_legal_placement = len( self.getAllowableActions(state) ) == 0
-        #two_passes = self.states[-1].action == 0 and \
-                     #state.action == 0
-        return no_legal_placement #or two_passes
+        return state.action == PASS and self.states[-1].action == PASS
 
 def main() :
     dim = 4
 
+    if True : 
+        s = State(dim)
+        s.setBoard([4,8,9,10,13,15],WHITE)
+        s.setBoard([0,2,5,6,7,11],BLACK)
+        s.togglePlayer()
+        print s
+        g = MCTS_Go(dim)
+        g.setAllowableActions(s)
+        print g.getAllowableActions(s)
+
+    #wtf moves not being taken
+    if False :
+        s = State(dim)
+        s.setBoard([3,6,14,15],WHITE)
+        s.setBoard([0,1,5,7,8,9,10,12],BLACK)
+        
+        g = MCTS_Go(dim)
+        g.applyAction( s, -14 )
+        s.togglePlayer()
+        g.setAllowableActions(s)
+        print s
+        print "s.action:", s.action
+        print "prev action:", g.states[-1].action
+        print "terminal?: ",g.isTerminal(s)
     #komi
     if False :
         s = State(dim)
@@ -501,7 +523,7 @@ def main() :
         #prinat s
 
     #check for correct passing and allowableMove definition
-    if True :
+    if False :
         s = State(dim)
         s.setBoard( [0,2,4,5,6,7,9,10,12,14,15] , 1 )
         g = MCTS_Go(dim)
