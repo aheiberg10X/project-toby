@@ -34,16 +34,21 @@ from deck import makeHuman
 class Table() :
     def __init__(self, \
                  players, \
+                 stacks, \
                  toby_ix, \
                  toby_pockets, \
+                 know_pockets=False, \
                  button=0, \
                  logging=False, \
                  small_blind=1) :
+
         self.small_blind = small_blind
         self.logging = logging
+        self.know_pockets = know_pockets
 
         self.toby_ix = toby_ix
         self.toby_pockets = toby_pockets
+        self.stacks = stacks
 
         #store Player() objects in their relative order 
         #self.players = [Player(NA)]*num_seats
@@ -62,6 +67,7 @@ class Table() :
         r = []
         r.append( "Table:" )
         r.append( "    Player Names: %s" % '; '.join(self.player_names) )
+        r.append( "    Stacks: %s" % '; '.join([str(s) for s in self.stacks]) )
         r.append( "    Button: %s" % self.player_names[self.button] )
         r.append( "    Street: %s" % self.street )
         r.append( "    Board: %s" % ' '.join(makeHuman(self.board)) )
@@ -86,6 +92,8 @@ class Table() :
         
         self.streets = iter( STREET_NAMES )
         self.street = self.streets.next()
+        if not self.know_pockets :
+            self.street = self.streets.next()
 
     def registerAction( self, action, amount=0 ) :
         player_ix = self.action_to
@@ -96,10 +104,9 @@ class Table() :
             self.pockets[player_ix] = False #[FOLDED]*POCKET_SIZE
             #self.current_bets[player_ix] = -1
         else : #b,c,r
-            #at start of round initial current bets is -1
-            if self.current_bets[player_ix] < 0 : 
-                self.current_bets[player_ix] = 0
             self.current_bets[player_ix] += amount
+            self.stacks[player_ix] -= amount * self.pot
+            assert self.stacks[player_ix] >= 0
 
         if self.logging :
             self.history.update( self.street, (player_ix,action,amount) )
@@ -132,19 +139,21 @@ class Table() :
         for ix in ixs :
             is_folded = not self.pockets[ix]
             if not is_folded :
-                return self.current_bets[ix]
-
+                diff = self.current_bets[ix] - \
+                       self.current_bets[self.action_to]
+                assert diff >= 0
+                return diff
         #everyone has folded
         return 0
 
     #TODO:
     #side-potting?
     #track burned cards
-    def advanceStreet( self, deck ) :
+    def advanceStreet( self, cards ) :
         #add the last rounds bets to the pot
         self.pot += sum(self.current_bets)
         #reset
-        self.current_bets = [0]*self.num_seats
+        self.current_bets = [0]*self.num_players
 
         if self.street == "undealt" :
             #deal out the hole cards

@@ -84,6 +84,7 @@ def canonicalize( cards ) :
 
 suit_split = re.compile(r'([hsdc])')
 def deCanonicalize( card_string ) :
+    if card_string.startswith('d') : card_string = card_string[1:]
     splt = suit_split.split( card_string )[:-1]
     return [ "%s%s" % (splt[i],splt[i+1]) \
              for i \
