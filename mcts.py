@@ -16,7 +16,7 @@ DOMAIN_NAME = 'GO'
 
 if   DOMAIN_NAME == 'TEST'  :  DOMAIN = MCTS_Test()
 elif DOMAIN_NAME == 'POKER' :  DOMAIN = MCTS_Poker()
-elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(4)
+elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(9)
 
 
 #########################################################################
@@ -94,7 +94,7 @@ def uctsearch( root_state ) :
     time_left = True
     count = 0
     #print "root_state", root_state
-    while count < 1000 :
+    while count < 100 :
         #print "\n====================================================="
         #print "uctsearch iteration %d" % count
         node,state = treePolicy( root, DOMAIN.copyState(root_state) )
@@ -116,14 +116,19 @@ def treePolicy( node, state ) :
     while isMarked( node ) and not DOMAIN.isTerminal( state ) : 
         
         if not DOMAIN.isChanceAction(state) :
-            num_allowable = len( DOMAIN.getAllowableActions( state ) ) 
-            num_tried = len( getChildren(node) )
-            assert num_tried <= num_allowable
-            fully_expanded = num_tried == num_allowable
-
-            if not fully_expanded :
-                node,state = expand(node,state)
+            #num_allowable = len( DOMAIN.getAllowableActions( state ) ) 
+            #num_tried = len( getChildren(node) )
+            #assert num_tried <= num_allowable
+            #fully_expanded = num_tried == num_allowable
+            #tried = set(getChildren(node))
+            tried = node.children.keys()
+            action = DOMAIN.randomAction( state, excluded=tried )
+            #print "tried", tried, "random action: ", action
+            if action :
+                #print "expanding"
+                node,state = expand(node,state,action)
             else :
+                #print "besting"
                 node,state = bestChild( node, state, Cp )
         else :
             action = DOMAIN.chanceAction( state )
@@ -137,10 +142,10 @@ def treePolicy( node, state ) :
     return [node,state]
 
 #SIDE EFFECT: updates pstate
-def expand( parent, pstate ) :
-    allowable = set(DOMAIN.getAllowableActions( pstate ))
-    tried = set(parent.children.keys())
-    action = choice( list(allowable-tried) ) 
+def expand( parent, pstate, action ) :
+    #allowable = set(DOMAIN.getAllowableActions( pstate ))
+    #tried = set(parent.children.keys())
+    #action = choice( list(allowable-tried) ) 
     DOMAIN.applyAction( pstate, action )
     node = createNode( parent, action )
     return [node,pstate]
@@ -165,9 +170,10 @@ def bestChild( parent, pstate, c, player_ix=0 ) :
 def defaultPolicy( state ) :
     count = 0
     while not DOMAIN.isTerminal(state) :
-        if count > 100 :
+        #TODO: this is hacky
+        if count > state.dim^2 * 10 :
             print "probably in loop somehow"
-            assert False
+            break
         DOMAIN.applyAction( state, DOMAIN.randomAction(state) )
         count += 1
         #DOMAIN.applyRandomAction( state )
