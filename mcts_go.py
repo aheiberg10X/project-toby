@@ -1,4 +1,4 @@
-from random import choice
+from random import choice, sample
 
 #state is a board and a player to move (-1 or 1), and captured pieces
 #board is a NxN multidim array (-1,0,1)
@@ -211,7 +211,7 @@ class State :
         rows = []
         rows.append( "Player: %d" % self.player )
         rows.append( "Captured (-1,1): %s" % str(self.capture_counts) )
-        rows.append( "Allowable: %s" % str(self.allowable_actions) )
+        #rows.append( "Allowable: %s" % str(self.allowable_actions) )
         for i in range(self.dim) :
             l = []
             for j in range(self.dim) :
@@ -266,16 +266,13 @@ class MCTS_Go :
     ####################################################
     ####Public Interface
     ####################################################
-    def getAllowableActions( self, state ) :
-        return state.allowable_actions
+    #def getAllowableActions( self, state ) :
+        #return state.allowable_actions
     
     #side_effects to true means updating and returning the state, metadata 
     #otherwise just returns t/f based on whether the move is legal
     def applyAction( self, state, action, side_effects=True ) :
         legal = True
-        newstates = []
-        for i in range( 1, len(self.states) ) :
-            newstates.append( self.copyState( self.states[i] ) )
 
         #freeze and save the current state
         frozen = self.copyState( state )
@@ -318,10 +315,10 @@ class MCTS_Go :
         if legal :
             if side_effects :
                 state.action = action
+                for i in range(len(self.states)-1) :
+                    self.states[i] = self.states[i+1]
                 state.togglePlayer()
-                newstates.append( frozen )
-                self.states = newstates
-                self.setAllowableActions( state )
+                self.states[-1] = frozen
                 return state
             else :
                 frozen.copyInto( state )
@@ -438,8 +435,17 @@ class MCTS_Go :
 
         return scores[0], scores[2]
 
-    def randomAction( self, state ) :
-        return choice( state.allowable_actions )
+    def randomAction( self, state, excluded=set([]) ) :
+        for candidate in sample( state.open_positions, \
+                                 len(state.open_positions) ) :
+
+            action = state.ix2action( candidate, state.player )
+            if action not in excluded :
+                is_legal = self.applyAction( state, action, side_effects=False )
+                if is_legal :
+                    return action #choice( state.allowable_actions )
+
+        return PASS
 
     def isChanceAction( self, state ) :
         return False
@@ -457,8 +463,8 @@ def main() :
         s.togglePlayer()
         print s
         g = MCTS_Go(dim)
-        g.setAllowableActions(s)
-        print g.getAllowableActions(s)
+        #g.setAllowableActions(s)
+        #print g.getAllowableActions(s)
 
     #wtf moves not being taken
     if False :
@@ -469,7 +475,7 @@ def main() :
         g = MCTS_Go(dim)
         g.applyAction( s, -14 )
         s.togglePlayer()
-        g.setAllowableActions(s)
+        #g.setAllowableActions(s)
         print s
         print "s.action:", s.action
         print "prev action:", g.states[-1].action
@@ -506,7 +512,7 @@ def main() :
         g = MCTS_Go(dim)
         g.applyAction( s, 12 )
         print s
-        print g.getAllowableActions( s )
+        #print g.getAllowableActions( s )
         print g.getRewards( s )
 
     #allowable actions
@@ -518,7 +524,7 @@ def main() :
         s.togglePlayer()
         print s
         g = MCTS_Go(dim)
-        print g.getAllowableActions( s )
+        #print g.getAllowableActions( s )
         #is_legal = g.applyRandomAction( s )
         #prinat s
 
@@ -527,7 +533,7 @@ def main() :
         s = State(dim)
         s.setBoard( [0,2,4,5,6,7,9,10,12,14,15] , 1 )
         g = MCTS_Go(dim)
-        g.setAllowableActions(s)
+        #g.setAllowableActions(s)
         
         print s
         
