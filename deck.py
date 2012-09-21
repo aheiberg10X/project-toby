@@ -80,7 +80,7 @@ def intifyCardinality( c ) :
 def canonicalize( cards ) :
     cards = makeMachine(cards)
     cards.sort()
-    return ','.join( makeHuman(cards) )
+    return ''.join( makeHuman(cards) )
 
 suit_split = re.compile(r'([hsdc])')
 def deCanonicalize( card_string ) :

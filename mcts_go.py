@@ -435,7 +435,7 @@ class MCTS_Go :
 
         return scores[0], scores[2]
 
-    def randomAction( self, state, excluded=set([]) ) :
+    def randomAction( self, state, excluded=set() ) :
         for candidate in sample( state.open_positions, \
                                  len(state.open_positions) ) :
 

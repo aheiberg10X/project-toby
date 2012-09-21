@@ -115,25 +115,22 @@ def treePolicy( node, state ) :
     #print "is terminal: ", DOMAIN.isTerminal(state)
     while isMarked( node ) and not DOMAIN.isTerminal( state ) : 
         
+        tried = node.children.keys()
+        action = DOMAIN.randomAction( state, excluded=tried )
         if not DOMAIN.isChanceAction(state) :
-            #num_allowable = len( DOMAIN.getAllowableActions( state ) ) 
-            #num_tried = len( getChildren(node) )
-            #assert num_tried <= num_allowable
-            #fully_expanded = num_tried == num_allowable
-            #tried = set(getChildren(node))
-            tried = node.children.keys()
-            action = DOMAIN.randomAction( state, excluded=tried )
             #print "tried", tried, "random action: ", action
             if action :
                 #print "expanding"
-                node,state = expand(node,state,action)
+                node = expand(node,state,action)
             else :
                 #print "besting"
-                node,state = bestChild( node, state, Cp )
+                node = bestChild( node, state, Cp )
         else :
-            action = DOMAIN.chanceAction( state )
             DOMAIN.applyAction( state, action )
-            node = createNode( node, action )
+            if action in node.children.keys() :
+                node = node.children[action]
+            else :
+                node = createNode( node, action )
 
 
         #print "Chosen:", node.action, state
