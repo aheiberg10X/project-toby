@@ -33,29 +33,16 @@ class State :
 
     def inFinalRound( self ) :
         #fogetting about button offset?
+        print "length of street ", self.table.street, len(self.table.history[self.table.street])
+        print "num_virtual:", self.num_virtual
         return len(self.table.history[self.table.street]) >= \
-               self.num_virtual - self.num_players
+               (self.num_virtual - self.num_players)
         pass
 
-#TODO all this stuff looks like it belongs in Table
-
-    def isDealerAction( self ) :
-        has_acted = self.table.acted[self.table.action_to]
-        oblig_is_zero = self.table.getObligation(self.table.action_to) == 0
-        return has_acted and oblig_is_zero
-        #return self.table.action_to % (self.num_players+1) \
-                #== self.num_players
-
     def isChanceAction( self ) : 
-        return self.isDealerAction() or \
+        return self.table.isDealerAction() or \
                not self.table.action_to == self.table.toby_ix
 
-    def playersAlive( self ) :
-        alive = []
-        for i in range(self.num_players) :
-            if not self.table.folded[i] :
-                alive.append(i)
-        return alive
     
     def copy( self ) :
         snew = State( self.stacks, \
@@ -82,7 +69,7 @@ class MCTS_Poker :
     def randomAction( self, state, excluded=set() ) :
         #we ignore excluded for these
         if state.isChanceAction() :
-            if state.isDealerAction() :
+            if state.table.isDealerAction() :
                 if state.table.street == "preflop" :
                     cards = self.sim_deck.draw(3)
                 elif state.table.street == "flop" or \
@@ -97,7 +84,7 @@ class MCTS_Poker :
             assert state.table.action_to == state.table.toby_ix
             oblig = state.table.getObligation(state.table.action_to)
             in_final_round = state.inFinalRound()
-            assert False
+            print "in_final_round", in_final_round
             #inFinalRounds is being all gay still
             if oblig == 0 :
                 if in_final_round :
@@ -146,7 +133,7 @@ class MCTS_Poker :
         assert self.isTerminal(state)
         rewards = [0]*state.num_players
 
-        alive = state.playersAlive()
+        alive = state.table.playersAlive()
         one_alive = len(alive) == 1
         if one_alive :
             state.table.collectBets()
@@ -172,7 +159,7 @@ class MCTS_Poker :
         return rewards
 
     def isTerminal( self, state ) :
-        one_alive = len(state.playersAlive()) == 1
+        one_alive = len(state.table.playersAlive()) == 1
 
         #this isn't really terminal, dealer still needs to take actions
         #only_one_stack_left = sum([state.table.stacks[pix] > 0 \
@@ -180,7 +167,7 @@ class MCTS_Poker :
                                    #in range(state.table.num_players)
                                    #if not state.table.folded[pix] ]) == 1 
 
-        showdown = state.isDealerAction() and \
+        showdown = state.table.isDealerAction() and \
                    (state.table.street == 'river' )#or \
                     #only_one_stack_left)
         print "one_alive", one_alive

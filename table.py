@@ -98,14 +98,23 @@ class Table() :
         self.street = self.streets.next()
         self.street = self.streets.next()
 
+    def isDealerAction( self ) :
+        has_acted = self.acted[self.action_to]
+        oblig_is_zero = self.getObligation(self.action_to) == 0
+        return has_acted and oblig_is_zero
+        #return self.table.action_to % (self.num_players+1) \
+                #== self.num_players
+
+    def playersAlive( self ) :
+        alive = []
+        for i in range(self.num_players) :
+            if not self.folded[i] :
+                alive.append(i)
+        return alive
+
     def possibleRaises( self, player_ix, fractions ) :
         possible = []
-        #print "possRaise pix:", player_ix
         for frac in fractions :
-
-            #print "frac*self.pot", frac, frac*self.pot
-            #print "oblig", self.getObligation(player_ix)
-            #print "stack", self.stacks[player_ix]
             if frac * self.pot + self.getObligation(player_ix) <= \
                self.stacks[player_ix] :
                 possible.append(frac)

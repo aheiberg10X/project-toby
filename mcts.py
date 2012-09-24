@@ -107,7 +107,7 @@ def uctsearch( root_state ) :
         child = root.children[action]
         print "Action: ", action, "Total Rewards, Visit Count", getTotalRewards(child), getVisitCount(child)
 
-    bnode, bstate = bestChild( root, root_state, 0 )
+    bnode = bestChild( root, root_state, 0 )
     return getAction( bnode )
 
 def treePolicy( node, state ) :
@@ -145,7 +145,7 @@ def expand( parent, pstate, action ) :
     #action = choice( list(allowable-tried) ) 
     DOMAIN.applyAction( pstate, action )
     node = createNode( parent, action )
-    return [node,pstate]
+    return node
 
 def bestChild( parent, pstate, c, player_ix=0 ) :
     scores = []
@@ -162,7 +162,7 @@ def bestChild( parent, pstate, c, player_ix=0 ) :
     ix = scores.index(m)
     node = children[ix]
     DOMAIN.applyAction( pstate, node.action )
-    return [node,pstate]
+    return node
 
 def defaultPolicy( state ) :
     count = 0
