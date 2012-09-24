@@ -107,7 +107,7 @@ def uctsearch( root_state ) :
         child = root.children[action]
         print "Action: ", action, "Total Rewards, Visit Count", getTotalRewards(child), getVisitCount(child)
 
-    bnode, bstate = bestChild( root, root_state, 0 )
+    bnode = bestChild( root, root_state, 0 )
     return getAction( bnode )
 
 def treePolicy( node, state ) :
@@ -115,25 +115,22 @@ def treePolicy( node, state ) :
     #print "is terminal: ", DOMAIN.isTerminal(state)
     while isMarked( node ) and not DOMAIN.isTerminal( state ) : 
         
+        tried = node.children.keys()
+        action = DOMAIN.randomAction( state, excluded=tried )
         if not DOMAIN.isChanceAction(state) :
-            #num_allowable = len( DOMAIN.getAllowableActions( state ) ) 
-            #num_tried = len( getChildren(node) )
-            #assert num_tried <= num_allowable
-            #fully_expanded = num_tried == num_allowable
-            #tried = set(getChildren(node))
-            tried = node.children.keys()
-            action = DOMAIN.randomAction( state, excluded=tried )
             #print "tried", tried, "random action: ", action
             if action :
                 #print "expanding"
-                node,state = expand(node,state,action)
+                node = expand(node,state,action)
             else :
                 #print "besting"
-                node,state = bestChild( node, state, Cp )
+                node = bestChild( node, state, Cp )
         else :
-            action = DOMAIN.chanceAction( state )
             DOMAIN.applyAction( state, action )
-            node = createNode( node, action )
+            if action in node.children.keys() :
+                node = node.children[action]
+            else :
+                node = createNode( node, action )
 
 
         #print "Chosen:", node.action, state
@@ -148,7 +145,7 @@ def expand( parent, pstate, action ) :
     #action = choice( list(allowable-tried) ) 
     DOMAIN.applyAction( pstate, action )
     node = createNode( parent, action )
-    return [node,pstate]
+    return node
 
 def bestChild( parent, pstate, c, player_ix=0 ) :
     scores = []
@@ -165,7 +162,7 @@ def bestChild( parent, pstate, c, player_ix=0 ) :
     ix = scores.index(m)
     node = children[ix]
     DOMAIN.applyAction( pstate, node.action )
-    return [node,pstate]
+    return node
 
 def defaultPolicy( state ) :
     count = 0
