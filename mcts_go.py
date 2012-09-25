@@ -50,16 +50,30 @@ class State :
         state.player = self.player
         state.action = self.action
 
-    def sameAs( self, state2 ) :
-        #if type(state2) == int : return False
-        #assert self.dim == state2.dim
-        if self.player != state2.player :
+    def sameAs2( self, board, player ) :
+        if self.player != player :
             return False
         else :
             for ix in range(self.dim*self.dim) : 
-                if self.board[ix] != state2.board[ix] :
+                if self.board[ix] != board[ix] :
                     return False
             return True 
+
+    def sameAs( self, state2 ) :
+        #if type(state2) == int : return False
+        #assert self.dim == state2.dim
+        print "Comparing:"
+        print self 
+        print "\n and \n"
+        print state2
+        return self.sameAs2( state2.board, state2.player )
+        #if self.player != state2.player :
+            #return False
+        #else :
+            #for ix in range(self.dim*self.dim) : 
+                #if self.board[ix] != state2.board[ix] :
+                    #return False
+            #return True 
 
     def getNorth(self, ix) :
         if ix < self.dim or ix < 0 :
@@ -335,14 +349,15 @@ class MCTS_Go :
         #state the same as it was a turn ago
         if action != PASS :
             for ix,past_state in enumerate(state.past_states) :
-                if state.sameAs( past_state ) :
+                if state.sameAs2( past_state.board, \
+                                 -past_state.player ) :
                     #print "ILLEGAL same as past state"
                     legal = False
-                    if side_effects :
-                        print "ILLEGAL"
-                        for ix in range(len(state.past_states)) :
-                            print "\npast_state", ix
-                            print state.past_states[ix]
+                    #if side_effects :
+                        #print "ILLEGAL"
+                        #for ix in range(len(state.past_states)) :
+                            #print "\npast_state", ix
+                            #print state.past_states[ix]
                     break
 
         if legal :
@@ -527,15 +542,14 @@ def main() :
 
     if True : 
         s = State(dim)
-        s.setBoard([4,6,8,9,11,13,16,18,21,24,25,28,31,32],WHITE)
-        s.setBoard([0,2,7,15,19,20,23,26,27,33,34,35],BLACK)
-        s.togglePlayer()
-        print s
+        s.setBoard([0,2,4,7,9,12,14,19],WHITE)
+        s.setBoard([5,10,11,15,17,18,20,21,22,24,25,26,27,28,29,31,32,34,35],BLACK)
         g = MCTS_Go(dim)
-        al = set()
-        for i in range(1000) :
-            al.add(g.randomAction( s ) )
-        print al
+        g.applyAction( s, -4 )
+        g.applyAction( s, 5 )
+        #print s
+        #for ps in s.past_states :
+            #print ps
 
     #wtf moves not being taken
     if False :
