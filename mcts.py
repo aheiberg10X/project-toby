@@ -121,17 +121,12 @@ def treePolicy( node, state ) :
             #there is nothing to choose from
             #But using the 0 action as False to expand was a mistake
             if not DOMAIN.fullyExpanded( action ):
-                print "expanding"
+                #print "expanding"
                 node = expand(node,state,action)
             else :
-                print "besting"
-                try :
-                    node = bestChild( node, state, \
-                                      player_ix=DOMAIN.getPlayerIx(state) )
-                except Exception as e :
-                    print "state, ", state
-                    print "tried", tried, "random action: ", action
-                    assert False
+                #print "besting"
+                node = bestChild( node, state, \
+                                  player_ix=DOMAIN.getPlayerIx(state) )
         else :
             DOMAIN.applyAction( state, action )
             if action in node.children.keys() :
