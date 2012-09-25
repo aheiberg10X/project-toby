@@ -1,4 +1,5 @@
 from random import choice, sample
+from math import sqrt
 
 #state is a board and a player to move (-1 or 1), and captured pieces
 #board is a NxN multidim array (-1,0,1)
@@ -11,7 +12,7 @@ OFFBOARD = -42
 PASS = 0
 
 class State :
-    def __init__(self,dim) :
+    def __init__(self,dim,shallow=False) :
         self.dim = dim
         self.board = [EMPTY]*(dim*dim)
         self.open_positions = set(range(dim*dim))
@@ -21,17 +22,25 @@ class State :
         self.allowable_actions = [self.ix2action(ix,self.player) \
                                   for ix \
                                   in range(dim*dim) ]
-
+        if not shallow :
+            self.past_states = [State(dim, shallow=True)]*10
+#
+#
     def togglePlayer(self) :
         self.player = -self.player
 
-    def copy(self) : 
+    def copy(self, shallow=False) : 
         ns = State(self.dim)
         ns.board = list(self.board)
         ns.open_positions = set(self.open_positions)
         ns.capture_counts = list(self.capture_counts)
         ns.player = self.player
         ns.action = self.action
+        if not shallow :
+            for ix,ps in enumerate(self.past_states) :
+                ns.past_states[ix] = ps.copy(shallow=True)
+            #ns.past_states[ix] = (
+            #(list(ps[0]),ps[1])
         return ns
 
     def copyInto( self, state ) :
@@ -42,13 +51,15 @@ class State :
         state.action = self.action
 
     def sameAs( self, state2 ) :
-        if type(state2) == int : return False
-        assert self.dim == state2.dim
-
-        for ix in range(self.dim*self.dim) : 
-            if self.board[ix] != state2.board[ix] :
-                return False
-        return True 
+        #if type(state2) == int : return False
+        #assert self.dim == state2.dim
+        if self.player != state2.player :
+            return False
+        else :
+            for ix in range(self.dim*self.dim) : 
+                if self.board[ix] != state2.board[ix] :
+                    return False
+            return True 
 
     def getNorth(self, ix) :
         if ix < self.dim or ix < 0 :
@@ -201,6 +212,8 @@ class State :
             no_liberties_left.append( len(group) != 0 )
 
         suicide_by_definition = any(no_liberties_left)#print no_liberties_left
+    
+        #TODO move to fillsSingleEye
         non_offboard = self.matching( neighbs, [BLACK,WHITE,EMPTY] )
         useless_eye_move = all( [ self.ix2color(nix) == color \
                                   for nix \
@@ -216,10 +229,10 @@ class State :
             l = []
             for j in range(self.dim) :
                 p = self.board[i*self.dim+j]
-                if   p == -1 : l.append( "o" )
-                elif p == 1  : l.append( "x" )
-                elif p == 0  : l.append( "-" )
-                else : assert False
+                if   p == BLACK  : l.append( "x" )
+                elif p == WHITE  : l.append( "o" )
+                elif p == EMPTY  : l.append( "." )
+                #else : assert False
             rows.append( " ".join(l) )
 
         return "\n".join(rows)
@@ -240,29 +253,42 @@ class String :
 
 class MCTS_Go :
     def __init__(self,dim) :
-        self.states = [State(dim)]*10
+        #state.past_states = [State(dim)]*10
         self.dim = dim
-        self.root_state = State(dim)
+        self.start_state = State(dim)
+        self.excluded_action = -123
 
     def copyState( self, state ) :
         if type(state) == int :
             return state
         return state.copy()
- 
-    def setAllowableActions( self, state ) :
-        #0 is pass
-        possible_actions = [state.ix2action(op, state.player) \
-                            for op \
-                            in state.open_positions]
-        allowable_actions = []
-        for action in possible_actions :
-            is_legal = self.applyAction( state, action, side_effects=False ) 
-            if is_legal :
-                allowable_actions.append( action )
-        
-        if len(allowable_actions) == 0 : state.allowable_actions = [PASS]
-        else : state.allowable_actions = allowable_actions
+
+    #DEPRECATED
+    #def setAllowableActions( self, state ) :
+        ##0 is pass
+        #possible_actions = [state.ix2action(op, state.player) \
+                            #for op \
+                            #in state.open_positions]
+        #allowable_actions = []
+        #for action in possible_actions :
+            #is_legal = self.applyAction( state, action, side_effects=False ) 
+            #if is_legal :
+                #allowable_actions.append( action )
+       # 
+        #if len(allowable_actions) == 0 : state.allowable_actions = [PASS]
+        #else : state.allowable_actions = allowable_actions
    
+    #given the color of stone, return the player's index in the score array
+    #used in getRewards
+    def getScoreIx( self, color ) :
+        if color == BLACK :
+            return 1
+        elif color == WHITE :
+            return 0
+        else : 
+            print "coloR: ",color
+            assert False
+
     ####################################################
     ####Public Interface
     ####################################################
@@ -302,24 +328,35 @@ class MCTS_Go :
 
             if state.isSuicide( action ) :
                 assert num_removed == 0
+                #print "ILLEGAL is suicide"
                 legal = False
             
         #Proposed changes have been applied to state.  See it this makes
         #state the same as it was a turn ago
         if action != PASS :
-            for past_state in self.states :
+            for ix,past_state in enumerate(state.past_states) :
                 if state.sameAs( past_state ) :
+                    #print "ILLEGAL same as past state"
                     legal = False
+                    if side_effects :
+                        print "ILLEGAL"
+                        for ix in range(len(state.past_states)) :
+                            print "\npast_state", ix
+                            print state.past_states[ix]
                     break
 
         if legal :
             if side_effects :
                 state.action = action
-                for i in range(len(self.states)-1) :
-                    self.states[i] = self.states[i+1]
+                #print "copying"
+                for i in range(len(state.past_states)-1) :
+                    state.past_states[i] = state.past_states[i+1]
+                    #TODO del the state we are jettisoning?
+                    #print "i", state.past_states[i]
                 state.togglePlayer()
-                self.states[-1] = frozen
-                return state
+                state.past_states[-1] = frozen
+                #return state
+                return True 
             else :
                 frozen.copyInto( state )
                 return True
@@ -327,6 +364,7 @@ class MCTS_Go :
             if side_effects : 
                 #check weeding out bad moves should have happened in 
                 #getAllowableActions
+                print "action:", action
                 assert False
             else : 
                 frozen.copyInto( state )
@@ -378,11 +416,11 @@ class MCTS_Go :
         dead_strings_removed = True
         while dead_strings_removed :
 
-            #need to do this list conversion still?
-            #op = list(state.open_positions)
             marked = {}
             #TODO: a territory can be bordered by more than one live string
             #how will this factor in?
+            #TODO update: no it wont!!?
+
             #set/list of ixs : string_id
             territories = {}
             terr_id = 0
@@ -425,46 +463,79 @@ class MCTS_Go :
                     #state.setBoard( s.members, 0 )
                     #string is dead
 
-        scores = [0,0,0]
-        for six in strings :
-            st = strings[six]
-            score_ix = st.color + 1
+        scores = [0,0]
+        for stix in strings :
+            st = strings[stix]
+            score_ix = self.getScoreIx(st.color)
             scores[score_ix] += len(st.members)
             for t in st.territories :
                 scores[score_ix] += len(t)
 
-        return scores[0], scores[2]
+        #TODO: add in 5.5 points to WHITE
 
-    def randomAction( self, state, excluded=set() ) :
+        if scores[0] > scores[1] :
+            return [1,0]
+        elif scores[1] > scores[0] :
+            return [0,1]
+        else :
+            return [0,0]
+
+        #TODO: decide on a reasonable scoring with Fred
+        #return [int(sqrt(s)) for s in scores]
+
+       
+    #given the state, return the player to act's index in the score array
+    def getPlayerIx( self, state ) :
+        return self.getScoreIx( state.player )
+
+    #if cannot find action because excluded, return action_excluded
+    #if because there are no legal moves, return pass
+    #
+    def randomAction( self, state, to_exclude=set() ) :
+        legal_moves_available = False
+        #print "to_excluded", to_exclude
         for candidate in sample( state.open_positions, \
                                  len(state.open_positions) ) :
 
+            #print "candidate", candidate
             action = state.ix2action( candidate, state.player )
-            if action not in excluded :
-                is_legal = self.applyAction( state, action, side_effects=False )
-                if is_legal :
+            is_legal = self.applyAction( state, action, side_effects=False )
+            if is_legal :
+                legal_moves_available = True
+                if action not in to_exclude :
+                    all_legal_excluded = False
                     return action #choice( state.allowable_actions )
+        
+        if legal_moves_available :
+            #print "all exlcud"
+            return self.excluded_action
+        else :
+            #print "pass"
+            return PASS
 
-        return PASS
+    def fullyExpanded( self, action ) :
+        return action == self.excluded_action
 
     def isChanceAction( self, state ) :
         return False
 
     def isTerminal( self, state ) :
-        return state.action == PASS and self.states[-1].action == PASS
+        return state.action == PASS and state.past_states[-1].action == PASS
 
 def main() :
-    dim = 4
+    dim = 6 
 
     if True : 
         s = State(dim)
-        s.setBoard([4,8,9,10,13,15],WHITE)
-        s.setBoard([0,2,5,6,7,11],BLACK)
+        s.setBoard([4,6,8,9,11,13,16,18,21,24,25,28,31,32],WHITE)
+        s.setBoard([0,2,7,15,19,20,23,26,27,33,34,35],BLACK)
         s.togglePlayer()
         print s
         g = MCTS_Go(dim)
-        #g.setAllowableActions(s)
-        #print g.getAllowableActions(s)
+        al = set()
+        for i in range(1000) :
+            al.add(g.randomAction( s ) )
+        print al
 
     #wtf moves not being taken
     if False :
@@ -475,7 +546,6 @@ def main() :
         g = MCTS_Go(dim)
         g.applyAction( s, -14 )
         s.togglePlayer()
-        #g.setAllowableActions(s)
         print s
         print "s.action:", s.action
         print "prev action:", g.states[-1].action
@@ -533,7 +603,6 @@ def main() :
         s = State(dim)
         s.setBoard( [0,2,4,5,6,7,9,10,12,14,15] , 1 )
         g = MCTS_Go(dim)
-        #g.setAllowableActions(s)
         
         print s
         
