@@ -5,7 +5,7 @@ class Player() :
         self.name = name
 
     def getAction( self, state ) :
-        print "player getAction"
+        #print "player getAction"
         oblig = state.table.getObligation(state.table.action_to)
         in_final_round = state.inFinalRound()
         if oblig == 0 :
@@ -25,7 +25,7 @@ class Player() :
                                          state.table.action_to, \
                                          state.raises )
 
-        print "possible:", possible
+        #print "possible:", possible
         
         return choice(possible)
 

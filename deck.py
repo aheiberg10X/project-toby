@@ -349,6 +349,9 @@ class Deck:
     def shuffle(self) :
         self.cards = set(range(52))
 
+    def copy(self) :
+        return Deck( set(self.cards) )
+
     #if all the cards are present to be be removed, do so and return True
     #if not, do not remove anything and return False
     def remove( self, cards ) :

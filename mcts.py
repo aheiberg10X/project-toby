@@ -1,16 +1,18 @@
 from mcts_test import MCTS_Test
 from mcts_go import MCTS_Go
+from mcts_poker import MCTS_Poker
 from math import sqrt, log
 from random import choice
 
 #when rewards in range [0,1], not our case
 Cp = 1 / sqrt(2)
+#Cpoker = 
 NUM_PLAYERS = 2 
 DOMAIN_NAME = 'GO'
 
 if   DOMAIN_NAME == 'TEST'  :  DOMAIN = MCTS_Test()
 elif DOMAIN_NAME == 'POKER' :  DOMAIN = MCTS_Poker()
-elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(6)
+elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(4)
 
 
 #########################################################################
@@ -24,7 +26,6 @@ class Node :
         #keyed by action
         self.children = {}
         self.action = action
-        self.possible_actions = []
 
         #auto mark the root
         self.marked = not self.parent
@@ -78,16 +79,16 @@ def isMarked( node ) :
 #########  CORE
 ########################################################################
 
-def uctsearch( root_state ) :
+def search( root_state ) :
     root = createNode( parent=False, action=False )
     node = root
 
     time_left = True
     count = 0
     #print "root_state", root_state
-    while count < 2 :
+    while count < 100 :
         #print "\n====================================================="
-        #print "uctsearch iteration %d" % count
+        #print "search iteration %d" % count
         state = DOMAIN.copyState(root_state)
         #print "state before tree policy", state
         #for ix in range(len(DOMAIN.states)) :
@@ -102,14 +103,26 @@ def uctsearch( root_state ) :
 
     for action in root.children :
         child = root.children[action]
-        print "Action: ", action, "Total Rewards, Visit Count", getTotalRewards(child), getVisitCount(child), "Score: ", scoreNode(child, root, DOMAIN.getPlayerIx(root_state) )
+        print "Action: ", action, \
+               "Rewards: ", [round(s,2) for s in getTotalRewards(child)], \
+               "Visit Count:", getVisitCount(child), \
+               "Score: ", round( scoreNode(child, \
+                                           root, \
+                                           DOMAIN.getPlayerIx(root_state), \
+                                           debug=False), 2 )
 
         #a = raw_input()
 
-    bnode = bestChild( root, root_state, 0 )
+    bnode = bestChild( root, \
+                       root_state, \
+                       player_ix=DOMAIN.getPlayerIx(root_state) )
+
     return getAction( bnode )
 
 def treePolicy( node, state ) :
+    return uctPolicy( node, state )
+
+def uctPolicy( node, state ) :
     #print "tp, incoming state", state
     #print "is terminal: ", DOMAIN.isTerminal(state)
     while isMarked( node ) and not DOMAIN.isTerminal( state ) : 
@@ -117,9 +130,10 @@ def treePolicy( node, state ) :
         tried = node.children.keys()
         action = DOMAIN.randomAction( state, to_exclude=tried )
         if not DOMAIN.isChanceAction(state) :
-            #TODO: if action is PASS, can't go to bestChild because
-            #there is nothing to choose from
-            #But using the 0 action as False to expand was a mistake
+            #TODO: dont' like this convolution of MCTS and domain
+            #domain should care nothing about fully expanded or not
+            #came about from slowness of getPossibleActions for Go
+
             if not DOMAIN.fullyExpanded( action ):
                 #print "expanding"
                 node = expand(node,state,action)
@@ -149,12 +163,15 @@ def expand( parent, pstate, action ) :
     node = createNode( parent, action )
     return node
 
-def scoreNode( node, parent, player_ix, c=Cp ) :
+def scoreNode( node, parent, player_ix, c=Cp, debug=False ) :
     creward = getTotalRewards(node)[player_ix]
     cvisit = getVisitCount(node)
     pvisit = getVisitCount(parent)
-    exploitation = creward / cvisit 
+    exploitation = creward / float(cvisit)
     exploration = c*sqrt( 2*log( pvisit ) / cvisit )
+    if debug :
+        print "exploration:", exploration
+        print "exploitation:", exploitation
     return exploitation + exploration
 
 def bestChild( parent, pstate, player_ix=0 ) :
@@ -182,7 +199,7 @@ def defaultPolicy( state ) :
     count = 0
     while not DOMAIN.isTerminal(state) :
         #TODO: this is hacky
-        if count > state.dim^2 * 100 :
+        if DOMAIN_NAME == 'GO' and count > state.dim^2 * 100 :
             print "probably in loop somehow"
             break
         DOMAIN.applyAction( state, DOMAIN.randomAction(state) )
@@ -213,13 +230,36 @@ def applySum( a,b ) :
 
 def main() :
        
-    state = DOMAIN.start_state
-    while not DOMAIN.isTerminal( state ) :
-        print state
-        #a = raw_input('-->')
-        action = uctsearch( state )
-        print "action: ", action
-        print "\n"
+    if DOMAIN_NAME == 'POKER' :
+        state = DOMAIN.start_state
+        while not DOMAIN.isTerminal( state ) :
+            print state
+            if DOMAIN.isChanceAction(state) :
+                print "is chance"
+                action = DOMAIN.randomAction(state)
+                DOMAIN.applyAction( state, action )
+            else :
+                print "searching"
+                #a = raw_input('-->')
+                action = search( state )
+            
+            print "action: ", action
+            print "\n"
+            a = raw_input('-->')
+
+        print "rewards",  DOMAIN.getRewards( state )
+    
+    if DOMAIN_NAME == 'GO' :
+        state = DOMAIN.start_state
+        while not DOMAIN.isTerminal( state ) :
+            print state
+            #a = raw_input('-->')
+            action = search( state )
+            print "action: ", action
+            print "\n"
+            a = raw_input('-->')
+
+        print "rewards",  DOMAIN.getRewards( state )
 
 
 if __name__ == '__main__' :

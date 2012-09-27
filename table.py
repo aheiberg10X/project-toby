@@ -13,24 +13,6 @@ from deck import makeHuman
 # basically, assume all alterations to the Table() are valid
 # as they are controlled by our Dealer() class, or the poker site client
 
-#not active
-# decorator macro
-# as the players take actions, we want to update the History()
-# this function wraps each action, so that if any one gets invoked
-# the History is automatically updated
-#def updateHistory( func ) :
-    #def inner( *args ) : 
-        #action = func( *args )
-       # 
-        ##TODO:
-        ##add all the relevant Table info to action
-        #relevant_stuff = 42
-#
-        #args[0].history.update( relevant_stuff, action )
-    #return inner
-
-   
-
 class Table() :
     def __init__(self, \
                  players, \
@@ -68,6 +50,7 @@ class Table() :
         r.append( "    Player Names: %s" % '; '.join(self.player_names) )
         pocks = [str(makeHuman(p)) for p in self.pockets]
         r.append( "    Pockets: %s" % '; '.join(pocks) )
+        r.append( "    Folded: %s" % '; '.join([str(f) for f in self.folded]) )
         r.append( "    Stacks: %s" % '; '.join([str(s) for s in self.stacks]) )
         r.append( "    Button: %s" % self.player_names[self.button] )
         r.append( "    Street: %s" % self.street )
@@ -75,11 +58,40 @@ class Table() :
         r.append( "    Pot: %d" % self.pot )
         r.append( "    Current Bets: %s" % \
                        "; ".join([str(cb) for cb in self.current_bets]) )
+        r.append( "    Committed: %s" % \
+                       "; ".join([str(c) for c in self.committed]) )
         r.append( "    Action To: %s" % self.player_names[self.action_to] )
         return "\n".join( r )
 
-    #TODO:
-    #should be named newHand() ?
+    def copy(self) :
+        t = Table(players     = self.players, \
+                  stacks      = list(self.stacks), \
+                  toby_ix     = self.toby_ix, \
+                  pockets     = list(self.pockets), \
+                  button      = self.button, \
+                  logging     = self.logging, \
+                  small_blind = self.small_blind \
+                  )
+
+        for street in STREET_NAMES :
+            t.history[street] = list(self.history[street])
+
+        t.action_to = self.action_to
+        t.folded = list(self.folded)
+        t.acted = list(self.acted)
+        t.current_bets = list(self.current_bets)
+        t.committed = list(self.committed)
+        t.pot = self.pot
+        t.board = list(self.board)
+        t.street = self.street
+        it = iter(STREET_NAMES)
+        for sn in it :
+            if sn == t.street :
+                break
+        t.streets = it
+
+        return t
+
     def newHand(self,pockets) :
         
         self.advanceButton()
@@ -140,7 +152,7 @@ class Table() :
             self.updateStack( player_ix, oblig )
 
             if self.stacks[player_ix] < 0 :
-                print "WHOA THERE STACK IS NEGATIVE"
+                #print "WHOA THERE STACK IS NEGATIVE"
                 #credit the amout back to committed players
                 cur_bet = self.current_bets[player_ix]
                 adj_amt = self.stacks[player_ix]
@@ -189,7 +201,11 @@ class Table() :
             if not is_folded :
                 diff = self.current_bets[ix] - \
                        self.current_bets[player_ix]
-                assert diff >= 0
+                if not diff >= 0 :
+                    print "action_to", self.action_to
+                    print "player_ix", player_ix, self.current_bets[player_ix]
+                    print "ix: ", ix, self.current_bets[ix]
+                    assert False
                 return diff
         #everyone has folded
         return 0
@@ -245,8 +261,6 @@ class Table() :
     def close(self) :
         if self.logging :
             self.history.writeOut()
-
-
 
 def main() :
     t = Table( num_seats=8 )
