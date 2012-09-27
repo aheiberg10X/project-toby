@@ -18,6 +18,7 @@ class State :
         self.open_positions = set(range(dim*dim))
         self.capture_counts = [0,0]
         self.player = BLACK 
+        self.action = -1
         if not shallow :
             self.past_states = [State(dim, shallow=True)]*10
     
@@ -30,6 +31,7 @@ class State :
         ns.open_positions = set(self.open_positions)
         ns.capture_counts = list(self.capture_counts)
         ns.player = self.player
+        ns.action = self.action
         if not shallow :
             for ix,ps in enumerate(self.past_states) :
                 ns.past_states[ix] = ps.copy(shallow=True)
@@ -42,6 +44,7 @@ class State :
         state.open_positions = self.open_positions
         state.capture_counts = self.capture_counts
         state.player = self.player
+        state.action = self.action
 
     def sameAs2( self, board, player ) :
         if self.player != player :
