@@ -312,9 +312,8 @@ class MCTS_Go :
                 #print "ILLEGAL is suicide"
                 legal = False
             
-        #Proposed changes have been applied to state.  See it this makes
-        #state the same as it was a turn ago
-        if action != PASS :
+            #Proposed changes have been applied to state.  See it this makes
+            #state the same as it was a turn ago
             for ix,past_state in enumerate(state.past_states) :
                 if state.sameAs2( past_state.board, \
                                  -past_state.player ) :

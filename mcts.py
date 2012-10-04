@@ -4,28 +4,35 @@ from mcts_poker import MCTS_Poker
 from math import sqrt, log
 from random import choice
 
-#when rewards in range [0,1], not our case
-Cp = 1 / sqrt(2)
-#Cpoker = 
 NUM_PLAYERS = 2 
-DOMAIN_NAME = 'GO'
+DOMAIN_NAME = 'POKER'
 
-if   DOMAIN_NAME == 'TEST'  :  DOMAIN = MCTS_Test()
-elif DOMAIN_NAME == 'POKER' :  DOMAIN = MCTS_Poker()
-elif DOMAIN_NAME == 'GO'    :  DOMAIN = MCTS_Go(4)
+if   DOMAIN_NAME == 'TEST'  :  
+    DOMAIN = MCTS_Test()
+    Cp = 1
+elif DOMAIN_NAME == 'POKER' :  
+    DOMAIN = MCTS_Poker()
+    Cp = 2
+elif DOMAIN_NAME == 'GO'    :  
+    DOMAIN = MCTS_Go(4)
+    Cp = 1 / sqrt(2)
 
 
 #########################################################################
 ###           DATA REP
 #########################################################################
 class Node :
-    def __init__( self, parent, action ) :
+    def __init__( self, parent, action, kind ) :
         self.parent = parent
         self.visit_count = 0 
         self.total_rewards = [0]*NUM_PLAYERS
         #keyed by action
         self.children = {}
         self.action = action
+        self.value = 0
+        self.fully_expanded = False
+
+        self.kind = kind
 
         #auto mark the root
         self.marked = not self.parent
@@ -37,8 +44,8 @@ class Node :
 ##### Interface to DATA REP
 #########################################################################
 
-def createNode( parent, action ) :
-    child = Node( parent, action )
+def createNode( parent, action, kind ) :
+    child = Node( parent, action, kind )
     if parent :
         parent.children[action] = child
     return child
@@ -80,7 +87,8 @@ def isMarked( node ) :
 ########################################################################
 
 def search( root_state ) :
-    root = createNode( parent=False, action=False )
+    assert not DOMIAN.isChanceAction(root_state)
+    root = createNode( parent=False, action=False, kind='decision' )
     node = root
 
     time_left = True
@@ -122,6 +130,9 @@ def search( root_state ) :
 def treePolicy( node, state ) :
     return uctPolicy( node, state )
 
+def randomPolicy( node, state ) :
+    pass
+
 def uctPolicy( node, state ) :
     #print "tp, incoming state", state
     #print "is terminal: ", DOMAIN.isTerminal(state)
@@ -139,6 +150,7 @@ def uctPolicy( node, state ) :
                 node = expand(node,state,action)
             else :
                 #print "besting"
+                node.fully_expanded = True
                 node = bestChild( node, state, \
                                   player_ix=DOMAIN.getPlayerIx(state) )
         else :
@@ -146,7 +158,7 @@ def uctPolicy( node, state ) :
             if action in node.children.keys() :
                 node = node.children[action]
             else :
-                node = createNode( node, action )
+                node = createNode( node, action, kind='chance' )
 
 
         #print "Chosen:", node.action, state
@@ -160,10 +172,10 @@ def expand( parent, pstate, action ) :
     #tried = set(parent.children.keys())
     #action = choice( list(allowable-tried) ) 
     DOMAIN.applyAction( pstate, action )
-    node = createNode( parent, action )
+    node = createNode( parent, action, kind='decision' )
     return node
 
-def scoreNode( node, parent, player_ix, c=Cp, debug=False ) :
+def scoreNode( state, node, parent, player_ix, c=Cp, debug=False ) :
     creward = getTotalRewards(node)[player_ix]
     cvisit = getVisitCount(node)
     pvisit = getVisitCount(parent)
@@ -211,7 +223,28 @@ def defaultPolicy( state ) :
 def backprop( node, rewards ) :
     while node :
         setVisitCount( node, getVisitCount(node)+1 )
-        setTotalRewards( node, applySum( getTotalRewards(node), rewards ) )
+        if node.kind == 'decision' :
+            #TODO replace with fancy pants model? Below is the old way
+            setTotalRewards( node, applySum( getTotalRewards(node), rewards ) )
+        elif node.kind == 'chance' :
+            children = getChilren(node)
+            if len(node.children) > 0 :
+                value_est = 0
+                for child in children :
+                    sample_freq =        getVisitCount( child ) / \
+                                  float( getVisitCount( node  ) )
+                    #TODO
+                    #getValue will return an array of values
+                    #want to map *
+                    value_est += getValue(child) * sample_freq
+                setTotalRewards( node, value_est )
+            else :
+                #we just expanded to this node (it's a sim-leaf),
+                #so all we have is the one value
+                setTotalRewardes( node, rewards )
+        else :
+            assert False
+        
         node = node.parent
 
 
