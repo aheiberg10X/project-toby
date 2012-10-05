@@ -1,53 +1,105 @@
 import re
 
+MIN_BET_THRESH = 1
+ALL_IN_THRESH = .8
+
 re_game_id = re.compile(r'\*\*\*\*\* Hand History for Game (\d+) \*\*\*\*\*')
-re_pip = re.compile(r'.*(small blind|big blind|raises|bets|calls) \[\$(\d+)(\.(\d\d))? USD\].*')
+re_pip = re.compile(r'(.*) (posts small blind|posts big blind|is all-In|raises|bets|calls) \[\$(\d+)(\.(\d\d))? USD\].*')
+re_seat = re.compile(r'Seat \d: (.*) \( \$(\d+)(\.(\d\d))? USD \)')
 
-fin = open("histories/knufelbrujk_hotmail_com_PTY_NLH100_3-6plrs_x10k_1badb/pty NLH handhq_0.txt")
-
-
-
-games = []
-game = {"id" : "init", \
-        "pot" : 42 }
+file_counter = 0
+num_files = 10
+filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_3-6plrs_x10k_1badb/pty NLH handhq_%d"
+#filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/pty NLH handhq_%d"
 
 bets = []
 
-line_count = 0
-for line in fin.readlines() :
-    line = line.strip()
-    #print line
-    m = re_game_id.match(line)
-    if m :
-        #finish processing last game
-        print "game: ", game['id'], "pot was: ", game['pot']
-        #print "    ratios were: ", str(game['bets'])
 
-        print "new game: " , m.group(1)
-        game = {"id" : int(m.group(1)), \
-                "pot" : 0 }
+def reGroupsToAmount( dollar_group, cent_group ) :
+    dollars = int(dollar_group)
+    if cent_group :
+        cents = float(cent_group) / 100
+    else : cents = 0
+    return dollars+cents
 
-    else :
-        m = re_pip.match(line)
+while file_counter < num_files :
+    fin = open("%s.txt" % filename % file_counter)
+
+    games = []
+    game = {"id" : "init", \
+            "pot" : 42, \
+            "big_blind" : 42, \
+            "stacks" : {}}
+
+    line_count = 0
+    for line in fin.readlines() :
+        line = line.strip()
+        #print line
+        m = re_game_id.match(line)
         if m :
-            is_blind = m.group(1) == "small blind" or m.group(1) == "big blind"
-            dollars = int(m.group(2))
-            if m.group(4) :
-                cents = float(m.group(4)) / 100
-            else : cents = 0
-            bet = dollars+cents
-            if not is_blind :
-                bets.append( round(bet / game['pot'], 2) )
+            #finish processing last game
+            #print file_counter
+            #print "\ngame: ", game['id'], "pot was: ", game['pot']
+            #print "bigblind: " , game['big_blind']
+            #print "stacks: ", game['stacks']
 
-            game['pot'] += bet
+            #print "\nnew game: " , m.group(1)
+            game = {"id" : int(m.group(1)), \
+                    "pot" : 0, \
+                    "big_blind" : 42, \
+                    "stacks" : {}}
 
-    if line_count > 10000 : break
+        else :
+            mseat = re_seat.match(line)
+            mpip = re_pip.match(line)
+            if mseat :
+                player = mseat.group(1)
+                stack = reGroupsToAmount( mseat.group(2), mseat.group(4) )
+                game['stacks'][player] = stack
 
-    line_count += 1
+            if mpip :
+                player = mpip.group(1)
+                is_blind = mpip.group(2) == "posts small blind" or \
+                           mpip.group(2) == "posts big blind"
 
-print sorted(bets)
+                bet = reGroupsToAmount( mpip.group(3), mpip.group(5) )
+                game['pot'] += bet
+                try :
+                    game['stacks'][player] -= bet
+                except KeyError as e :
+                    continue
+                
+                if mpip.group(2) == 'posts big blind' :
+                    game['big_blind'] = bet
+
+                #print "bet: ", bet
+                #print "ratio: ", bet / game['pot']
+                if is_blind :
+                    continue
+                elif bet <= game['big_blind'] * MIN_BET_THRESH :
+                    #print "excluded, too small"
+                    continue
+                elif mpip.group(2) == 'is all-In' :
+                    #print "excluded, all in"
+                    continue
+                #elif bet >= game['stacks'][player] * ALL_IN_THRESH :
+                    ##print "excluded, too big"
+                    #continue
+                else:
+                    bets.append( int(bet / game['pot'] * 100) )
+
+
+        #if line_count > 100 : break
+
+        line_count += 1
+        
+    fin.close()
+    file_counter += 1
+
+fout = open("%s_bets.txt" % filename % 42, 'w')
+fout.write( str(sorted(bets))[1:-1] )
+fout.close()
 #finish processing last game
 
 
 
-fin.close()
