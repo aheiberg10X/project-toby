@@ -284,7 +284,7 @@ class MCTS_Go :
         #freeze and save the current state
         frozen = self.copyState( state )
 
-        if action != 0 :
+        if action != PASS :
             ix = state.action2ix(action)
             color = state.action2color(action)
             state.setBoard( ix, color )
@@ -494,7 +494,6 @@ class MCTS_Go :
             if is_legal :
                 legal_moves_available = True
                 if action not in to_exclude :
-                    all_legal_excluded = False
                     return action 
         
         if legal_moves_available :

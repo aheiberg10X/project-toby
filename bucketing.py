@@ -146,7 +146,7 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
 def makeRound( EV ) :
     return int( EV * 100 )
 
-def computeEVDists(num_known_board=4) :
+def computeDists(num_known_board, EV_or_HS) :
     already_seen = {}
     count = 0
     
@@ -157,22 +157,33 @@ def computeEVDists(num_known_board=4) :
 
     for board in combinations( d.cards, num_known_board ) :
         collapsed = collapseBoard( board )
-        path = "evdists/%s/%s.evdist" % (street,collapsed)
+        if EV_or_HS == 'EV' :
+            path = "evdists/%s/%s.evdist" % (street,collapsed)
+        else :
+            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
+
         if collapsed in already_seen or exists(path) : 
             continue
         else :
             print count, collapsed
             count += 1
-            #board = makeHuman(board) + ['__']*(5-num_known_board)
-            #pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
-            #x = []
-            #for pocket in pocketEVs :
-                #x.append( makeRound( pocketEVs[pocket] ) )
-            #x.sort()
+            board = makeHuman(board) + ['__']*(5-num_known_board)
+            
+            x = []
+            if EV_or_HS == 'EV' :
+                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
+                for ev in d_pocket_EV.values() :
+                    x.append( makeRound( ev ) )
+            else :
+                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
+                for hs in d_pocket_HS.values() :
+                    x.append( hs )
+
+            x.sort()
 #
-            #fout = open(path, 'w')
-            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            #fout.close()
+            fout = open(path, 'w')
+            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            fout.close()
 
             already_seen[collapsed] = True
 
@@ -191,7 +202,7 @@ def visualizeEVDist( filepath, buckets=40 ) :
 
 
 def computeBuckets( street, bucket_percentages ) :
-    assert int(sum(bucket_percentages)) == 1 
+    assert sum(bucket_percentages) == 1 
     #wtf <= works but not ==
     #assert sum(bucket_percentages) == 1.0
 
@@ -317,7 +328,8 @@ if __name__ == '__main__' :
     #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
     #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
 
-    computeEVDists()
+    computeDists(3,'HS')
+    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
     
     #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
              #'turn' : 20, \
