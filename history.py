@@ -1,6 +1,6 @@
 import datetime
 from globles import STREET_NAMES
-
+##:w
 class History() :
     def __init__(self) :
         #self.hand_num = -1
