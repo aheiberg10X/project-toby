@@ -14,6 +14,36 @@ filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_3-6plrs_x10k_1badb/pty 
 
 bets = []
 
+class Game :
+    def __init__(self, name) :
+        self.name = name
+        self.pot = 0
+        self.big_blind = -1
+        self.stacks = {}
+        self.active_players = -1
+        self.total_players = -1
+
+        #bet/raise
+        self.num_aggressive = [-1]*4
+        #check/call
+        self.num_passive = [-1]*4
+
+        self.all_in_with_call = False
+        self.amount_to_call = -1
+
+        self.average_rank = -1
+        self.callers_since_last_raise = -1
+
+        self.effective_stack_vs_active = -1
+        self.effective_stack_vs_aggressor = -1
+
+        self.high_card_flop = -1
+        self.high_card_turn = -1
+        self.high_card_river = -1
+
+        self.implied_odds_vs_aggressor = -1
+
+
 
 def reGroupsToAmount( dollar_group, cent_group ) :
     dollars = int(dollar_group)
@@ -29,7 +59,8 @@ while file_counter < num_files :
     game = {"id" : "init", \
             "pot" : 42, \
             "big_blind" : 42, \
-            "stacks" : {}}
+            "stacks" : {}, \
+            "active_players" : 0}
 
     line_count = 0
     for line in fin.readlines() :

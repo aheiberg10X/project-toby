@@ -42,7 +42,8 @@ class Table() :
             self.history = {}
             for s in STREET_NAMES :
                 self.history[s] = []
-        self.newHand(pockets)
+
+        self.newHand("init", players, pockets, stacks, button)
 
     def __str__(self) :
         r = []
@@ -92,9 +93,14 @@ class Table() :
 
         return t
 
-    def newHand(self,pockets) :
-        
-        self.advanceButton()
+    def newHand(self,name,players,pockets,stacks,button) :
+        self.name = name
+        #TODO, probably be setting button, no guarantee of constant player
+        #as table progresses in hand histories
+        #self.advanceButton()
+        self.button = button
+        self.players = player
+        self.stacks = stacks
         self.pockets = pockets #[deck.draw(2) for i in range(self.num_players)]
         #self.pockets = [[FOLDED]*POCKET_SIZE]*self.num_players
         self.folded = [False]*self.num_players
