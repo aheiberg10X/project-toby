@@ -15,27 +15,13 @@ from deck import makeHuman
 
 class Table() :
     def __init__(self, \
-                 players, \
-                 stacks, \
-                 toby_ix, \
-                 pockets, \
-                 button=0, \
                  logging=False, \
                  small_blind=1) :
 
         self.small_blind = small_blind
         self.logging = logging
-
-        self.toby_ix = toby_ix
-        self.stacks = stacks
-
-        #store Player() objects in their relative order 
-        #self.players = [Player(NA)]*num_seats
-        self.players = players
-        self.player_names = [p.name for p in self.players]
-        self.num_players = len(players) 
-        
         self.button = button
+
         if self.logging :
             self.history = History()
         else :
@@ -43,7 +29,7 @@ class Table() :
             for s in STREET_NAMES :
                 self.history[s] = []
 
-        self.newHand("init", players, pockets, stacks, button)
+        #self.newHand("init", players, pockets, stacks, button)
 
     def __str__(self) :
         r = []
@@ -99,7 +85,8 @@ class Table() :
         #as table progresses in hand histories
         #self.advanceButton()
         self.button = button
-        self.players = player
+        self.players = players
+        self.num_players = len(players)
         self.stacks = stacks
         self.pockets = pockets #[deck.draw(2) for i in range(self.num_players)]
         #self.pockets = [[FOLDED]*POCKET_SIZE]*self.num_players
@@ -114,8 +101,42 @@ class Table() :
         
         self.streets = iter( STREET_NAMES )
         self.street = self.streets.next()
-        self.street = self.streets.next()
 
+        self.current_player = self.ringIncrement( button, num_players )
+        self.features = { \
+            "active_players" : len(players), \
+            "total_players" : len(players), \
+            "num_aggressive_actions" : [0]*4, \
+            "num_passive_actions" : [0]*4, \
+            "all_in_with_call" : False, \
+            "amount_to_call" : -1, \
+            "average_rank" : -1, \
+            "callers_since_last_raise" : -1, \
+            "effective_stack_vs_active" : -1, \ #can compute straight away
+            "effective_stack_vs_aggressor" : -1, \
+            "high_card_flop" : -1, \
+            "high_card_turn" : -1, \
+            "high_card_river" : -1, \
+            "implied_odds_vs_aggressor" : -1, \
+            "in_position_vs_active" : False, \
+            "in_position_vs_aggressor" : False, \
+            "max_cards_suited" : [0]*4, \
+            "max_cards_same_rank" : -1, \
+            "num_bets" : [0]*4, \
+            "num_different_high_cards" : -1, \
+            "off_the_button" : -1, \
+            "own_previous_action" : -1, \
+            "own_previous_action_category" : -1, \
+            "players_acted" : 0, \
+            "players_left_to_act" : 0, \
+            "pot_odds" : -1, \
+            "pot_size" : 0, \
+            "stack_size" : self.stacks[self.current_player], \
+            "straight_possibilties" : [0]*4, \
+            "was_aggressor" : [False]*4 \
+            #features incorporating cards
+        }
+    
     def isDealerAction( self ) :
         has_acted = self.acted[self.action_to]
         oblig_is_zero = self.getObligation(self.action_to) == 0
@@ -182,8 +203,8 @@ class Table() :
         self.acted[player_ix] = True
         self.action_to = self.ringIncrement( self.action_to )
 
-    def ringIncrement( self, i ) :
-        if i == self.num_players-1 :
+    def ringIncrement( self, i, length ) :
+        if i == length-1 :
             return 0
         else : return i+1
 

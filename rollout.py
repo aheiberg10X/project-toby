@@ -36,7 +36,7 @@ def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
 
     mapped = p.map( rolloutPocketAssignment, all_pockets_plus_globals )
     b  = time()
-    print "mapping took: %fs" % (b-a)
+    #print "mapping took: %fs" % (b-a)
     
     #reduce
     results = {}
@@ -51,7 +51,7 @@ def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
                 results[pocket].append( ev_dict[pocket] )
                 results[pocket].append( 1 )
     d = time()
-    print "reducing took %fs" % (d-c)
+    #print "reducing took %fs" % (d-c)
 
     average_evs = {}
     for pocket in results :
@@ -61,25 +61,29 @@ def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
     p.join()
     return average_evs
 
-def computeHSs( board, num_threads=4 ) :
+def computeHSs( known_pockets, board, num_threads=4 ) :
     deck = Deck()
     deck.remove( board )
+    for pocket in known_pockets :
+        deck.remove( pocket )
     remaining_cards = deck.cards
 
     pockets = combinations( remaining_cards, globles.POCKET_SIZE )
-    print pockets
+    pocket_assignment = combinations( pockets, 1 )
+    #print pocket_assignment
 
     #map
     p = Pool(processes=num_threads)
     a = time()
-    all_pockets_plus_globals = wrapWithGlobals( pockets, \
-                                                [], \
+    all_pockets_plus_globals = wrapWithGlobals( pocket_assignment, \
+                                                known_pockets, \
                                                 remaining_cards, \
                                                 board, \
                                                 'HS')
     mapped = p.map( rolloutPocketAssignment, all_pockets_plus_globals )
+    #print mapped
     b  = time()
-    print "mapping took: %fs" % (b-a)
+    #print "mapping took: %fs" % (b-a)
     
     #reduce
     results = {}
@@ -88,7 +92,7 @@ def computeHSs( board, num_threads=4 ) :
         for pocket in pocket_hs :
             results[pocket] = pocket_hs[pocket]
     d = time()
-    print "reducing took %fs" % (d-c)
+    #print "reducing took %fs" % (d-c)
     
     p.close()
     p.join()
@@ -114,10 +118,10 @@ def rolloutPocketAssignment( data ) :
     [pocket_assignment, known_pockets, remaining_cards, board, EV_or_HS] = data
     results = {}
     d = Deck(set(remaining_cards))
-    if EV_or_HS == 'EV' :
-        valid = all([d.remove(p) for p in pocket_assignment])
-    else :
-        valid = d.remove(pocket_assignment)
+    #if EV_or_HS == 'EV' :
+    valid = all([d.remove(p) for p in pocket_assignment])
+    #else :
+        #valid = d.remove(pocket_assignment)
 
     if valid :
         if EV_or_HS == 'EV' :
@@ -129,9 +133,22 @@ def rolloutPocketAssignment( data ) :
             for pocket,evl in zip( pocket_assignment, r["eval"] ) :
                 results[canonicalize(pocket)] = evl["ev"] / float(globles.EV_RANGE)
         else :
-            pockets = list(pocket_assignment)
-            hs = pe.evaln( board+pockets )
-            results[canonicalize(pockets)] = hs
+            pocket_assignment = [list(pp) for pp in pocket_assignment]
+            #print pocket_assignment
+            #print "vs", known_pockets
+            r = pe.poker_eval( game=globles.GAME, \
+                               pockets = pocket_assignment + known_pockets, \
+                               board = board )
+            #print r
+            wins   = r["eval"][0]["winhi"]
+            ties   = r["eval"][0]["tiehi"]
+            losses = r["eval"][0]["losehi"]
+            hs = (wins + float(ties/2)) / (wins + ties + losses)
+            hs2 = hs*hs;
+            #hs = pe.evaln( board+pockets )
+            for pocket in pocket_assignment :
+                results[canonicalize(pocket)] = hs2
+            #results[
 
     return results
 
@@ -233,7 +250,13 @@ def main() :
 
 if __name__ == "__main__" :
     #print rollout( ((0,1),(4,5)) )
-    main()
+    #main()
+    pocket_assignment = [['7d','2h'],['__','__']]
+    board = ['Ts','Jh','5s','7h','6d']
+    r = pe.poker_eval( game=globles.GAME, \
+                       pockets=pocket_assignment, \
+                       board=board )
+    print r
 
 
 #a = list(d.draw(2))

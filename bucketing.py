@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import exists
 import json
+from time import time
 
 num_buckets = 20
 
@@ -141,8 +142,6 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
                 last_to_act = pix-1
                 pix -= 1
 
-
-
 def makeRound( EV ) :
     return int( EV * 100 )
 
@@ -180,7 +179,7 @@ def computeDists(num_known_board, EV_or_HS) :
                     x.append( hs )
 
             x.sort()
-#
+            
             fout = open(path, 'w')
             fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
             fout.close()
@@ -307,11 +306,57 @@ def bucketPocket( pocket, board ) :
     else :
         pass
 
+def computeDistsHS() :
+    deck = Deck()
+    results = {}   
+    count = 0
+    a = time()
+    for board in combinations( d.cards, 5 ) :
+        if count % 100 == 0 : 
+            print count
+            print time() - a
+            a = time()
+        d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
+                                           board = list(board) )
+        flop = collapseBoard( board[0:3] )
+        turn = collapseBoard( board[0:4] )
+        river =collapseBoard( board )
+        streets = [flop, turn, river]
+        for street in streets[:2] :
+            if street not in results :
+                results[street] = {}
+        
+        river_hs2 = []
+        for pocket in d_pocket_HS2 :
+            hs2 = d_pocket_HS2[pocket]
+            #flop and turn
+            for street in streets[:2] :
+                if pocket not in results[street] :
+                    results[street][pocket] = [hs2,1]
+                else :
+                    results[street][pocket][0] += hs2
+                    results[street][pocket][1] += 1
+            river_hs2.append( str(makeRound(hs2)) )
+           
+            #print the HS2 for this pocket to the river file
+        name = "hsdists/rivers/%s.hsdist" % river
+        if not exists(name) :
+            friver = open( name, 'w' )
+            friver.write( ",".join( sorted(river_hs2) ) + "\n" )
+            friver.close()
+
+        count += 1
+        if count == 100 :
+            fout = open("test.txt",'w')
+            fout.write( json.dumps(results) )
+            fout.close()
+            break
 
 def main() :
     pass
 
 if __name__ == '__main__' :
+    computeDistsHS()
     #count = 0
     #for decision_stack in iterateDecisionPoints ( num_players=2, \
                                                   #max_rounds=2, \
@@ -328,7 +373,7 @@ if __name__ == '__main__' :
     #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
     #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
 
-    computeDists(3,'HS')
+    #computeDists(3,'HS')
     #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
     
     #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \

@@ -176,7 +176,18 @@ def collapseBoard( board ) :
     num_cardinalities = len(card_counts.keys()) #set(cardinalities))
     
     suits = [getSuit(c) for c in board]
+    suit_counts = {}
+    max_suit, max_suit_count = 'uninit',0
+    for s in suits :
+        if s in suit_counts :
+            suit_counts[s] += 1
+        else:
+            suit_counts[s] = 1
+        if suit_counts[s] > max_suit_count :
+            max_suit_count = suit_counts[s]
+            max_suit = s
     num_suits = len(set(suits))
+
     if len(board) == 3 :
         if   num_cardinalities == 1 : rcard = 't'
         elif num_cardinalities == 2 : rcard = 'p'
@@ -299,29 +310,139 @@ def collapseBoard( board ) :
         if num_suits == 1 :
             rsuit = '5f'
         elif num_suits == 2 :
-            if rcard == 'p' :
+            #max_suit_count = max( suit_counts.values() )
+            if max_suit_count == 4 :
+                if rcard == 'p' :
+                    rsuit = '4f'
+                elif rcard == 'h' or rcard == 's' :
+                    rsuit = ['4f']
+                    for i in range(5) :
+                        if suits[i] != max_suit :
+                            rsuit.append('o')
+                        else :
+                            rsuit.append('x')
+                    rsuit = ''.join(rsuit)
+                    #rsuit = '4f'+ 'x'*i + 'o' + 'x'*(5-i-1)
+                else:
+                    assert False
                 rsuit = '4f' 
+            elif max_suit_count == 3 :
+                if rcard == 'p' :
+                    for c in card_counts :
+                        if card_counts[c] == 2 :
+                            pair_ix = cardinalities.index(c)
+                            break
+                    rsuit = ['3f']
+                    for i in range(5) :
+                        if i == pair_ix :
+                            rsuit.append('x')
+                        elif i == pair_ix+1 : 
+                            rsuit.append('o')
+                        elif suits[i] == max_suit :
+                            rsuit.append('x')
+                        else :
+                            rsuit.append('o')
+                elif rcard == '2p' :
+                    pair_ixs = set([])
+                    for c in card_counts :
+                        if card_counts[c] == 2 :
+                            pair_ixs.add( cardinalities.index(c) )
+                    rsuit = ['3f']
+                    for i in range(5) :
+                        if i in pair_ixs :
+                            rsuit.append('x')
+                        elif i-1 in pair_ixs :
+                            rsuit.append('o')
+                        else :
+                            rsuit.append('x')
+                elif rcard == 'h' or rcard == 's' :
+                    rsuit = ['3f']
+                    for i in range(5) :
+                        if suits[i] == max_suit :
+                            rsuit.append('x')
+                        else :
+                            rsuit.append('o')
+                else :
+                    assert False
+                
+                rsuit = ''.join(rsuit)
+
             else :
-                assert False
+                pass
 
         elif num_suits == 3 :
-            if rcard == 'p' :
-                pass
-            elif rcard == '2p' :
-                pass
-            elif rcard == 't' :
-                rsuit = '3f' 
-            elif rcard == 'b' :
-                rsuit = ""
+            if max_suit_count < 3 :
+                rsuit = "r" 
             else :
-                assert False
+                rsuit = ['3f']
+                if rcard == 'p' :
+                    for c in card_counts :
+                        if card_counts[c] == 2 :
+                            pair_ix = cardinalities.index(c)
+                            break
+                    pair_has_max_suit = suits[pair_ix] == max_suit or \
+                                        suits[pair_ix+1] == max_suit
+                    if pair_has_max_suit :
+                        for i in range(5) :
+                            if i == pair_ix :
+                                rsuit.append('x')
+                            elif i == pair_ix+1 :
+                                rsuit.append('o')
+                            elif suits[i] == max_suit :
+                                rsuit.append('x')
+                            else :
+                                rsuit.append('o')
+                    else :
+                        for i in range(5) :
+                            if suits[i] == max_suit :
+                                rsuit.append('x')
+                            else :
+                                rsuit.append('o')
+
+                elif rcard == '2p' :
+                    #same as num_suits == 2
+                    pair_ixs = set([])
+                    for c in card_counts :
+                        if card_counts[c] == 2 :
+                            pair_ixs.add( cardinalities.index(c) )
+                    rsuit = ['3f']
+                    for i in range(5) :
+                        if i in pair_ixs :
+                            rsuit.append('x')
+                        elif i-1 in pair_ixs :
+                            rsuit.append('o')
+                        else :
+                            rsuit.append('x')
+
+                elif rcard == 't' :
+                    for c in card_counts :
+                        if card_counts[c] == 3 :
+                            trip_ix = cardinalities.index(c)
+                            break
+                    rsuit = ['3f']
+                    for i in range(5) :
+                        if i == trip_ix :
+                            rsuit.append('x')
+                        elif i+1 == trip_ix or i+2 == trip_ix :
+                            rsuit.append('o')
+                        else :
+                            rsuit.append('x')
+                elif rcard == 's' or rcard == 'h' :
+                    for i in range(5) :
+                        if suits[i] == max_suit :
+                            rsuit.append('x')
+                        else :
+                            rsuit.append('o')
+                else :
+                    assert False
+                rsuit = ''.join(rsuit)
 
         elif num_suits == 4 :
-            rsuit = ""
+            rsuit = "r"
         else :
             assert False
     else :
-        pass
+        assert False
 
     crdnlts = ''.join([stringifyCardinality(c) for c in cardinalities])
     return "%s_%s_%s" % (crdnlts, rcard, rsuit)
@@ -390,4 +511,23 @@ def main() :
     print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
-    main()
+    #main()
+    fout = open( "fullboard_collapse_test.txt", 'w' )
+    d = Deck()
+    count = 0
+    seen = set()
+    temp = []
+    for board in combinations( d.cards, 5 ) :
+        if count % 10000 == 0 : print count
+        collapsed = collapseBoard( board )
+        if collapsed in seen :
+            pass
+        else :
+            temp.append( collapsed )
+            seen.add( collapsed )
+
+        count += 1
+
+    fout.write( '\n'.join(temp) )
+    fout.close()
+    #print collapseBoard( ['7s','6h','8h','6s','8s'] )
