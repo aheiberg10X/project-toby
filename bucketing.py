@@ -142,8 +142,8 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
                 last_to_act = pix-1
                 pix -= 1
 
-def makeRound( EV ) :
-    return int( EV * 100 )
+def makeRound( num, precision=2 ) :
+    return int( num * pow(10,precision) )
 
 def computeDists(num_known_board, EV_or_HS) :
     already_seen = {}
@@ -311,7 +311,7 @@ def computeDistsHS() :
     results = {}   
     count = 0
     a = time()
-    for board in combinations( d.cards, 5 ) :
+    for board in combinations( deck.cards, 5 ) :
         if count % 100 == 0 : 
             print count
             print time() - a
@@ -326,6 +326,9 @@ def computeDistsHS() :
             if street not in results :
                 results[street] = {}
         
+        #rounding precision
+        precision = 4
+        #collect the HS2 for the river
         river_hs2 = []
         for pocket in d_pocket_HS2 :
             hs2 = d_pocket_HS2[pocket]
@@ -336,21 +339,43 @@ def computeDistsHS() :
                 else :
                     results[street][pocket][0] += hs2
                     results[street][pocket][1] += 1
-            river_hs2.append( str(makeRound(hs2)) )
+
+            river_hs2.append( makeRound(hs2,precision) )
            
-            #print the HS2 for this pocket to the river file
+        #the 5 card board is unique, so we can print out right away
         name = "hsdists/rivers/%s.hsdist" % river
         if not exists(name) :
             friver = open( name, 'w' )
-            friver.write( ",".join( sorted(river_hs2) ) + "\n" )
+            friver.write( ",".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
             friver.close()
 
         count += 1
-        if count == 100 :
-            fout = open("test.txt",'w')
-            fout.write( json.dumps(results) )
-            fout.close()
+        if count == 50 :
+            #fout = open("test.txt",'w')
+            #fout.write( json.dumps(results) )
+            #fout.close()
             break
+    
+    #once all the boards are done, have results[board][pocket] = HS2sum, count
+    for collapsed_board in results :
+        num_cards = len(collapsed_board.split('_')[0])
+        if num_cards == 3 :   street_name = 'flops'
+        elif num_cards == 4 : street_name = 'turns'
+        else: assert False
+
+        #print "collapsed name:", collapsed_board, " street name: " , street_name
+
+        HS2s = []
+        for pocket in results[collapsed_board] :
+            (HS2sum, count) = results[collapsed_board][pocket]
+            avg = makeRound( HS2sum / count, precision )
+            HS2s.append( avg )
+
+        filename = "hsdists/%s/%s.hsdist" % (street_name, collapsed_board)
+        fout = open( filename, 'w' )
+        #print "len HS2s: ", len(HS2s)
+        fout.write( ','.join( [str(t) for t in sorted(HS2s)] )+"\n" )
+        fout.close()
 
 def main() :
     pass

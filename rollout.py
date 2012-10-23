@@ -62,7 +62,9 @@ def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
     return average_evs
 
 def computeHSs( known_pockets, board, num_threads=4 ) :
-    deck = Deck()
+    #wtf is going on that I have to make the range explicit?
+    deck = Deck(set(range(52))
+               )
     deck.remove( board )
     for pocket in known_pockets :
         deck.remove( pocket )
@@ -199,7 +201,7 @@ def rolloutMapReduce() :
     num_threads = 4 
     
     num_players = 2
-    d = Deck()
+    #d = Deck()
     #some hole card assignments will be impossible
     #e.g 2c2d 2c7h
     #but these impossible ones are excluded later by deck.remove in rollout 

@@ -465,6 +465,7 @@ def truncate( board ) :
 
 class Deck:
     def __init__(self, set_of_cards=set(range(52)) ) :
+        #print "deck init: " , set_of_cards
         self.cards = set_of_cards
     
     def shuffle(self) :
