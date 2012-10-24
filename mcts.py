@@ -85,7 +85,7 @@ def uctsearch( root_state ) :
     time_left = True
     count = 0
     #print "root_state", root_state
-    while count < 2 :
+    while count < 1000 :
         #print "\n====================================================="
         #print "uctsearch iteration %d" % count
         state = DOMAIN.copyState(root_state)
@@ -153,7 +153,7 @@ def scoreNode( node, parent, player_ix, c=Cp ) :
     creward = getTotalRewards(node)[player_ix]
     cvisit = getVisitCount(node)
     pvisit = getVisitCount(parent)
-    exploitation = creward / cvisit 
+    exploitation = creward / float(cvisit)
     exploration = c*sqrt( 2*log( pvisit ) / cvisit )
     return exploitation + exploration
 
