@@ -8,7 +8,7 @@ from globles import GAME
 class State :
     def __init__(self, \
                  table, \
-                 true_deck = Deck(), \
+                 deck, \
                  max_raise_rounds=2) :
 
         self.max_raise_rounds = max_raise_rounds
@@ -22,6 +22,8 @@ class State :
 
         self.table = table
         self.num_players = self.table.num_players
+
+        self.deck = deck
     
         #virtual_player % num_players represents the player in some round
         #there are only max rounds where players are free to act 
@@ -29,12 +31,14 @@ class State :
         #+1 for the final round, players must only choose from final_actions 
         self.num_virtual = (self.num_players) * (max_raise_rounds+1)
 
-        self.true_deck = true_deck
+    def __str__(self) :
+        #cardstr = ', '.join([str(c) for c in self.deck.cards])
+        return str(self.table)
 
     def inFinalRound( self ) :
         #fogetting about button offset?
-        print "length of street ", self.table.street, len(self.table.history[self.table.street])
-        print "num_virtual:", self.num_virtual
+        #print "length of street ", self.table.street, len(self.table.history[self.table.street])
+        #print "num_virtual:", self.num_virtual
         return len(self.table.history[self.table.street]) >= \
                (self.num_virtual - self.num_players)
         pass
@@ -45,19 +49,33 @@ class State :
 
     
     def copy( self ) :
-        snew = State( self.stacks, \
-                      self.button, \
-                      self.max_raise_rounds )
-        snew.history = list(self.history)
-        snew.pot = self.pot
-        snew.stacks = self.stacks
+        table = self.table.copy()
+        deck = self.deck.copy()
+        snew = State( table, \
+                      deck, \
+                      max_raise_rounds=self.max_raise_rounds)
+        return snew
 
 class MCTS_Poker :
     def __init__(self ) :
         #self.state = state
         self.pe = PokerEval()
-        self.sim_deck = Deck()
-        #self.root_state = State()
+        
+        #a standard random starting state to test with
+        p1 = Player("toby")
+        true_deck = Deck()
+        toby_ix = 0
+        pockets = [true_deck.draw(2), true_deck.draw(2)]
+        p2 = Player("frylock")
+        players = [p1,p2]
+        starting_stack = 100
+        stacks = [99,98]
+        t = Table(players, stacks, toby_ix, pockets )
+        t.committed[0] = 1
+        t.committed[1] = 2
+        t.pot = sum(t.committed) 
+        s = State( t, true_deck ) 
+        self.start_state = s
         
     def copyState(self,state) :
         return state.copy()
@@ -66,15 +84,15 @@ class MCTS_Poker :
         return state.isChanceAction()
 
     #return False if no available action
-    def randomAction( self, state, excluded=set() ) :
+    def randomAction( self, state, to_exclude=set() ) :
         #we ignore excluded for these
         if state.isChanceAction() :
             if state.table.isDealerAction() :
                 if state.table.street == "preflop" :
-                    cards = self.sim_deck.draw(3)
+                    cards = state.deck.draw(3)
                 elif state.table.street == "flop" or \
                      state.table.street == "turn" :
-                    cards = self.sim_deck.draw(1)
+                    cards = state.deck.draw(1)
                 return "d%s" % canonicalize(cards)
             else :
                 player = state.table.players[state.table.action_to]
@@ -84,7 +102,7 @@ class MCTS_Poker :
             assert state.table.action_to == state.table.toby_ix
             oblig = state.table.getObligation(state.table.action_to)
             in_final_round = state.inFinalRound()
-            print "in_final_round", in_final_round
+            #print "in_final_round", in_final_round
             #inFinalRounds is being all gay still
             if oblig == 0 :
                 if in_final_round :
@@ -111,12 +129,14 @@ class MCTS_Poker :
             #oh but this is used for defaultPolicy to, but nm that falls
             #under chance nodes....
             #then again not when simulating toby's decisions....
-            print "possible:", possible
             for p in sample( possible, len(possible) ) :
-                if p not in excluded :
+                if p not in to_exclude :
                     return p
 
             return False
+
+    def fullyExpanded( self, action ) :
+        return not action
 
     def applyAction( self, state, action ) :
         if type(action) == str and action.startswith('d') :
@@ -133,19 +153,18 @@ class MCTS_Poker :
         assert self.isTerminal(state)
         rewards = [0]*state.num_players
 
+        state.table.collectBets()
+
         alive = state.table.playersAlive()
         one_alive = len(alive) == 1
         if one_alive :
-            state.table.collectBets()
             winners = alive
             num_winners = 1
         else :
-            #shouln't be doing this here
             assert state.table.street == "river"
-            #while state.table.street != "river" :
-                #cards = self.randomAction( state )
-                #state.table.advanceStreet( deCanonicalize(cards) )
             
+            #of course we won't have actual pockest here, rather a 
+            #probability distribution over buckets
             winners = self.pe.winners( game=GAME, \
                                        pockets=state.table.pockets, \
                                        board=state.table.board )
@@ -154,9 +173,20 @@ class MCTS_Poker :
         
         for i in range(state.num_players) :
             if i in winners :
-                rewards[i] = state.table.pot / num_winners
+                rewards[i] = state.table.pot / num_winners - state.table.committed[i]
+            else :
+                rewards[i] = -state.table.committed[i]
+
+
+        if self.num_players == 2 and not abs( sum(rewards) ) <= .001 :
+            print rewards
+            print state
+            assert False
 
         return rewards
+
+    def getPlayerIx( self, state ) :
+        return state.table.action_to
 
     def isTerminal( self, state ) :
         one_alive = len(state.table.playersAlive()) == 1
@@ -170,8 +200,8 @@ class MCTS_Poker :
         showdown = state.table.isDealerAction() and \
                    (state.table.street == 'river' )#or \
                     #only_one_stack_left)
-        print "one_alive", one_alive
-        print "showdown", showdown
+        #print "one_alive", one_alive
+        #print "showdown", showdown
         return one_alive or showdown
 
 def main() :
@@ -185,7 +215,7 @@ def main() :
         stacks = [15,100]
         t = Table(players, stacks, toby_ix, pockets )
         t.pot = 3
-        s = State( t, true_deck ) 
+        s = State( t ) 
         mcts = MCTS_Poker()
         print s.table
        

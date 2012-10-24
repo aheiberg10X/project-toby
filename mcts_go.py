@@ -18,14 +18,10 @@ class State :
         self.open_positions = set(range(dim*dim))
         self.capture_counts = [0,0]
         self.player = BLACK 
-        self.action = -1 
-        self.allowable_actions = [self.ix2action(ix,self.player) \
-                                  for ix \
-                                  in range(dim*dim) ]
+        self.action = -1
         if not shallow :
             self.past_states = [State(dim, shallow=True)]*10
-#
-#
+    
     def togglePlayer(self) :
         self.player = -self.player
 
@@ -60,20 +56,8 @@ class State :
             return True 
 
     def sameAs( self, state2 ) :
-        #if type(state2) == int : return False
-        #assert self.dim == state2.dim
-        print "Comparing:"
-        print self 
-        print "\n and \n"
-        print state2
+        assert self.dim == state2.dim
         return self.sameAs2( state2.board, state2.player )
-        #if self.player != state2.player :
-            #return False
-        #else :
-            #for ix in range(self.dim*self.dim) : 
-                #if self.board[ix] != state2.board[ix] :
-                    #return False
-            #return True 
 
     def getNorth(self, ix) :
         if ix < self.dim or ix < 0 :
@@ -109,8 +93,9 @@ class State :
         return self.getSouth( self.getWest(ix) )
 
     def action2ix( self, action ) :
-        color = self.action2color(action)
-        return action*color - 1
+        return abs(action)-1
+        #color = self.action2color(action)
+        #return action*color - 1
 
     def action2color( self, action ) :
         if action > 0 : return WHITE 
@@ -131,14 +116,14 @@ class State :
         if type(ixs) == int :
             ixs = [ixs]
         for ix in ixs :
-            if color != 0 :
+            if color != EMPTY :
                 assert self.board[ix] == 0
                 self.open_positions.remove(ix)
             else :
                 self.open_positions.add(ix)
             self.board[ix] = color
 
-    def getNeighbors( self, ix, adjacency=4 ) :
+    def neighborsOf( self, ix, adjacency=4 ) :
         if adjacency == 4 :
             return [self.getNorth(ix), \
                     self.getSouth(ix), \
@@ -155,14 +140,14 @@ class State :
                     self.getSouthEast(ix) ]
         else : assert False
 
-    def matching( self, ixs, colors=[BLACK,EMPTY,WHITE] ) :
+    def filterByColor( self, ixs, colors=[BLACK,EMPTY,WHITE] ) :
         return [ix for ix in ixs if ix >= 0 and self.board[ix] in colors]
    
     #returns a function that returns True if one ix in the neighbs list
     #matches one of the colors specified
     def hasNeighbsClosure( self, colors ) :
         def inner( neighbs ) :
-            return len( self.matching( neighbs, colors ) ) > 0
+            return len( self.filterByColor( neighbs, colors ) ) > 0
         return inner
 
     def floodFill( self, q, colors, stopper, adjacency=4 ) :
@@ -173,13 +158,13 @@ class State :
             #print "ix:", ix
             marked[ix] = True
             #print "marked:", marked
-            neighbs = self.getNeighbors( ix, adjacency=adjacency )
+            neighbs = self.neighborsOf( ix, adjacency=adjacency )
             if stopper(neighbs) :
                 #print "had empty neighbs"
                 marked = {}
                 break
             else :
-                for n in self.matching( neighbs, colors ) :
+                for n in self.filterByColor( neighbs, colors ) :
                     if n not in marked or not marked[n] :
                         q.append(n)
 
@@ -187,9 +172,9 @@ class State :
 
     #returns true 
     def neighboredByOneColor( self, ix, adjacency=4 ) :
-        neighbs = self.getNeighbors( ix, adjacency=4 )
-        has_white = len( self.matching( neighbs, [WHITE] ) ) > 0
-        has_black = len( self.matching( neighbs, [BLACK] ) ) > 0
+        neighbs = self.neighborsOf( ix, adjacency=4 )
+        has_white = len( self.filterByColor( neighbs, [WHITE] ) ) > 0
+        has_black = len( self.filterByColor( neighbs, [BLACK] ) ) > 0
 
         if has_white and not has_black   : ncolor = WHITE
         elif has_black and not has_white : ncolor = BLACK
@@ -211,8 +196,8 @@ class State :
     def isSuicide( self, action ) :
         color = self.action2color(action)
         ix = self.action2ix(action)
-        neighbs = self.getNeighbors(ix)
-        same_neighbs = self.matching( neighbs, [color] )
+        neighbs = self.neighborsOf(ix)
+        same_neighbs = self.filterByColor( neighbs, [color] )
         no_liberties_left = []
         marked = {}
         for q in same_neighbs+[ix] :
@@ -228,7 +213,7 @@ class State :
         suicide_by_definition = any(no_liberties_left)#print no_liberties_left
     
         #TODO move to fillsSingleEye
-        non_offboard = self.matching( neighbs, [BLACK,WHITE,EMPTY] )
+        non_offboard = self.filterByColor( neighbs, [BLACK,WHITE,EMPTY] )
         useless_eye_move = all( [ self.ix2color(nix) == color \
                                   for nix \
                                   in non_offboard ] )
@@ -238,7 +223,6 @@ class State :
         rows = []
         rows.append( "Player: %d" % self.player )
         rows.append( "Captured (-1,1): %s" % str(self.capture_counts) )
-        #rows.append( "Allowable: %s" % str(self.allowable_actions) )
         for i in range(self.dim) :
             l = []
             for j in range(self.dim) :
@@ -277,21 +261,6 @@ class MCTS_Go :
             return state
         return state.copy()
 
-    #DEPRECATED
-    #def setAllowableActions( self, state ) :
-        ##0 is pass
-        #possible_actions = [state.ix2action(op, state.player) \
-                            #for op \
-                            #in state.open_positions]
-        #allowable_actions = []
-        #for action in possible_actions :
-            #is_legal = self.applyAction( state, action, side_effects=False ) 
-            #if is_legal :
-                #allowable_actions.append( action )
-       # 
-        #if len(allowable_actions) == 0 : state.allowable_actions = [PASS]
-        #else : state.allowable_actions = allowable_actions
-   
     #given the color of stone, return the player's index in the score array
     #used in getRewards
     def getScoreIx( self, color ) :
@@ -306,10 +275,8 @@ class MCTS_Go :
     ####################################################
     ####Public Interface
     ####################################################
-    #def getAllowableActions( self, state ) :
-        #return state.allowable_actions
     
-    #side_effects to true means updating and returning the state, metadata 
+    #side_effects to true means updating and returning the state and metadata 
     #otherwise just returns t/f based on whether the move is legal
     def applyAction( self, state, action, side_effects=True ) :
         legal = True
@@ -317,15 +284,15 @@ class MCTS_Go :
         #freeze and save the current state
         frozen = self.copyState( state )
 
-        if action != 0 :
+        if action != PASS :
             ix = state.action2ix(action)
             color = state.action2color(action)
             state.setBoard( ix, color )
 
             #resolve captures
-            neighbs = state.getNeighbors( ix )
+            neighbs = state.neighborsOf( ix )
             opp_color = -color
-            opp_neighbs = state.matching( neighbs, [opp_color] )
+            opp_neighbs = state.filterByColor( neighbs, [opp_color] )
             num_removed = 0
             for q in opp_neighbs :
                 marked = state.floodFill( 
@@ -345,9 +312,8 @@ class MCTS_Go :
                 #print "ILLEGAL is suicide"
                 legal = False
             
-        #Proposed changes have been applied to state.  See it this makes
-        #state the same as it was a turn ago
-        if action != PASS :
+            #Proposed changes have been applied to state.  See it this makes
+            #state the same as it was a turn ago
             for ix,past_state in enumerate(state.past_states) :
                 if state.sameAs2( past_state.board, \
                                  -past_state.player ) :
@@ -405,6 +371,8 @@ class MCTS_Go :
         strings = {}
 
         for ix in range( self.dim*self.dim ) :
+            #TODO:
+            #replace with self.board[ix] == EMPTY
             if ix in state.open_positions : continue
             if ix in marked               : continue
             
@@ -439,6 +407,10 @@ class MCTS_Go :
             #set/list of ixs : string_id
             territories = {}
             terr_id = 0
+
+            #TODO:
+            # can replace with loop through array, continuing if 
+            # position is not EMPTY
             for ix in state.open_positions :
                 if ix in marked :
                     continue
@@ -487,6 +459,7 @@ class MCTS_Go :
                 scores[score_ix] += len(t)
 
         #TODO: add in 5.5 points to WHITE
+        scores[1] += 5.5
 
         if scores[0] > scores[1] :
             return [1,0]
@@ -509,6 +482,9 @@ class MCTS_Go :
     def randomAction( self, state, to_exclude=set() ) :
         legal_moves_available = False
         #print "to_excluded", to_exclude
+
+        #TODO: if removing open_positions
+        #have to build array of open sets first, MEM for CPU
         for candidate in sample( state.open_positions, \
                                  len(state.open_positions) ) :
 
@@ -518,8 +494,7 @@ class MCTS_Go :
             if is_legal :
                 legal_moves_available = True
                 if action not in to_exclude :
-                    all_legal_excluded = False
-                    return action #choice( state.allowable_actions )
+                    return action 
         
         if legal_moves_available :
             #print "all exlcud"

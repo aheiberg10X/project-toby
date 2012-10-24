@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import exists
 import json
+from time import time
 
 num_buckets = 20
 
@@ -141,12 +142,10 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
                 last_to_act = pix-1
                 pix -= 1
 
+def makeRound( num, precision=2 ) :
+    return int( num * pow(10,precision) )
 
-
-def makeRound( EV ) :
-    return int( EV * 100 )
-
-def computeEVDists(num_known_board=4) :
+def computeDists(num_known_board, EV_or_HS) :
     already_seen = {}
     count = 0
     
@@ -157,22 +156,33 @@ def computeEVDists(num_known_board=4) :
 
     for board in combinations( d.cards, num_known_board ) :
         collapsed = collapseBoard( board )
-        path = "evdists/%s/%s.evdist" % (street,collapsed)
+        if EV_or_HS == 'EV' :
+            path = "evdists/%s/%s.evdist" % (street,collapsed)
+        else :
+            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
+
         if collapsed in already_seen or exists(path) : 
             continue
         else :
             print count, collapsed
             count += 1
-            #board = makeHuman(board) + ['__']*(5-num_known_board)
-            #pocketEVs = rollout.computeEVs( [], board, 2, num_threads=4 )
-            #x = []
-            #for pocket in pocketEVs :
-                #x.append( makeRound( pocketEVs[pocket] ) )
-            #x.sort()
-#
-            #fout = open(path, 'w')
-            #fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            #fout.close()
+            board = makeHuman(board) + ['__']*(5-num_known_board)
+            
+            x = []
+            if EV_or_HS == 'EV' :
+                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
+                for ev in d_pocket_EV.values() :
+                    x.append( makeRound( ev ) )
+            else :
+                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
+                for hs in d_pocket_HS.values() :
+                    x.append( hs )
+
+            x.sort()
+            
+            fout = open(path, 'w')
+            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            fout.close()
 
             already_seen[collapsed] = True
 
@@ -191,7 +201,7 @@ def visualizeEVDist( filepath, buckets=40 ) :
 
 
 def computeBuckets( street, bucket_percentages ) :
-    assert int(sum(bucket_percentages)) == 1 
+    assert sum(bucket_percentages) == 1 
     #wtf <= works but not ==
     #assert sum(bucket_percentages) == 1.0
 
@@ -296,11 +306,82 @@ def bucketPocket( pocket, board ) :
     else :
         pass
 
+def computeDistsHS() :
+    deck = Deck()
+    results = {}   
+    count = 0
+    a = time()
+    for board in combinations( deck.cards, 5 ) :
+        if count % 100 == 0 : 
+            print count
+            print time() - a
+            a = time()
+        d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
+                                           board = list(board) )
+        flop = collapseBoard( board[0:3] )
+        turn = collapseBoard( board[0:4] )
+        river =collapseBoard( board )
+        streets = [flop, turn, river]
+        for street in streets[:2] :
+            if street not in results :
+                results[street] = {}
+        
+        #rounding precision
+        precision = 4
+        #collect the HS2 for the river
+        river_hs2 = []
+        for pocket in d_pocket_HS2 :
+            hs2 = d_pocket_HS2[pocket]
+            #flop and turn
+            for street in streets[:2] :
+                if pocket not in results[street] :
+                    results[street][pocket] = [hs2,1]
+                else :
+                    results[street][pocket][0] += hs2
+                    results[street][pocket][1] += 1
+
+            river_hs2.append( makeRound(hs2,precision) )
+           
+        #the 5 card board is unique, so we can print out right away
+        name = "hsdists/rivers/%s.hsdist" % river
+        if not exists(name) :
+            friver = open( name, 'w' )
+            friver.write( ",".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
+            friver.close()
+
+        count += 1
+        if count == 50 :
+            #fout = open("test.txt",'w')
+            #fout.write( json.dumps(results) )
+            #fout.close()
+            break
+    
+    #once all the boards are done, have results[board][pocket] = HS2sum, count
+    for collapsed_board in results :
+        num_cards = len(collapsed_board.split('_')[0])
+        if num_cards == 3 :   street_name = 'flops'
+        elif num_cards == 4 : street_name = 'turns'
+        else: assert False
+
+        #print "collapsed name:", collapsed_board, " street name: " , street_name
+
+        HS2s = []
+        for pocket in results[collapsed_board] :
+            (HS2sum, count) = results[collapsed_board][pocket]
+            avg = makeRound( HS2sum / count, precision )
+            HS2s.append( avg )
+
+        filename = "hsdists/%s/%s.hsdist" % (street_name, collapsed_board)
+        fout = open( filename, 'w' )
+        #print "len HS2s: ", len(HS2s)
+        fout.write( ','.join( [str(t) for t in sorted(HS2s)] )+"\n" )
+        fout.close()
 
 def main() :
     pass
 
 if __name__ == '__main__' :
+    computeDistsHS()
     #count = 0
     #for decision_stack in iterateDecisionPoints ( num_players=2, \
                                                   #max_rounds=2, \
@@ -317,7 +398,8 @@ if __name__ == '__main__' :
     #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
     #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
 
-    computeEVDists()
+    #computeDists(3,'HS')
+    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
     
     #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
              #'turn' : 20, \
