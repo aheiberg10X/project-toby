@@ -63,13 +63,17 @@ def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
 
 def computeHSs( known_pockets, board, num_threads=4 ) :
     #wtf is going on that I have to make the range explicit?
-    deck = Deck(set(range(52))
-               )
-    deck.remove( board )
+    dek = Deck()
+    dek.shuffle()
+    dek.remove( board )
     for pocket in known_pockets :
-        deck.remove( pocket )
-    remaining_cards = deck.cards
+        dek.remove( pocket )
+    remaining_cards = dek.cards
 
+    results = {}
+    print "\n"
+    print board
+    print remaining_cards
     pockets = combinations( remaining_cards, globles.POCKET_SIZE )
     pocket_assignment = combinations( pockets, 1 )
     #print pocket_assignment
@@ -88,7 +92,6 @@ def computeHSs( known_pockets, board, num_threads=4 ) :
     #print "mapping took: %fs" % (b-a)
     
     #reduce
-    results = {}
     c = time()
     for pocket_hs in mapped :
         for pocket in pocket_hs :

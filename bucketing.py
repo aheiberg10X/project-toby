@@ -142,6 +142,7 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
                 last_to_act = pix-1
                 pix -= 1
 
+#TODO replace with python func
 def makeRound( num, precision=2 ) :
     return int( num * pow(10,precision) )
 
@@ -192,37 +193,41 @@ def computeDists(num_known_board, EV_or_HS) :
 def visualizeEVDist( filepath, buckets=40 ) :
     path,filename = filepath.rsplit('/',1)
     name,ext = filename.rsplit('.',1)
-    x = [int(n) for n in open(filepath).read().strip().split(';')]
+    x = [int(n) for n in open(filepath).read().strip().split(',')]
     #TODO:
     #make ranges all 0-100
     plt.hist(x,buckets)
-    plt.savefig("%s/%s.png" % (path,name) )
+    filename = "%s/%s.png" % (path,name)
+    print "saving to: ", filename
+    plt.savefig( filename )
     plt.clf()
 
-
+#TODO
+#how much space/performace trade off is there in rounding off the hs2 values?
+#currently using 4 decimal places, maybe 2 is sufficient
+#and will cut down on dictionary size in memory
 def computeBuckets( street, bucket_percentages ) :
-    assert sum(bucket_percentages) == 1 
-    #wtf <= works but not ==
-    #assert sum(bucket_percentages) == 1.0
+    print sum(bucket_percentages)
+    assert abs( sum(bucket_percentages) - 1.0 ) < .000001
 
-    #TODO: 
-    #variable names hard coded for flop
+    folder = "hsdists"
+    #dflop_memprobs = {}
+    fout = open("%s/%s/membership_probs.txt" % (folder,street),'w')
 
-    dflop_memprobs = {}
-    for flop_file in listdir( "evdists/%s" % street) :
-        print flop_file
+    for i,dist_file in enumerate(listdir( "%s/%s" % (folder,street) )) :
+        if not dist_file.endswith('dist') : 
+            continue 
+        collapsed_name = dist_file.split('.')[0]
+        print i, "bucketing ", collapsed_name
 
-        if not flop_file.endswith('evdist') : break
-        collapsed_name = flop_file.split('.')[0]
-
-        fin = open( "evdists/%s/%s" % (street, flop_file) )
-        EVs = [int(ev) for ev in fin.read().strip().split(';')]
+        fin = open( "%s/%s/%s" % (folder, street, dist_file) )
+        EVs = [int(ev) for ev in fin.read().strip().split(',')]
         fin.close()
 
         num_EVs = len(EVs)
         #how many EVs does each bucket get?
         bucket_masses = [int(round(bp*num_EVs)) for bp in bucket_percentages]
-        print "sum bucket_masses", sum(bucket_masses), "num_EVs", num_EVs
+        #print "sum bucket_masses", sum(bucket_masses), "num_EVs", num_EVs
 
 
         #Info about the bucket we are currently filling
@@ -267,20 +272,26 @@ def computeBuckets( street, bucket_percentages ) :
                 membership_probs[last_seen_ev][bucket_ix] = \
                         float(unbucketed_count) / count
 
-                print last_seen_ev, membership_probs[last_seen_ev]
+                #print last_seen_ev, membership_probs[last_seen_ev]
                 last_seen_ev = ev
                 count = 1
             else :
                 count += 1
             
-            dflop_memprobs[collapsed_name] = membership_probs
+        #dflop_memprobs[collapsed_name] = membership_probs
+        #TODO all mem getting used, must print incrementally
+        #hope in correct JSON format
+        fout.write( '"%s" : %s\n' % (collapsed_name, json.dumps(membership_probs)))
+        #print len(dflop_memprobs)
+        #print membership_probs
+        #print len(membership_probs)
+        #a = raw_input()
 
-        print "bucket counts", bucket_counts, "sum", sum(bucket_counts)
-        print "num EVs bucketed:", tcount
-        break
+        #print "bucket counts", bucket_counts, "sum", sum(bucket_counts)
+        #print "num EVs bucketed:", tcount
+        #break
     #print dflop_memprobs
-    fout = open("evdists/flop/membership_probs.txt",'w')
-    fout.write( json.dumps( dflop_memprobs ) )
+    #fout.write( json.dumps( dflop_memprobs ) )
     fout.close()
 
 flop_bucket_map = {}
@@ -307,11 +318,10 @@ def bucketPocket( pocket, board ) :
         pass
 
 def computeDistsHS() :
-    deck = Deck()
     results = {}   
     count = 0
     a = time()
-    for board in combinations( deck.cards, 5 ) :
+    for board in combinations( range(52), 5 ) :
         if count % 100 == 0 : 
             print count
             print time() - a
@@ -346,11 +356,11 @@ def computeDistsHS() :
         name = "hsdists/rivers/%s.hsdist" % river
         if not exists(name) :
             friver = open( name, 'w' )
-            friver.write( ",".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
+            friver.write( ";".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
             friver.close()
 
         count += 1
-        if count == 50 :
+        if count == 5000 :
             #fout = open("test.txt",'w')
             #fout.write( json.dumps(results) )
             #fout.close()
@@ -369,19 +379,22 @@ def computeDistsHS() :
         for pocket in results[collapsed_board] :
             (HS2sum, count) = results[collapsed_board][pocket]
             avg = makeRound( HS2sum / count, precision )
+            if collapsed_board == '234_s_3f' :
+                print pocket, HS2sum, count 
             HS2s.append( avg )
 
         filename = "hsdists/%s/%s.hsdist" % (street_name, collapsed_board)
         fout = open( filename, 'w' )
         #print "len HS2s: ", len(HS2s)
-        fout.write( ','.join( [str(t) for t in sorted(HS2s)] )+"\n" )
+        fout.write( ';'.join( [str(t) for t in sorted(HS2s)] )+"\n" )
         fout.close()
 
 def main() :
     pass
 
 if __name__ == '__main__' :
-    computeDistsHS()
+    #computeDistsHS()
+
     #count = 0
     #for decision_stack in iterateDecisionPoints ( num_players=2, \
                                                   #max_rounds=2, \
@@ -390,21 +403,23 @@ if __name__ == '__main__' :
         #print decision_stack
         #count += 1
     #print count
-    #for listing in listdir("evdists" ) :
-        #if listing.endswith("evdist") :
-            #visualizeEVDist( "evdists/%s" % listing )
+    folder = "hsdists"
+    dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             'rivers': 10 }
+    computeBuckets( 'flops', dmass['flops'] )
+    #for street in listdir( folder ) :
+        #for listing in listdir("%s/%s" % (folder,street)) :
+            #if listing.endswith("hsdist") :
+                #visualizeEVDist( "%s/%s/%s" % (folder,street,listing) )
     
-    #visualizeEVDist( "evdists/37TQ_h_3fxxox.evdist" )
+    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
     #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
     #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
 
     #computeDists(3,'HS')
     #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
     
-    #dmass = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             #'turn' : 20, \
-             #'river': 10 }
-    #computeBuckets( 'flop', dmass['flop'] )
 
     #print bucketPocket( ['Ah','7d'], ['Ad','7h','8c','__','__'] )
     
