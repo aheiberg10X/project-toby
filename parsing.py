@@ -17,12 +17,16 @@ re_dealing = re.compile(r'\*\* Dealing (.*) \*\* (.*)')
 re_end = re.compile(r'(.*) wins \$(\d) USD from the main pot.')
 
 def concatentateHistories( parent_dir ) :
-    fout = open( "%s/histories.txt" % parent_dir, 'w' )
+    fout = open( "%s/histories.txt" % parent_dir, 'wb' )
+    fout.write("\n")
     for history_file in os.listdir( parent_dir ) :
-        fout.write( open("%s/%s" % (parent_dir,history_file) ).read() )
-        fout.write("\n\n")
+        if history_file.startswith("pty") :
+            handle = open("%s/%s" % (parent_dir,history_file), 'U' )
+            firstline = handle.readline()
+            fout.write( firstline.decode('utf-8').encode('ascii','ignore') )
+            fout.write( handle.read() )
+            #fout.write("\n\n")
     fout.close()
-
 
 def splitHistoryFileByTable( history_filename ) :
     fin = open("%s.txt" % history_filename)
@@ -62,35 +66,7 @@ def splitHistoryFileByTable( history_filename ) :
         fout.write( "\n\n".join( table_gamedata[table] ) )
         fout.close()
 
-class Game :
-    def __init__(self, name) :
-        self.name = name
-        self.pot = 0
-        self.big_blind = -1
-        self.stacks = {}
-        self.active_players = -1
-        self.total_players = -1
-
-        #bet/raise
-        self.num_aggressive = [-1]*4
-        #check/call
-        self.num_passive = [-1]*4
-
-        self.all_in_with_call = False
-        self.amount_to_call = -1
-
-        self.average_rank = -1
-        self.callers_since_last_raise = -1
-
-        self.effective_stack_vs_active = -1
-        self.effective_stack_vs_aggressor = -1
-
-        self.high_card_flop = -1
-        self.high_card_turn = -1
-        self.high_card_river = -1
-
-        self.implied_odds_vs_aggressor = -1
-
+#convert regexp groups to a float amount
 def reGroupsToAmount( dollar_group, cent_group ) :
     dollars = int(dollar_group)
     if cent_group :
@@ -106,22 +82,25 @@ def extractFeatures( filename ) :
     line_count = 0
     line = fin.readline()
     while line :
-    #for line in fin.readlines() :
         line = line.strip()
         new_game_match = re_game_id.match(line)
         if new_game_match :
             if not isfirst :
                 print t
+                print t.features
+                assert False
             
             isfirst = False
             print "\n\n"
-            #finish processing last game
+
+            #TODO finish processing last game
             
             #setup hand
             fin.readline().strip()
             fin.readline().strip()
             button_line = fin.readline().strip()
             num_players_line = fin.readline().strip()
+            print num_players_line
             num_players_match = re_num_players.match( num_players_line )
             num_players, num_seats = int(num_players_match.group(1)), \
                                      int(num_players_match.group(2))
@@ -135,6 +114,8 @@ def extractFeatures( filename ) :
             pockets = [["__","__"]]*num_players
             stacks = [] 
             button = 0
+
+            zero_stacked_player = False
             for player in range(1,num_players+1) :
                 seat_name_line = fin.readline().strip()
                 seat_match = re_seat.match( seat_name_line )
@@ -144,8 +125,19 @@ def extractFeatures( filename ) :
                     button += 1
                 stack = reGroupsToAmount( seat_match.group(3), \
                                          seat_match.group(5) )
+
+                #if player has stack of 0, ignore and fastforward to next hand 
+                if stack == 0 :
+                    end_match = False
+                    while not end_match :
+                        line = fin.readline().strip()
+                        end_match = re_end.match(line)
+                    zero_stacked_player = True
+                    break
+
                 players.append( player_name )
                 stacks.append( stack )
+            if zero_stacked_player : continue
             
             print players, stacks
             t.newHand(players, pockets, stacks, button)
@@ -175,7 +167,7 @@ def extractFeatures( filename ) :
                 #print player, action, bet
                 if action == "raises" or action == "bets" :
                     t.registerAction( action[0], bet )
-                else :
+                else : #calls
                     t.registerAction( action )
                 #t.extractFeatures()
             else :
