@@ -406,8 +406,8 @@ if __name__ == '__main__' :
     folder = "hsdists"
     dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
              'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             'rivers': 10 }
-    computeBuckets( 'flops', dmass['flops'] )
+             'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
+    computeBuckets( 'turns', dmass['turns'] )
     #for street in listdir( folder ) :
         #for listing in listdir("%s/%s" % (folder,street)) :
             #if listing.endswith("hsdist") :
