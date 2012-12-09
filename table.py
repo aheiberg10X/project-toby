@@ -1,6 +1,6 @@
 from history import History
 from player import Player
-from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE
+from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose
 from deck import makeHuman
 
 # for storing information about the state of the game
@@ -27,8 +27,6 @@ class Table() :
             self.history = {}
             for s in STREET_NAMES :
                 self.history[s] = []
-
-        #self.newHand("init", players, pockets, stacks, button)
 
     def __str__(self) :
         r = []
@@ -95,6 +93,8 @@ class Table() :
         self.folded = [False]*self.num_players
         self.acted = [False]*self.num_players
         self.current_bets = [0]*self.num_players
+        self.passive_pip = [0]*self.num_players
+        self.aggressive_pip = [0]*self.num_players
         self.committed = [0]*self.num_players
         self.pot = 0
         #will worry about this bridge when we come to it
@@ -105,6 +105,7 @@ class Table() :
         #extra one to take it out of uninit state
         self.street = self.streets.next()
         self.street = self.streets.next()
+        #print "new hand, street: ", self.street
 
         self.aggressor = -1
         self.features = { \
@@ -164,8 +165,11 @@ class Table() :
             "pot_odds" : -1, \
             "pot_size" : 0, \
             "stack_size" : self.stacks[self.action_to], \
-            "was_aggressor" : [False]*4 \
-            #features incorporating cards
+            "was_aggressor" : [False]*4, \
+            # totalPIP/BB, totalPIP/effstack, aggPIP/totalPIP, passPIP/totalPIP
+            "summarized_bets" : [[[0]*4]*self.num_players for i in range(4)]
+
+
         }
     
     def isDealerAction( self ) :
@@ -190,17 +194,26 @@ class Table() :
                 possible.append(frac)
         return possible
 
-    def updateStack( self, player_ix, amount ) :
+    def updateStack( self, player_ix, amount, mode="passive" ) :
         self.pot += amount
         #print "amount: ", amount, "new pot", self.pot
         self.current_bets[player_ix] += amount 
+        #print self.players[player_ix], "current bet: ", self.current_bets[player_ix]
         self.stacks[player_ix]       -= amount
         self.committed[player_ix]    += amount
+        if mode == 'passive' :
+            self.passive_pip[player_ix] += amount
+        elif mode == 'aggressive' :
+            self.aggressive_pip[player_ix] += amount
+        else : assert False
+        #print self.pot
+        #print self.current_bets[player_ix], self.aggressive_pip[player_ix], self.passive_pip[player_ix]
+
 
     def registerAction( self, action, amt=0 ) : #fraction=False ) :
         player_ix = self.action_to
 
-        print self.players[self.action_to], action, amt
+        #print self.players[self.action_to], action, amt
 
         if action == 'k' :
             self.features["num_passive_actions"][self.street] += 1
@@ -210,33 +223,50 @@ class Table() :
         #TODO dealing action, advance self.street at the very least
         elif action == 'd' :
             pass
-        else : #b,c,r
+        else : #b,c,r, all-in
             sb_needs_posting = self.street == 0 and not any(self.acted)
+            bb_needs_posting = self.street == 0 and sum(self.acted) == 1
             if sb_needs_posting :
                 oblig = self.small_blind
+            elif bb_needs_posting :
+                oblig = self.small_blind*2
             else :
                 oblig = self.getObligation(player_ix)
             
+            #TODO figure out if raise or call
+            if action == 'a' :
+                if amt > oblig : action = 'r'
+                else : action = 'c'
+
             #make the raise  
             if action == 'r' or action =='b' :
                 #raise_amt = fraction * self.pot
                 #self.updateStack( player_ix, oblig+raise_amt )
-                self.updateStack( player_ix, amt )
-                assert self.stacks[player_ix] >= 0
+                self.updateStack( player_ix, amt, "aggressive" )
+                if not self.stacks[player_ix] >= -0.00001 :
+                    print self.stacks[player_ix]
+                    print self.committed[player_ix]
+                    print self.current_bets[player_ix]
+                    assert False
                 
                 #feature bookkeeping
+                #self.features["
                 self.features["num_aggressive_actions"][self.street] += 1
                 self.features["callers_since_last_raise"] = 0
                 self.aggressor = player_ix
                 self.features["num_bets"][self.street] += 1
 
+
             else : #action == 'c'
-                self.updateStack( player_ix, oblig )
+                self.updateStack( player_ix, oblig, "passive" )
             
                 #If player cannot call the required amount, put all in
                 #and credit the solvent players the difference
                 #TODO: instead of crediting back, put the difference in sidepot
                 if self.stacks[player_ix] < 0 :
+                    #TODO how to work the mode of updateStack 
+                    # into this corrective action
+
                     #print "WHOA THERE STACK IS NEGATIVE"
                     #credit the amout back to committed players
                     cur_bet = self.current_bets[player_ix]
@@ -244,16 +274,17 @@ class Table() :
                     for pix in range(self.num_players) :
                         diff = abs(self.current_bets[pix] - cur_bet)
                         if diff <= .001 :
-                            self.updateStack( pix, adj_amt )
+                            if player_ix == pix :
+                                self.updateStack( pix, adj_amt, "passive" )
+                            else :
+                                self.updateStack( pix, adj_amt, "aggressive" )
                     #TODO: form a side pot
                 
                 #feature bookkeeping
                 self.features["num_passive_actions"][self.street] += 1
                 self.features["callers_since_last_raise"] += 1
 
-            assert( self.stacks[player_ix] >= 0 )
-
-            
+            assert( self.stacks[player_ix] >= -0.00001 )
 
         if self.logging :
             self.history.update( self.street, (player_ix,action,amount) )
@@ -272,7 +303,9 @@ class Table() :
         #TODO
         #effective stacks vs agg and actives
 
-        effstacks = self.effectiveStacks( self.action_to )
+        players = [self.action_to] + \
+                  self.getPositionsBetween( self.action_to, self.action_to )
+        effstacks = self.effectiveStacks( players )
         oblig = self.getObligation( self.action_to )
         self.features["implied_odds_vs_aggressor"] = \
                 oblig / float(oblig + self.pot + effstacks[self.aggressor] )
@@ -293,39 +326,39 @@ class Table() :
 
         self.features["off_the_button"] = len(active_between)
 
-        
-
     def getPositionsBetween( self, p1, p2 ) :
-        pix = self.ringIncrement( p1, len(self.players) )
+        pix = self.ringIncrement( p1, self.num_players )
         between = []
         while pix != p2 :
             between.append(pix)
-            pix = self.ringIncrement( pix )
+            pix = self.ringIncrement( pix, self.num_players )
         return between
 
-    # the minimum of player_ix's stack to all other active players
+    #effective stack of the first player in the list to the rest
     # we will use self.stack - obligation, otherwise could make players
     # who hadn't acted yet look artificially stacked
-    def effectiveStacks( self, player_ix ) :
+    def effectiveStack( players ) :
         effstacks = []
-        player_oblig = self.getObligation( player_ix )
-        player_stack = self.stacks[player_ix]
-        player_num = max(player_stack-player_oblig, 0)
-        for pix in self.players :
-            oblig = self.getObligation( pix )
-            num = max( self.stacks[pix] - oblig, 0 )
-            effstacks.append( min( player_num, num ) )
+        oblig = self.getObligation( players[0] )
+        stack = self.stacks[players[0]]
+        adjusted_stack = max( stack-oblig, 0 )
+        effstacks.append( adjusted_stack )
+        for player in players[1:] :
+            oblig_b = self.getObligation( player )
+            stack_b = self.stacks[player]
+            adjusted_stack_b = max( stack_b-oblig_b, 0 )
+            effstack.append( min( adjusted_stack, adjusted_stack_b ) )
         return effstacks
 
 
 
     def nextUnfoldedPlayer( self, player_ix ) :
+        nxt = player_ix
         while True :
-            nxt = self.ringIncrement( player_ix, len(self.players) )
-            if not self.folded[nxt] :
+            nxt = self.ringIncrement( nxt, len(self.players) )
+            if (not self.folded[nxt]) or (nxt == player_ix) :
                 break
 
-        assert( nxt != player_ix )
         return nxt
 
     def ringIncrement( self, i, length ) :
@@ -367,30 +400,60 @@ class Table() :
     #track burned cards
     #TODO changed self.street to ints, need to reflect name change here
     def advanceStreet( self, cards ) :
-        self.current_bets = [0]*self.num_players
-        self.acted = [False]*self.num_players
-        if self.street == -1 :
-            #deal out the hole cards
-            cards = iter(cards)
-            for pix in range(self.num_seats) :
-                if not self.chairEmpty(pix) :
-                    self.pockets[pix] = cards.next()
-                    #deck.draw(POCKET_SIZE)
-            human_pockets = [makeHuman(hc) for hc in self.pockets]
-            if self.logging :
-                pass
-                ##self.history.newHand(self.player_names, human_pockets)
-#
-        elif self.street == 0    : self.board[:3] = cards
-        elif self.street == 1    : self.board[3]  = cards[0]
-        elif self.street == 2    : self.board[4]  = cards[0]
+        acted_players = [player \
+                          for player \
+                          in range(self.num_players) \
+                          if self.acted[player]]
 
-        self.street = self.streets.next()
-        self.action_to = self.nextUnfoldedPlayer( self.button )
+        #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
+        ratios = []
+        for p in acted_players :
+            t = []
+            t.append( self.current_bets[p] / float(self.small_blind) )
+            t.append( self.current_bets[p] / float(self.pot) )
+            if not self.current_bets[p] == 0 :
+                agg = self.aggressive_pip[p] / self.current_bets[p]
+                assert( agg <= 1 ) 
+                t.append( agg )
+                t.append( self.passive_pip[p] / self.current_bets[p] )
+            else :
+                t.append(0)
+                t.append(0)
+            ratios.append(t)
         
-        if self.logging :
-            self.history.update( self.street, makeHuman(self.board) )
 
+        to_yield =  [self.street]+ratios
+        
+        if cards :
+            self.current_bets = [0]*self.num_players
+            self.passive_pip = [0]*self.num_players
+            self.aggressive_pip = [0]*self.num_players
+            self.acted = [False]*self.num_players
+
+            if self.street == -1 :
+                #deal out the hole cards
+                cards = iter(cards)
+                for pix in range(self.num_seats) :
+                    if not self.chairEmpty(pix) :
+                        self.pockets[pix] = cards.next()
+                        #deck.draw(POCKET_SIZE)
+                human_pockets = [makeHuman(hc) for hc in self.pockets]
+                if self.logging :
+                    pass
+                    ##self.history.newHand(self.player_names, human_pockets)
+            
+            elif self.street == 0    : self.board[:3] = cards
+            elif self.street == 1    : self.board[3]  = cards[0]
+            elif self.street == 2    : self.board[4]  = cards[0]
+            else : print "all advanced up"
+
+            self.street = self.streets.next()
+            self.action_to = self.nextUnfoldedPlayer( self.button )
+            
+            if self.logging :
+                self.history.update( self.street, makeHuman(self.board) )
+
+        return to_yield
     def advanceButton( self ) :
         for pix in range( self.button+1, len(self.players) ) + \
                    range( self.button ) : 

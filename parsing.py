@@ -2,6 +2,8 @@ import re
 import os
 import os.path
 import table
+import json
+from globles import veryClose
 
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
@@ -14,7 +16,7 @@ re_pip = re.compile(r'(.*) (posts small blind|posts big blind|is all-In|raises|b
 re_checkfold = re.compile(r'(.*) (checks|folds)')
 re_seat = re.compile(r'Seat (\d): (.*) \( \$(\d+)(\.(\d\d))? USD \)')
 re_dealing = re.compile(r'\*\* Dealing (.*) \*\* (.*)')
-re_end = re.compile(r'(.*) wins \$(\d) USD from the main pot.')
+re_end = re.compile(r'(.*) wins \$(\d+)(\.(\d\d))? USD from the main pot.')
 
 def concatentateHistories( parent_dir ) :
     fout = open( "%s/histories.txt" % parent_dir, 'wb' )
@@ -74,25 +76,30 @@ def reGroupsToAmount( dollar_group, cent_group ) :
     else : cents = 0
     return dollars+cents
 
-def extractFeatures( filename ) :
+def extractBidFeatures( filename ) :
+    mapping = False
+
     fin = open( filename )
  
     t = table.Table(small_blind=.5)
     isfirst = True
     line_count = 0
     line = fin.readline()
+    not_zero_count = 0
+    zero_or_one_count = 0
     while line :
         line = line.strip()
         new_game_match = re_game_id.match(line)
         if new_game_match :
             if not isfirst :
-                print t
-                print t.features
-                assert False
+                pass
+                #print t
+                #print t.features
+                #assert False
             
             isfirst = False
             print "\n\n"
-
+            print new_game_match.group(1)
             #TODO finish processing last game
             
             #setup hand
@@ -100,7 +107,6 @@ def extractFeatures( filename ) :
             fin.readline().strip()
             button_line = fin.readline().strip()
             num_players_line = fin.readline().strip()
-            print num_players_line
             num_players_match = re_num_players.match( num_players_line )
             num_players, num_seats = int(num_players_match.group(1)), \
                                      int(num_players_match.group(2))
@@ -139,7 +145,6 @@ def extractFeatures( filename ) :
                 stacks.append( stack )
             if zero_stacked_player : continue
             
-            print players, stacks
             t.newHand(players, pockets, stacks, button)
 
             #small blind
@@ -151,7 +156,8 @@ def extractFeatures( filename ) :
             #big blind
             match_pip = re_pip.match( fin.readline().strip() )
             bet = reGroupsToAmount( match_pip.group(3), match_pip.group(5) )
-            t.registerAction( 'r', 1 )
+            t.registerAction( 'c' )
+            #t.registerAction( 'r', 1 )
 
 
             assert( fin.readline().strip() == "** Dealing down cards **" )
@@ -160,13 +166,14 @@ def extractFeatures( filename ) :
             match_pip = re_pip.match(line)
             if match_pip :
                 player = match_pip.group(1)
-                print player
                 assert( t.players.index(player) == t.action_to )
                 action = match_pip.group(2)
                 bet = reGroupsToAmount( match_pip.group(3), match_pip.group(5) )
                 #print player, action, bet
                 if action == "raises" or action == "bets" :
                     t.registerAction( action[0], bet )
+                elif action == "is all-In" :
+                    t.registerAction( 'a', bet )
                 else : #calls
                     t.registerAction( action )
                 #t.extractFeatures()
@@ -184,28 +191,57 @@ def extractFeatures( filename ) :
                         street = dealing_match.group(1)
                         cards = dealing_match.group(2)
                         cards = cards[1:-1].replace(" ","").split(",")
-                        print cards
-                        t.advanceStreet(cards)
+                        pip_ratios = t.advanceStreet(cards)
+                        yield pip_ratios
                     else :
                         end_match = re_end.match(line)
                         if end_match :
-                            print line
+                            #winning_pix = t.players.index( end_match.group(1) )
+                            win_amt = reGroupsToAmount( end_match.group(2), \
+                                                        end_match.group(4) )
+                            pip_ratios = t.advanceStreet(False)
+
+                            if len(pip_ratios) >= 2 :
+                                if 0< pip_ratios[1][2] < 1 :
+                                    not_zero_count += win_amt 
+                                    print win_amt, pip_ratios[1][2]
+                                else :
+                                    zero_or_one_count += win_amt
+                            #for repeat in range( int(win_amt) ) :
+                            yield pip_ratios
                         else :
                             pass
 
-
-
-        #if line_count > 100 : break
         line = fin.readline()
         line_count += 1
         
+
+    print "adsfasdfwegfwad"
+    print not_zero_count
+    print zero_or_one_count
     fin.close()
-    #file_counter += 1
-#
-    #fout = open("%s_bets.txt" % filename % 42, 'w')
-    #fout.write( str(sorted(bets))[1:-1] )
-    #fout.close()
-    ##finish processing last gfdame
+
+#calls extractBidFeatures
+def splitBidFeaturesByStreet( filename ) :
+    features = [[],[],[],[]]
+    for bid_feature in extractBidFeatures( "%s.txt" % filename ) :
+        #print bid_feature
+        street = bid_feature[0]
+        for player in range( 1,len(bid_feature) ) :
+            features[street].append( bid_feature[player] )
+
+    fpre = open( "%s_preflop_bid_features.txt" % filename, 'w' )
+    fflop = open( "%s_flop_bid_features.txt" % filename, 'w' )
+    fturn = open( "%s_turn_bid_features.txt" % filename, 'w' )
+    friver = open( "%s_river_bid_features.txt" % filename, 'w' )
+    fpre.write( json.dumps( features[0] ) )
+    fflop.write( json.dumps( features[1] ) )
+    fturn.write( json.dumps( features[2] ) )
+    friver.write( json.dumps( features[3] ) )
+    fpre.close()
+    fflop.close()
+    fturn.close()
+    friver.close()
 
 if __name__ == '__main__' :
     #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_3-6plrs_x10k_1badb/pty NLH handhq_%d"
@@ -216,4 +252,10 @@ if __name__ == '__main__' :
     #splitHistoryFileByTable(filename)
     #concatentateHistories( "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534" )
 
-    extractFeatures( "%s.txt" % filename )
+    splitBidFeaturesByStreet( filename )
+
+    #street = "flop"
+    #col = 2 
+    #bid_features = json.loads( open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories_%s_bid_features.txt" % street).read() )
+    #open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/agg_to_pip_%s.txt" % street ,'w').write( json.dumps( [bf[col] for bf in bid_features if bf[col] > 0]) )
+

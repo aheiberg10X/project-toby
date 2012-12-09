@@ -18,3 +18,6 @@ if EVALUATOR == 'pokereval' :
     #Computed EV can range from from 0-1000
     EV_RANGE = 1000
 
+
+def veryClose( a,b,p=.00001 ) :
+    return abs(a-b) < p
