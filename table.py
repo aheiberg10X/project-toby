@@ -1,6 +1,6 @@
 from history import History
 from player import Player
-from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose
+from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS
 from deck import makeHuman
 
 # for storing information about the state of the game
@@ -312,19 +312,19 @@ class Table() :
 
         #nxt = self.nextUnfoldedPlayer( player_ix )
 
-        positions_between = self.getPositionsBetween( self.action_to, \
-                                                      self.button )
-        active_between = [pix \
-                          for pix \
-                          in positions_between
-                          if not self.folded[pix] ]
+        positions_between_button = self.getPositionsBetween( self.action_to, \
+                                                             self.button )
+        active_between_button = [pix \
+                                 for pix \
+                                 in positions_between_button
+                                 if not self.folded[pix] ]
 
-        self.features["in_position_vs_active"] = len(active_between) == 0
+        self.features["in_position_vs_active"] = len(active_between_button) == 0
 
         self.features["in_position_vs_aggressor"] = \
-                self.aggressor not in positions_between 
+                self.aggressor not in positions_between_button
 
-        self.features["off_the_button"] = len(active_between)
+        self.features["off_the_button"] = len(active_between_button)
 
     def getPositionsBetween( self, p1, p2 ) :
         pix = self.ringIncrement( p1, self.num_players )
@@ -405,25 +405,35 @@ class Table() :
                           in range(self.num_players) \
                           if self.acted[player]]
 
+        #compute the facts we want to emit
         #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
         ratios = []
         for p in acted_players :
             t = []
-            t.append( self.current_bets[p] / float(self.small_blind) )
-            t.append( self.current_bets[p] / float(self.pot) )
+
+            #t.append( self.current_bets[p] / float(self.small_blind) )
+            pip_to_pot = self.current_bets[p] / float(self.pot)
+            closest_ratio = min( BET_RATIOS, \
+                                 key = lambda bet : abs(pip_to_pot-bet) )
+            t.append( closest_ratio )
+
+            #1 if last to act
+            #TODO: currently only works for heads-up
+            t.append( int(self.button == p) )
+
             if not self.current_bets[p] == 0 :
-                agg = self.aggressive_pip[p] / self.current_bets[p]
-                assert( agg <= 1 ) 
-                t.append( agg )
-                t.append( self.passive_pip[p] / self.current_bets[p] )
+                was_aggressive = int( (self.aggressive_pip[p] / \
+                                         self.current_bets[p]) > .1 )
+                t.append( was_aggressive )
+                #t.append( self.passive_pip[p] / self.current_bets[p] )
             else :
                 t.append(0)
-                t.append(0)
+                #t.append(0)
             ratios.append(t)
-        
 
         to_yield =  [self.street]+ratios
         
+        #bookkeeping
         if cards :
             self.current_bets = [0]*self.num_players
             self.passive_pip = [0]*self.num_players
@@ -454,6 +464,8 @@ class Table() :
                 self.history.update( self.street, makeHuman(self.board) )
 
         return to_yield
+
+
     def advanceButton( self ) :
         for pix in range( self.button+1, len(self.players) ) + \
                    range( self.button ) : 

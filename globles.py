@@ -1,3 +1,5 @@
+BET_RATIOS = [0,.2,.3,.4,.5,1]
+
 EVALUATOR = "pokereval"
 GAME = 'holdem'
 NA = 'xx'

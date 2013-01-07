@@ -18,6 +18,7 @@ re_seat = re.compile(r'Seat (\d): (.*) \( \$(\d+)(\.(\d\d))? USD \)')
 re_dealing = re.compile(r'\*\* Dealing (.*) \*\* (.*)')
 re_end = re.compile(r'(.*) wins \$(\d+)(\.(\d\d))? USD from the main pot.')
 
+#take all the histories as downloaded from handhq and put them into one file
 def concatentateHistories( parent_dir ) :
     fout = open( "%s/histories.txt" % parent_dir, 'wb' )
     fout.write("\n")
@@ -85,8 +86,6 @@ def extractBidFeatures( filename ) :
     isfirst = True
     line_count = 0
     line = fin.readline()
-    not_zero_count = 0
-    zero_or_one_count = 0
     while line :
         line = line.strip()
         new_game_match = re_game_id.match(line)
@@ -182,7 +181,7 @@ def extractBidFeatures( filename ) :
                 if checkfold_match :
                     action = checkfold_match.group(2)
                     if action == 'checks' :
-                        t.registerAction( 'c' )
+                        t.registerAction( 'k' )
                     else :
                         t.registerAction( 'f' )
                 else :
@@ -201,13 +200,6 @@ def extractBidFeatures( filename ) :
                                                         end_match.group(4) )
                             pip_ratios = t.advanceStreet(False)
 
-                            if len(pip_ratios) >= 2 :
-                                if 0< pip_ratios[1][2] < 1 :
-                                    not_zero_count += win_amt 
-                                    print win_amt, pip_ratios[1][2]
-                                else :
-                                    zero_or_one_count += win_amt
-                            #for repeat in range( int(win_amt) ) :
                             yield pip_ratios
                         else :
                             pass
@@ -217,8 +209,6 @@ def extractBidFeatures( filename ) :
         
 
     print "adsfasdfwegfwad"
-    print not_zero_count
-    print zero_or_one_count
     fin.close()
 
 #calls extractBidFeatures
@@ -255,7 +245,9 @@ if __name__ == '__main__' :
     splitBidFeaturesByStreet( filename )
 
     #street = "flop"
-    #col = 2 
+    #cols = [0,1,2] 
+    #col_names = ["pip_to_pot","in_position","aggression"]
     #bid_features = json.loads( open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories_%s_bid_features.txt" % street).read() )
-    #open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/agg_to_pip_%s.txt" % street ,'w').write( json.dumps( [bf[col] for bf in bid_features if bf[col] > 0]) )
+    #for col,name in zip(cols, col_names) :
+        #open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/%s_%s.txt" % (name,street) ,'w').write( json.dumps( [bf[col] for bf in bid_features]) )
 
