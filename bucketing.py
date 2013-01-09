@@ -326,6 +326,8 @@ def computeDistsHS() :
             print count
             print time() - a
             a = time()
+        #computeHSs will pit every possible hand against 'mystery' known_pocket
+        #and compute the HS2 from rollout
         d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
                                            board = list(board) )
         flop = collapseBoard( board[0:3] )

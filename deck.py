@@ -464,9 +464,9 @@ def truncate( board ) :
 #our best guess at each players holding distribution.  
 
 class Deck:
-    def __init__(self, set_of_cards=set(range(52)) ) :
+    def __init__(self) :
         #print "deck init: " , set_of_cards
-        self.cards = set_of_cards
+        self.cards = set(range(52))
     
     def shuffle(self) :
         self.cards = set(range(52))
