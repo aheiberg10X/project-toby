@@ -9,15 +9,14 @@ pe = pokereval.PokerEval()
 
 def computeEHS2( pocket, board ) :
     d = Deck()
-    #don't remove the pocket here.  It is the pocket_assignment to pokerEval,
-    #it does the check itself by trying to remove them
-    d.remove(board)
+    d.remove( board )
+    d.remove( pocket )
     num_unknown_board = 5-len(board)
     HS2sum = 0
     count = 0
     for board_suffix in combinations( d.cards, num_unknown_board ) :
         full_board = board + makeHuman(board_suffix)
-        print makeHuman(pocket), full_board
+        #print makeHuman(pocket), full_board
         data = [ [pocket, ['__','__']], full_board, 'HS']
         try :
             HS2sum += pokerEval( data )[canonicalize(pocket)]
@@ -25,14 +24,13 @@ def computeEHS2( pocket, board ) :
         except Exception as e :
             print "nope, ", e
             pass
-        print "=="
+        #print "=="
 
     if count == 0 :
         #the given pocket and board are incompatible
         return "incompatible"
     else :
         return HS2sum / float(count)
-
 
 #TODO, this should go in bucketing
 # really just belongs as part of computeDistsHS as it is just a wrapper
@@ -108,7 +106,7 @@ def pokerEval( data ) :
     valid = all([d.remove(pa) for pa in pocket_assignment])
     
     if valid :
-        print "assignment valid"
+        #print "assignment valid"
         #pocket_assignment = [list(pp) for pp in pocket_assignment]
         #pocket_assignment = pocket_assignment + known_pockets
         r = pe.poker_eval( game=globles.GAME, \
@@ -139,9 +137,11 @@ if __name__ == "__main__" :
                        #pockets=pocket_assignment, \
                        #board=board )
     #print r
-    for pocket in combinations( range(52), 2 ) :
-        print pocket, computeEHS2( list(pocket), ['2h','5h','9c'] )
 
+    #for pocket in combinations( range(52), 2 ) :
+        #print pocket, computeEHS2( list(pocket), ['2h','5h','9c'] )
+
+    pass
 
 
 

@@ -1,11 +1,11 @@
-BET_RATIOS = [0,.2,.3,.4,.5,1]
+BET_RATIOS = [.2,.3,.4,.5,.75,1]
 
 EVALUATOR = "pokereval"
 GAME = 'holdem'
 NA = 'xx'
 if GAME == 'holdem' or GAME == 'omaha' :
-    #STREET_NAMES = ["undealt","preflop","flop","turn","river"]
-    STREET_NAMES = [-1,0,1,2,3]
+    #STREET_NAMES = ["undealt","preflop","flop","turn","river","over"]
+    STREET_NAMES = [-1,0,1,2,3,4]
 
 if GAME == 'holdem' :
     POCKET_SIZE = 2

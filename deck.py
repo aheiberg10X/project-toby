@@ -40,6 +40,7 @@ def getSuit( card ) :
 #take integers and output card string
 def makeHuman( cards ) :
     #if already in right format, leave alone
+    if len(cards) == 0 : return []
     if type(cards[0]) == str : return cards
     r = []
     for c in cards :

@@ -1,8 +1,9 @@
 import re
 import os
 import os.path
-import table
 import json
+
+import table
 from globles import veryClose
 
 MIN_BET_THRESH = 1
@@ -16,7 +17,8 @@ re_pip = re.compile(r'(.*) (posts small blind|posts big blind|is all-In|raises|b
 re_checkfold = re.compile(r'(.*) (checks|folds)')
 re_seat = re.compile(r'Seat (\d): (.*) \( \$(\d+)(\.(\d\d))? USD \)')
 re_dealing = re.compile(r'\*\* Dealing (.*) \*\* (.*)')
-re_end = re.compile(r'(.*) wins \$(\d+)(\.(\d\d))? USD from the main pot.')
+re_shows = re.compile(r'(\w*) (doesn\'t )?show[s]? \[ (..), (..) \]')
+re_end = re.compile(r'(\w*) wins \$(\d+)(\.(\d\d))? USD from the main pot.')
 
 #take all the histories as downloaded from handhq and put them into one file
 def concatentateHistories( parent_dir ) :
@@ -77,8 +79,8 @@ def reGroupsToAmount( dollar_group, cent_group ) :
     else : cents = 0
     return dollars+cents
 
-def extractBidFeatures( filename ) :
-    mapping = False
+def iterateActionStates( filename ) :
+    num_games, num_revealed = 0,0
 
     fin = open( filename )
  
@@ -86,20 +88,28 @@ def extractBidFeatures( filename ) :
     isfirst = True
     line_count = 0
     line = fin.readline()
+    new_game_count = 0
+
     while line :
         line = line.strip()
         new_game_match = re_game_id.match(line)
         if new_game_match :
+            num_games += 1
             if not isfirst :
-                pass
-                #print t
-                #print t.features
-                #assert False
+                yield t.action_states
+                #for street in range(len(t.action_states)) :
+                    #for player in range(num_players) :
+                        #tmp = [street] + t.action_states[street][player]
+                        ##print tmp
+                        #yield tmp
             
+            if new_game_count > 9 :
+                pass #assert False
+            new_game_count += 1
+
             isfirst = False
             print "\n\n"
             print new_game_match.group(1)
-            #TODO finish processing last game
             
             #setup hand
             fin.readline().strip()
@@ -142,6 +152,7 @@ def extractBidFeatures( filename ) :
 
                 players.append( player_name )
                 stacks.append( stack )
+
             if zero_stacked_player : continue
             
             t.newHand(players, pockets, stacks, button)
@@ -156,10 +167,9 @@ def extractBidFeatures( filename ) :
             match_pip = re_pip.match( fin.readline().strip() )
             bet = reGroupsToAmount( match_pip.group(3), match_pip.group(5) )
             t.registerAction( 'c' )
-            #t.registerAction( 'r', 1 )
-
 
             assert( fin.readline().strip() == "** Dealing down cards **" )
+            t.advanceStreet(["down","cards"])
 
         else :
             match_pip = re_pip.match(line)
@@ -190,59 +200,106 @@ def extractBidFeatures( filename ) :
                         street = dealing_match.group(1)
                         cards = dealing_match.group(2)
                         cards = cards[1:-1].replace(" ","").split(",")
-                        pip_ratios = t.advanceStreet(cards)
-                        yield pip_ratios
+                        t.advanceStreet(cards)
+                        #yield pip_ratios
                     else :
-                        end_match = re_end.match(line)
-                        if end_match :
-                            #winning_pix = t.players.index( end_match.group(1) )
-                            win_amt = reGroupsToAmount( end_match.group(2), \
-                                                        end_match.group(4) )
-                            pip_ratios = t.advanceStreet(False)
-
-                            yield pip_ratios
+                        show_match = re_shows.match(line)
+                        if show_match :
+                            #register the river
+                            t.advanceStreet(False)
+                            num_revealed += 1
+                            #propagate the revealed HS2 information back
+                            #through the table.action_states via 
+                            #registerRevealedPocket
+                            player = show_match.group(1)
+                            card1 = show_match.group(3)
+                            card2 = show_match.group(4)
+                            t.registerRevealedPocket( player, [card1,card2] )
                         else :
-                            pass
+                            end_match = re_end.match(line)
+                            if end_match :
+                                t.advanceStreet(False)
+                            #winning_pix = t.players.index( end_match.group(1) )
+                            #win_amt = reGroupsToAmount( end_match.group(2), \
+                                                        #end_match.group(4) )
+
+                                #yield pip_ratios
+                                pass
+                            else :
+                                pass
 
         line = fin.readline()
         line_count += 1
         
+    #TODO
+    #process the last hand
+    yield t.action_states
 
-    print "adsfasdfwegfwad"
+    print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
 
-#calls extractBidFeatures
-def splitBidFeaturesByStreet( filename ) :
-    features = [[],[],[],[]]
-    for bid_feature in extractBidFeatures( "%s.txt" % filename ) :
-        #print bid_feature
-        street = bid_feature[0]
-        for player in range( 1,len(bid_feature) ) :
-            features[street].append( bid_feature[player] )
+#Indexes (built around training_data.txt) :
+#   index_last_street.txt
+#   want rows(games) who reached the given street
+#   {..., ..., 2 : [line num of games that reached the turn], ...}
+#   
+#   index_aXY.txt
+#   for action_state on street X, player Y
+#   {a00 : [[line nums of games matching action_state_value1],[],...],
+#    a01 : [[],[line nums of games matching action_state_value2],...],
+#     ...}
+#   8 keys with list of ~7*2*2 inner lists.  Total ints in inner list ==
+#   the number of games in training data
+#   
+#   Will have to enumerate action_state values in some canonical order to make
+#   lists above be meaningful
+#   index_action_states.txt
+#   "[action,state,value1] : 0,
+#   "[action,state,value2} : 1, ... }
+#
+#   Should rep action_states as the str( list tuple of values )
+def indexActionStatesFile( filename ) :
+    pass
 
-    fpre = open( "%s_preflop_bid_features.txt" % filename, 'w' )
-    fflop = open( "%s_flop_bid_features.txt" % filename, 'w' )
-    fturn = open( "%s_turn_bid_features.txt" % filename, 'w' )
-    friver = open( "%s_river_bid_features.txt" % filename, 'w' )
-    fpre.write( json.dumps( features[0] ) )
-    fflop.write( json.dumps( features[1] ) )
-    fturn.write( json.dumps( features[2] ) )
-    friver.write( json.dumps( features[3] ) )
-    fpre.close()
-    fflop.close()
-    fturn.close()
-    friver.close()
+#deprecated 
+def splitActionStatesIntoTrainingFiles( filename ) :
+
+    features = [[],[],[],[]]
+
+    #for bid_feature in extractBidFeatures( "%s.txt" % filename ) :
+        ##print bid_feature
+        #street = bid_feature[0]
+        #for player in range( 1,len(bid_feature) ) :
+            #features[street].append( bid_feature[player] )
+#
+    #fpre = open( "%s_preflop_bid_features.txt" % filename, 'w' )
+    #fflop = open( "%s_flop_bid_features.txt" % filename, 'w' )
+    #fturn = open( "%s_turn_bid_features.txt" % filename, 'w' )
+    #friver = open( "%s_river_bid_features.txt" % filename, 'w' )
+    #fpre.write( json.dumps( features[0] ) )
+    #fflop.write( json.dumps( features[1] ) )
+    #fturn.write( json.dumps( features[2] ) )
+    #friver.write( json.dumps( features[3] ) )
+    #fpre.close()
+    #fflop.close()
+    #fturn.close()
+    #friver.close()
 
 if __name__ == '__main__' :
-    #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_3-6plrs_x10k_1badb/pty NLH handhq_%d"
-    #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/pty NLH handhq_0"
-    filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories"
+    filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
+    #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/reveal_test"
+    #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/all_in_test"
 
 
+    #write action states to file
+    fout = open( "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt", 'w' )
+    for actstate in iterateActionStates( filename ) : 
+        fout.write( str(actstate)+"\n" )
+    fout.close()
+
+    
     #splitHistoryFileByTable(filename)
     #concatentateHistories( "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534" )
-
-    splitBidFeaturesByStreet( filename )
 
     #street = "flop"
     #cols = [0,1,2] 

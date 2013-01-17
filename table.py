@@ -2,6 +2,7 @@ from history import History
 from player import Player
 from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS
 from deck import makeHuman
+import rollout
 
 # for storing information about the state of the game
 
@@ -102,12 +103,19 @@ class Table() :
         self.board = makeHuman([WILDCARD]*5)
         
         self.streets = iter( STREET_NAMES )
-        #extra one to take it out of uninit state
+        ##extra one to take it out of uninit state
         self.street = self.streets.next()
-        self.street = self.streets.next()
+        #self.street = self.streets.next()
         #print "new hand, street: ", self.street
 
         self.aggressor = -1
+
+        #will be multi-dimensional list
+        #1st dim = street 0 - 3
+        #2nd dim = player 0 - (self.num_players-1)
+        #3rd dim = particular feature.  The last one is the EHS2 belief
+        self.action_states = []
+
         self.features = { \
             #DONE (defacto)
             "active_players" : len(players), \
@@ -224,8 +232,8 @@ class Table() :
         elif action == 'd' :
             pass
         else : #b,c,r, all-in
-            sb_needs_posting = self.street == 0 and not any(self.acted)
-            bb_needs_posting = self.street == 0 and sum(self.acted) == 1
+            sb_needs_posting = self.street == -1 and not any(self.acted)
+            bb_needs_posting = self.street == -1 and sum(self.acted) == 1
             if sb_needs_posting :
                 oblig = self.small_blind
             elif bb_needs_posting :
@@ -235,6 +243,7 @@ class Table() :
             
             #TODO figure out if raise or call
             if action == 'a' :
+                print "registering all in action"
                 if amt > oblig : action = 'r'
                 else : action = 'c'
 
@@ -294,6 +303,19 @@ class Table() :
         self.acted[player_ix] = True
         self.action_to = self.nextUnfoldedPlayer( player_ix )
 
+    def registerRevealedPocket( self, player_name, pocket ) :
+        pix = self.players.index(player_name)
+        #TODO: handle preflop strength via some table
+        #print "registerRevealed player:", player_name
+        for street in range(1,len(self.action_states)) :
+            if   street == 1 : board = self.board[:3]
+            elif street == 2 : board = self.board[:4]
+            elif street == 3 : board = self.board
+            EHS2 = rollout.computeEHS2( pocket, board )
+            self.action_states[street][pix].append( EHS2 )
+        #print self.action_states
+
+    #TODO: work in progress, not clear if going to be used
     def extractFeatures( self ) :
         #TODO active to passive ratios
         self.features["all_in_with_call"] = \
@@ -350,8 +372,6 @@ class Table() :
             effstack.append( min( adjusted_stack, adjusted_stack_b ) )
         return effstacks
 
-
-
     def nextUnfoldedPlayer( self, player_ix ) :
         nxt = player_ix
         while True :
@@ -398,73 +418,70 @@ class Table() :
     #TODO:
     #side-potting?
     #track burned cards
-    #TODO changed self.street to ints, need to reflect name change here
     def advanceStreet( self, cards ) :
-        acted_players = [player \
-                          for player \
-                          in range(self.num_players) \
-                          if self.acted[player]]
+        #if we are out of streets and try to advance, do nothing
+        try :
+            self.street = self.streets.next()
+        except StopIteration :
+            return 
+        
+        #pointless to report actions about automatic blinds
+        #(remember self.streets already incremented here)
+        if self.street > 0 :
+            acted_players = [player \
+                              for player \
+                              in range(self.num_players) \
+                              if self.acted[player]]
 
-        #compute the facts we want to emit
-        #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
-        ratios = []
-        for p in acted_players :
-            t = []
+            #compute the features we want to emit
+            #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
+            ratios = []
+            for p in acted_players :
+                t = []
+                pip_to_pot = self.current_bets[p] / float(self.pot)
+                closest_ratio = min( BET_RATIOS, \
+                                     key = lambda bet : abs(pip_to_pot-bet) )
+                t.append( closest_ratio )
 
-            #t.append( self.current_bets[p] / float(self.small_blind) )
-            pip_to_pot = self.current_bets[p] / float(self.pot)
-            closest_ratio = min( BET_RATIOS, \
-                                 key = lambda bet : abs(pip_to_pot-bet) )
-            t.append( closest_ratio )
+                #1 if last to act
+                #TODO: currently only works for heads-up
+                t.append( int(self.button == p) )
 
-            #1 if last to act
-            #TODO: currently only works for heads-up
-            t.append( int(self.button == p) )
-
-            if not self.current_bets[p] == 0 :
-                was_aggressive = int( (self.aggressive_pip[p] / \
-                                         self.current_bets[p]) > .1 )
-                t.append( was_aggressive )
-                #t.append( self.passive_pip[p] / self.current_bets[p] )
-            else :
-                t.append(0)
-                #t.append(0)
-            ratios.append(t)
-
-        to_yield =  [self.street]+ratios
+                if not self.current_bets[p] == 0 :
+                    was_aggressive = int( (self.aggressive_pip[p] / \
+                                             self.current_bets[p]) > .1 )
+                    t.append( was_aggressive )
+                    #t.append( self.passive_pip[p] / self.current_bets[p] )
+                else :
+                    t.append(0)
+                    #t.append(0)
+                ratios.append(t)
+         
+            #meaningless to register ratios where no one acts
+            #this can happend when an all-In is called
+            #future streets are dealt but there are no actions to take
+            if len(acted_players) > 0 : 
+                self.action_states.append( ratios )
         
         #bookkeeping
         if cards :
-            self.current_bets = [0]*self.num_players
-            self.passive_pip = [0]*self.num_players
-            self.aggressive_pip = [0]*self.num_players
-            self.acted = [False]*self.num_players
 
-            if self.street == -1 :
-                #deal out the hole cards
-                cards = iter(cards)
-                for pix in range(self.num_seats) :
-                    if not self.chairEmpty(pix) :
-                        self.pockets[pix] = cards.next()
-                        #deck.draw(POCKET_SIZE)
-                human_pockets = [makeHuman(hc) for hc in self.pockets]
-                if self.logging :
-                    pass
-                    ##self.history.newHand(self.player_names, human_pockets)
-            
-            elif self.street == 0    : self.board[:3] = cards
-            elif self.street == 1    : self.board[3]  = cards[0]
-            elif self.street == 2    : self.board[4]  = cards[0]
-            else : print "all advanced up"
+            #remember self.street has already been advanced by now
+                        
+            if   self.street == 1    : self.board[:3] = cards
+            elif self.street == 2    : self.board[3]  = cards[0]
+            elif self.street == 3    : self.board[4]  = cards[0]
 
-            self.street = self.streets.next()
-            self.action_to = self.nextUnfoldedPlayer( self.button )
+            if self.street > 0 :
+                self.current_bets = [0]*self.num_players
+                self.passive_pip = [0]*self.num_players
+                self.aggressive_pip = [0]*self.num_players
+                self.acted = [False]*self.num_players
+                self.action_to = self.nextUnfoldedPlayer( self.button )
             
             if self.logging :
                 self.history.update( self.street, makeHuman(self.board) )
-
-        return to_yield
-
+        
 
     def advanceButton( self ) :
         for pix in range( self.button+1, len(self.players) ) + \
