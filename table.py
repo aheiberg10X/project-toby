@@ -115,6 +115,7 @@ class Table() :
         #2nd dim = player 0 - (self.num_players-1)
         #3rd dim = particular feature.  The last one is the EHS2 belief
         self.action_states = []
+        self.buckets = []
 
         self.features = { \
             #DONE (defacto)
@@ -307,12 +308,18 @@ class Table() :
         pix = self.players.index(player_name)
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
-        for street in range(1,len(self.action_states)) :
+        for street in range(len(self.action_states)) :
             if   street == 1 : board = self.board[:3]
             elif street == 2 : board = self.board[:4]
             elif street == 3 : board = self.board
             EHS2 = rollout.computeEHS2( pocket, board )
-            self.action_states[street][pix].append( EHS2 )
+            if street == len(self.buckets)+1 :
+                self.buckets[street][pix] = EHS2
+            else:
+                self.buckets.append( [0,0] )
+                self.bucket[street][pix] = EHS2
+
+            #self.action_states[street][pix].append( EHS2 )
         #print self.action_states
 
     #TODO: work in progress, not clear if going to be used

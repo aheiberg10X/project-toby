@@ -19,7 +19,7 @@ def computeEHS2( pocket, board ) :
         #print makeHuman(pocket), full_board
         data = [ [pocket, ['__','__']], full_board, 'HS']
         try :
-            HS2sum += pokerEval( data )[canonicalize(pocket)]
+            HS2sum += computeHS2( data )[canonicalize(pocket)]
             count += 1
         except Exception as e :
             print "nope, ", e
@@ -60,7 +60,7 @@ def computeHSs( known_pockets, board, num_threads=4 ) :
                                                 remaining_cards, \
                                                 board, \
                                                 'HS')
-    mapped = p.map( pokerEval, all_pockets_plus_globals )
+    mapped = p.map( computeHS2, all_pockets_plus_globals )
     #print mapped
     b  = time()
     #print "mapping took: %fs" % (b-a)
@@ -78,7 +78,7 @@ def computeHSs( known_pockets, board, num_threads=4 ) :
 
     return results
 
-# pokerEvals job is to rollout a specific pocket_assignment
+# computeHS2s job is to rollout a specific pocket_assignment
 # BUT, it also needs the global information (i.e what we know beforehand) 
 # this function takes an iterator of all the pocket assignment 
 # and returns it with the global info
@@ -95,7 +95,7 @@ def wrapWithGlobals( possible_unknown_pockets, \
                 board, EV_or_HS]
 
 #apply the rollout procedure to a specific pocket assignment
-def pokerEval( data ) :
+def computeHS2( data ) :
     [pocket_assignment, board, EV_or_HS] = data
     results = {}
     #d = Deck(set(remaining_cards))
@@ -131,6 +131,9 @@ def pokerEval( data ) :
 ########################################################################
 
 if __name__ == "__main__" :
+
+    print computeEHS2( ['2h','9d'], [] )
+
     #pocket_assignment = [['7d','2h'],['__','__']]
     #board = ['Ts','Jh','5s','7h','6d']
     #r = pe.poker_eval( game=globles.GAME, \
@@ -155,7 +158,7 @@ if __name__ == "__main__" :
 
 #take what information is known and return the EV's of all possible pockets
 #first create an iter of all combinations of pockets
-#apply pokerEval to each one
+#apply computeHS2 to each one
 #combine the results and return the {pocket:EV} dicitonary 
 #DEPRECATED using HS2 instead
 #def computeEVs( known_pockets, board, num_players, num_threads=4 ) :
@@ -178,7 +181,7 @@ if __name__ == "__main__" :
                                                 #board, \
                                                 #'EV' )
 #
-    #mapped = p.map( pokerEval, all_pockets_plus_globals )
+    #mapped = p.map( computeHS2, all_pockets_plus_globals )
     #b  = time()
     ##print "mapping took: %fs" % (b-a)
    # 

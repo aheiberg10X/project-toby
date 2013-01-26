@@ -53,7 +53,7 @@ def makeHuman( cards ) :
 #take strings and output card number
 def makeMachine( cards ) :
     #if already in right format, leave alone
-    if type(cards[0]) == int : return cards
+    if len(cards) == 0 or type(cards[0]) == int : return cards
     r = []
     for c in cards :
         if c == 'x' :
@@ -513,23 +513,32 @@ def main() :
     print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
+    print canonicalize(['__','__'])
     #main()
-    fout = open( "fullboard_collapse_test.txt", 'w' )
-    d = Deck()
-    count = 0
-    seen = set()
-    temp = []
-    for board in combinations( d.cards, 5 ) :
-        if count % 10000 == 0 : print count
-        collapsed = collapseBoard( board )
-        if collapsed in seen :
-            pass
-        else :
-            temp.append( collapsed )
-            seen.add( collapsed )
 
-        count += 1
 
-    fout.write( '\n'.join(temp) )
-    fout.close()
+    #fout = open( "fullboard_collapse_test.txt", 'w' )
+    #d = Deck()
+    #count = 0
+    #seen = set()
+    #temp = []
+    #for board in combinations( d.cards, 5 ) :
+        #if count % 10000 == 0 : print count
+        #collapsed = collapseBoard( board )
+        #if collapsed in seen :
+            #pass
+        #else :
+            #temp.append( collapsed )
+            #seen.add( collapsed )
+#
+        #count += 1
+#
+    #fout.write( '\n'.join(temp) )
+    #fout.close()
+    
+    
+    
     #print collapseBoard( ['7s','6h','8h','6s','8s'] )
+
+
+

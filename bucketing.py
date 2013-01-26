@@ -326,10 +326,38 @@ def computeDistsHS() :
             print count
             print time() - a
             a = time()
+        
+        dek = Deck()
+        dek.shuffle()
+        dek.remove( board )
+        remaining_cards = dek.cards
+        possible_pockets = combinations( remaining_cards, globles.POCKET_SIZE )
+        known_pockets = ['__','__']
+       
+       #map
+        p = Pool(processes=num_threads)
+        a = time()
+        all_pockets_plus_globals = wrapWithGlobals( possible_pockets, \
+                                                    known_pockets, \
+                                                    remaining_cards, \
+                                                    board, \
+                                                    'HS')
+        mapped = p.map( computeHS2, all_pockets_plus_globals )
+        #mapped: [{pocket1: HS2, __: HS2},{pocket2: HS2, __:HS2},...]
+        d_pocket_HS2 = {}
+        for pocket_hs in mapped :
+            for pocket in pocket_hs :
+                if pocket != canonicalize(['__','__']) :
+                    d_pocket_HS2[pocket] = pocket_hs[pocket]
+
+
+
         #computeHSs will pit every possible hand against 'mystery' known_pocket
         #and compute the HS2 from rollout
-        d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
-                                           board = list(board) )
+        #d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
+                                           #board = list(board) )
+
+
         flop = collapseBoard( board[0:3] )
         turn = collapseBoard( board[0:4] )
         river =collapseBoard( board )
@@ -395,8 +423,7 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    #computeDistsHS()
-
+    experiment()
     #count = 0
     #for decision_stack in iterateDecisionPoints ( num_players=2, \
                                                   #max_rounds=2, \
@@ -405,11 +432,15 @@ if __name__ == '__main__' :
         #print decision_stack
         #count += 1
     #print count
-    folder = "hsdists"
-    dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
-    computeBuckets( 'turns', dmass['turns'] )
+
+
+    #folder = "hsdists"
+    #dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+             #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
+    #computeBuckets( 'turns', dmass['turns'] )
+
+
     #for street in listdir( folder ) :
         #for listing in listdir("%s/%s" % (folder,street)) :
             #if listing.endswith("hsdist") :

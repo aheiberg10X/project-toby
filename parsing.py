@@ -96,7 +96,11 @@ def iterateActionStates( filename ) :
         if new_game_match :
             num_games += 1
             if not isfirst :
-                yield t.action_states
+                y = {}
+                y["action_states"] = t.action_states
+                y["buckets"] = t.buckets
+                y["game_id"] = new_game_match.groups(1)
+                yield y 
                 #for street in range(len(t.action_states)) :
                     #for player in range(num_players) :
                         #tmp = [street] + t.action_states[street][player]
@@ -233,7 +237,7 @@ def iterateActionStates( filename ) :
         
     #TODO
     #process the last hand
-    yield t.action_states
+    #yield t.action_states
 
     print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
@@ -286,14 +290,26 @@ def splitActionStatesIntoTrainingFiles( filename ) :
     #friver.close()
 
 if __name__ == '__main__' :
-    filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
+    filename1 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
     #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/reveal_test"
     #filename = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/all_in_test"
 
 
+    filename2 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt"
+    #parse EHS2 out of training_data
+    #fin = open(filename)
+    #for line in fin.readlines() :
+        #array = json.loads(line)
+        #print array, len(array)
+        #if len(array) > 1 and len(array[1][1]) == 4 :
+            #print "yep"
+        #else :
+            #print "nope"
+    #fin.close()
+
     #write action states to file
-    fout = open( "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt", 'w' )
-    for actstate in iterateActionStates( filename ) : 
+    fout = open( filename2, 'w' )
+    for actstate in iterateActionStates( filename1 ) : 
         fout.write( str(actstate)+"\n" )
     fout.close()
 
