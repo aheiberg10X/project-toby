@@ -7,6 +7,7 @@ from os import listdir
 from os.path import exists
 import json
 from time import time
+import globles
 
 num_buckets = 20
 
@@ -146,49 +147,6 @@ def iterateDecisionPoints( num_players, max_rounds, button, player_ix ) :
 def makeRound( num, precision=2 ) :
     return int( num * pow(10,precision) )
 
-def computeDists(num_known_board, EV_or_HS) :
-    already_seen = {}
-    count = 0
-    
-    if num_known_board == 3 : street = 'flops'
-    elif num_known_board == 4 : street = 'turns'
-    elif num_known_board == 5 : street = 'rivers'
-    else : assert False
-
-    for board in combinations( d.cards, num_known_board ) :
-        collapsed = collapseBoard( board )
-        if EV_or_HS == 'EV' :
-            path = "evdists/%s/%s.evdist" % (street,collapsed)
-        else :
-            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
-
-        if collapsed in already_seen or exists(path) : 
-            continue
-        else :
-            print count, collapsed
-            count += 1
-            board = makeHuman(board) + ['__']*(5-num_known_board)
-            
-            x = []
-            if EV_or_HS == 'EV' :
-                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
-                for ev in d_pocket_EV.values() :
-                    x.append( makeRound( ev ) )
-            else :
-                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
-                for hs in d_pocket_HS.values() :
-                    x.append( hs )
-
-            x.sort()
-            
-            fout = open(path, 'w')
-            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            fout.close()
-
-            already_seen[collapsed] = True
-
-        #print "breaking"
-        #break
 
 def visualizeEVDist( filepath, buckets=40 ) :
     path,filename = filepath.rsplit('/',1)
@@ -201,6 +159,16 @@ def visualizeEVDist( filepath, buckets=40 ) :
     print "saving to: ", filename
     plt.savefig( filename )
     plt.clf()
+
+#{pocket:EHS2} -> {pocket:bucket}
+def computeBucket( d_pocket_EHS2, bucket_percentages ) :
+    print sum(bucket_percentages)
+    assert abs( sum(bucket_percentages) - 1.0 ) < .000001
+    #sort EHS2
+    sorted_keys = []
+    sorted_EHS2s = []
+    for skey in sorted(d_pocket_EHS2, key=lambda x : d_pocket_EHS2[x]) :
+        print skey, d_pocket_EHS2[skey]
 
 #TODO
 #how much space/performace trade off is there in rounding off the hs2 values?
@@ -327,36 +295,10 @@ def computeDistsHS() :
             print time() - a
             a = time()
         
-        dek = Deck()
-        dek.shuffle()
-        dek.remove( board )
-        remaining_cards = dek.cards
-        possible_pockets = combinations( remaining_cards, globles.POCKET_SIZE )
-        known_pockets = ['__','__']
-       
-       #map
-        p = Pool(processes=num_threads)
-        a = time()
-        all_pockets_plus_globals = wrapWithGlobals( possible_pockets, \
-                                                    known_pockets, \
-                                                    remaining_cards, \
-                                                    board, \
-                                                    'HS')
-        mapped = p.map( computeHS2, all_pockets_plus_globals )
-        #mapped: [{pocket1: HS2, __: HS2},{pocket2: HS2, __:HS2},...]
-        d_pocket_HS2 = {}
-        for pocket_hs in mapped :
-            for pocket in pocket_hs :
-                if pocket != canonicalize(['__','__']) :
-                    d_pocket_HS2[pocket] = pocket_hs[pocket]
-
-
-
-        #computeHSs will pit every possible hand against 'mystery' known_pocket
+        #pit every possible hand against 'mystery' known_pocket
         #and compute the HS2 from rollout
-        #d_pocket_HS2 = rollout.computeHSs( known_pockets = [['__','__']] ,\
-                                           #board = list(board) )
-
+        known_pockets = ['__','__']
+        d_pocket_HS2 = rollout.mapReduceComputeHS2( known_pockets, board )
 
         flop = collapseBoard( board[0:3] )
         turn = collapseBoard( board[0:4] )
@@ -423,7 +365,12 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    experiment()
+    board = ['2d','3s','8h','Qd']
+    data = [[['8c','8d'],['__','__']], board, 'HS']
+    d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
+    bucket_percentages = [.5,.5]
+    computeBucket( d_pocket_EHS2, bucket_percentages )
+    #print "HS2:", rollout.computeHS2( data )
     #count = 0
     #for decision_stack in iterateDecisionPoints ( num_players=2, \
                                                   #max_rounds=2, \
@@ -470,4 +417,53 @@ if __name__ == '__main__' :
     #print pocketEVs['5h,9d']
     #print pocketEVs['9d,5c']
     #break
+
+
+
+
+
+#deprecated in favor of computeDistsHS
+def computeDists(num_known_board, EV_or_HS) :
+    already_seen = {}
+    count = 0
+    
+    if num_known_board == 3 : street = 'flops'
+    elif num_known_board == 4 : street = 'turns'
+    elif num_known_board == 5 : street = 'rivers'
+    else : assert False
+
+    for board in combinations( d.cards, num_known_board ) :
+        collapsed = collapseBoard( board )
+        if EV_or_HS == 'EV' :
+            path = "evdists/%s/%s.evdist" % (street,collapsed)
+        else :
+            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
+
+        if collapsed in already_seen or exists(path) : 
+            continue
+        else :
+            print count, collapsed
+            count += 1
+            board = makeHuman(board) + ['__']*(5-num_known_board)
+            
+            x = []
+            if EV_or_HS == 'EV' :
+                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
+                for ev in d_pocket_EV.values() :
+                    x.append( makeRound( ev ) )
+            else :
+                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
+                for hs in d_pocket_HS.values() :
+                    x.append( hs )
+
+            x.sort()
+            
+            fout = open(path, 'w')
+            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            fout.close()
+
+            already_seen[collapsed] = True
+
+        #print "breaking"
+        #break
 
