@@ -1,0 +1,366 @@
+apply deviation from equilibrium idea as opp model to MCTS?  Will this defeat the point?
+
+how would the glass bead game look in real life.  what language communicates all those different ideas?
+
+read about the abc theorem.  structure of primes seems to be a crucial entelechy
+
+entelechy: the prime, vital force behind an orgamism or other organization of information
+
+thesis: do mcts + dbbr with naive EV calculator in lieu of equilibrium strat
+	will the mcts overcome the naivety of the EV calc
+	can evolve smarter strategies by repeated play, custom tailor profiles for specific types of players
+
+make presentation and send it to the profs
+
+get formalized with respect to paper work
+
+
+Looks as though the naive opponent model is a half-baked idea.  For ex, how to estimate payouts under this model?  Just going by pocket probabilities will give same payout for every action history that reaches showdown.... So will have to do some learning from hand histories, at least to get a rudimentary model down.
+
+How did the EM mutual learning of P(Holding|History,Action) and P(A|History,Holding) work with EM of k-models learning?
+
+parvenu: one that has recently or suddenly risen to an unaccustomed position of wealth or power and has not yet gained the prestige, dignity, or manner associated with it
+
+the ending to joseph knetch's story was crushing, heroic, tragic, inevitable, comical, defeating, inspiring
+
+
+Got big speed ups by profiling and reworking MCTS interface to only ask DOMAIN to do the minimum necessary work
+
+Toby will be a LOT of work
+
+Symmetry though, who is to say reflection and rotation (miracle and wonder) are the only 4 types.  What about other functions, whose repeated functional-folding on fundamental area produces the original after k steps.  Can that be thought of as symmetry?
+
+
+Go scoring: is a win a win (+1) or should keep track of score (current)?  Keeping score gives weight to blowout, which might skew node choice in the early stages
+
+9/26/12
+
+For poker, what should the exploration constant be?  How to pick a good one? What did lit say?
+REREAD Monte-Carlo Tree Search in Poker using Expected Reward Distributions
+Put on kindle:
+Integrating Opponent Models with Monte-Carlo Tree Search in Poker
+
+
+Start porting mcts_go to C.  But first do some experiments with leaf parallelization in python
+
+10/3/
+
+Simulation showdowns:
+Don't want to go the learn P(H|actions, history) via the bayes P(action| H, history, actions) route.  I think it is overly complicated and hard to evaluate.  Rather would like to learn a classifier that takes the game description and outputs a distribution over holding.  Problem is the 1326 output categories (more for omaha).  kNN?
+
+Or could output a bucket, but then the question is how to sample pockets from that bucket given the flop?  Cannot store in memory too big, cannot go to disk, because simulating in MCTS needs to be crazy fast.
+
+The other MCTS opp model paper seems to have a way around this with their differentiating function approach.
+
+We want to assign a probability to P(x|Dp), where x is game state (under the betting abstraction) and Dp is the distribution representing some player (in my case a conglomeration of players, I am trying to learn a basic opp model, not fit specifically).  So x will be the board, action history, and hole cards, and we would like to know how likely it is that p would play in such a way.
+
+Using Bayes, they reduce this to a function depending only on P(Dp|x) and P(x|D*).  The prior we basically make up, could be uniform, ie no matter what the action history every pocket pair is equally likely.  P(Dp|x) is the differentiating function, its job is to take a random example and output the prob it should be labeled either uniform or player.
+
+This done with decision trees.  We dump an equal number of examples from Dp and D*, define a feature space computed on x, and let the tree build.  Now we can plug in a new example, let is plinko down the tree.  The leaf it falls in will contain some number of p training examples and some number of * training examples, this gives us P(Dp|x).  
+
+Now we can query P(x|Dp).  To figure out distribution over hole cards, fix the action hisotry and board to whatever the simulation determined, then vary the hole card description.  Plinko through the model and we can sample.  But how, run all 1326 through, get probs, then sample?  This is slow, would like to do without the upfront comp somehow...
+
+The important part will be defining a good feature set.  Hand strength bucketing helps here?  Otherwise potential hand strength numbers far exceeds the number of training examples
+
+
+10/8
+
+Trying to compute E(HS^2).  Normally you take a hand, board, and rollout all possible dealings.  For each rollout, you iterate over every other holding and compute the win, tie, and lose number.  Square this number and average over the number of rollouts.
+
+I cannot currently do this with pokerEval.  I can get the hand strength of H1 vs H2 over all rollouts.  And the HS of H1 vs H3 over all rollouts.  I guess I can square this number to get another E(HS^2).  What are the differences or tradeoffs here?  I don't think it is capturing what I want, which is that draw-y hands get a higher score than non-draw-y hands.
+
+So the question is how awkward it will be to get the real deal?  Will have to do:
+pockets=[H1, ['__','__']] over all the possible boards.
+
+------
+
+Why write P(An| A1...An-1, C) when P(C | A1...An-1 ).  Guessing the cards is dependent on the actions.
+
+Can't learn P(An|An-1,C) from the data, it is biased towards good cards, will never predict a fold.  We can learn this way to predict showdowns, because it is already a given the players never folded...
+
+What about doing self play?  This way you can know the hole cards, will repeated play/learn/play update cycles converge to a stable,  improved player?  Also can play against Poki in Academy?
+
+10/9
+
+Met with Elkan.  
+
+For bet size learning, just eyeball the distribution, no need to do MOG
+
+For opp model, is there any existing model to be used?  We just need a reasonable prior.
+Perhaps can use Poki?  Is it fast enough?  If we do use poki, how do we get a card predictor for showdowns.
+
+Email authors of UCT+ about details.  Why the complicated recursive definition of value?  What about when the sim leaf is not a game leaf (only one data point...)?  
+
+10/12
+
+10/14
+
+Java or C++ for bot.  Decided on C++, but have to integrate with Java to play Poki.  Tried JNI interface, but too much bitchwork and head banging to be worth it.  Will just fork a new process to run decision maker.  Overhead vs comp time should be minimal.
+
+Variance Reduction in MCTS - ideas to consider
+
+10/15
+
+UCT+ authors emailed back, opentestbest is a working implementation of UCT+.  A lot a machinery to test idea out in.
+
+Proposed Work:
+
+UCT+ via online mean and variance averaging.  Will be worse than maxUCT+, but will be faster.  Does the extra computation give an advantage?
+
+UCT+ but where every child is expanded at once.  If worst child expanded first, and the parent value depends solely on this child, meaning the parent may not get selected now.  Also do where the simulation for each new node gets done j times, not just once (actually this probably isn't so important).  AHA: in paper, they say UCT is used for the first 200 samples, the move to +.
+
+Variance reduction techniques, worth it?
+
+Opp model learning: Unclear what authors did insofar as estimating payoffs and predicting actions (just emailed).  Plan to use differentiating function approach, as well as EM approach to predict cards, to then better predict actions
+
+integrate DBBR with the given UCT+ and the given WEKA prior learned by the authors.  This means re-reading DBBR and really knowing it.  Will this converge fast enough to be useful in a game?  Or perhaps will be a way to get a better prior.
+
+DBBR is the most interesting, let's focus on it, enhanced with domain priors on posterior bucket probabilities.  will need learning thru diff function as well.  when it goes to showdown, can use info to feedback loop on these predictions as well.
+
+10/29
+
+Emailing with DBBR author, my understanding of thier notation was off.  My original idea of incorporating showdowns also doesn't work, because changing the P(A|B,N) aka the strategy does alter the P(B|N) after all.  Perhaps on a showdown we could alter the P(B|N) directly as well?
+
+Another idea is using the similarity between distributions to have an 'area of effect'.  Say a player's hand is revealed, giving info on the true buckets. Say this helps us adjust that public info set's P(B|N).  It should also say something about a PIS very close to the original as well.
+
+Similarities will have to be recomputed every kth time the strategy changes.  How can we measure the true usefulness of such a strategy?  Play a fixed opponent and see which one exploits the fastest?
+
+Another question, does this learning method get beat by a dynamic opponent, even one who rotates their strategy deterministically?
+
+Related, does Poki adapt it's play and/or is it static?
+
+==============================================================================================
+
+12/6
+
+TOBY:
+
+Talked with Elkan about learning to predict cards.  He suggested Bayesian network and doing proper EM, not the pseudo-EM with decision tree.
+
+The crux of the matter will be representing a round of betting.  Currently thinking something along the following lines:
+
+totalPIP/BB, totalPIP/effstack, aggPIP/totalPIP, passivePIP/totalPIP.  This way each player gets one node per round that sums up their behavior.  No interaction between bids in the same round, only influence the next.  These seem like 4 good features, but perhaps not the best, or most economical.  Can do decision tree on a superset of features and let it deduce which ones are the best to use.
+
+Given the four mentioned, though, discritizing them will be the next issue.  Can do them each independently.  This leaves a ~7^4 state space though.  Maybe they vary together, can try to cluster and see what comes out.
+
+GO:
+
+Got hired onto Cauwenberghs lab working on Go.  Read up on Temporal Difference learning.  Also, keep working on parallelizing the code.  Can use the 12 cores available, either to do more leaf parallelization and/or tree parallelization.  
+
+==============================================================================================
+
+12/7
+
+Might be some issues with BN approach.  Many examples end preflop, leaving the majority of states hidden.  The EM algorithm must marginalize over these hidden states.  Will have to work hard to 1) limit the number of parents of each node, and 2) make the state space as minimal as possible without sacrificing too much detail.
+
+Next steps:  try to cluster the state spaces of the bidding on each street.  Might have to resort to a very naive fraction of pot PIP measure and nothing else.  Or, rather than aggPIP/totalPIP, just have binary indicator if aggression is more significant than passive.
+
+Still though, state space of flop or river alone is too big to make this tractable.  Will need feature space over board.
+
+==============================================================================================
+
+12/8
+
+New network structure:  for each street, have a board->belief->bid layer.  The bid layers after the preflop interconnect to all subsequent bid layers of all opponents.  We already know the board->belief CPT from precomputed HS2 distributions.
+
+Do not need feature space over board.  Say doing the Mstep parameter update for a river decision node.  When summing over t (training data), only use those examples where the game got to the river street.
+
+Also, starting data sandboxing with bid feature space.  The pip_to_pot seem pretty easily clusterable.  The pip_to_sb is harder, there is a long tail of big outliers.  agg_to_pip and pass_to_pip are overwhelmingly either 1 or 0.  What if weighted by the amount won and lost on each hand.  In other words, hands where both player have a mix of aggression and passivity (i.e both players think they are strong) are probably much more important in the effect on bank roll than someone doing a small raise preflop and winning the hand.
+
+Look into this more getting contradictory readings...
+
+============================================================================================================
+
+1/8/13
+
+Have settled on pip_to_pot ratio, aggressive indicator, last_to_act indicator, as the cursory state space for action nodes.  Have got parsing.py/table.py to spit out the relevant data, separated by street into files.  Next, need to parse out the pockets when they are revealed, then compute the HS2 score and append this data.
+
+With the training examples ready to go, work out all the M step updates. and get to run
+
+Also, will need to be able to go from BeliefBucket + Board -> List of pockets belonging to that bucket.  Will have to run the bucketing procedure again, but explicitly store the pocket:HS2 score per board, not just the HS2 score.  Will take a lot of space?  Better way to do?  Otherwise have to compute HS2 score of every pocket pair and determine in which bucket it falls....
+
+===========================================================================================================================
+
+1/9/13
+
+A lot of the bets preflop are between the .5 and 1 bets we currently allow.  Consider adjusting
+
+=============================================================================================================================
+
+1/14/13
+
+Since we are collapsing all betting rounds into one node in network, consider including "got check-raise", and "did check-raise" binary features in state space.  
+
+Also, what would happen if we introduced a "strategy" state-node that also influenced action?  Say it could take on passive|aggressive.  It would not be labeled in any of the training data.  Would something good come out after training?  Probably not, right?  Needs some kind of toehold.
+
+Decided on a nomenclature for the BN: a12 => the action node at street 1 (flop), for player2
+                                      b21 => the hand strength belief of player1 at street 2 (turn)
+
+Once the network is learned, we will want to do inference.  That is, will want to know: What is the belief of player1 about his hand strength at the flop, given player1 has already acted?
+
+P( b11 | a01,a02,a11,flop ) = P( a11 | b11,a02,a01,flop ) x P( b11 | flop,a02,a01 ) / P( a11 | a01,a02,flop )    
+                              |______CPT__________||dsep|   |____known___||_dsep__|   SUM_b11{ P( a11 | b11,a01,a02 ) x P( b11 | flop ) } <---marginalized, shown after d-sep
+
+Concerned there won't be enough data given the state space of the actions.
+
+Started working out EM updates in flip notebook.  
+
+TODO: Will need to files that contain all the information up to each of the flop, turn, and river.  The data should go in different files depending on whether or not it had a showdown.
+TODO: Some error in running parsing.py
+TODO: Get a feel for what percentage of hands end in showdown
+
+==================================================================================================================================
+
+1/16/13
+
+~10% of hands have showdown
+Fixed parsing error when all-In actions are taken before the river
+
+Decided spliting the parsed action_states into different files is redundant and unnecessary.  Need inside the correct indexes to be built for efficient computation of CPT updates
+
+#Indexes (built around training_data.txt) :
+#   index_last_street.txt
+#   want rows(games) who reached the given street
+#   {..., ..., 2 : [line num of games that reached the turn], ...}
+#   g
+#   index_aXY.txt
+#   for action_state on street X, player Y
+#   {a00 : [[line nums of games matching action_state_value1],[],...],
+#    a01 : [[],[line nums of games matching action_state_value2],...],
+#     ...}
+#   8 keys with list of ~7*2*2 inner lists.  Total ints in inner list ==
+#   the number of games in training data
+#   
+#   Will have to enumerate action_state values in some canonical order to make
+#   lists above be meaningful
+#   index_action_states.txt
+#   "[action,state,value1] : 0,
+#   "[action,state,value2} : 1, ... }
+#
+#   Should rep action_states as the str( list tuple of values )
+
+
+====================================================================================================================
+
+1/19/13
+
+Try making many features over actions, then doing PCA, and try varying number of components to assess where the increasing in state space size degrades performance so much the gains in accuracy are no longer worth it.
+
+Added arrows between beliefs, e.g b11 and b21.  Ideally, we would like to be able to answer: how likely is bucket X on the turn given for flop F we were in bucket Y?
+This would be a beast to store in many files, but fatally slow to lookup in EM updates.  So we can compute general probability, over all flop->turn transitions, of these probs.
+On second though, might not be bad.  We want canonical(flop) -> canonical(turn) possibilities.  Could very well fit in mem.
+
+This means will have to re-run bucketing algo, this time let's print a file for each board storing (pocket,EHS2) tuples.  We can bucket with this, and do the above computation.
+
+Considering not implementing EM myself.  matlab package http://bnt.googlecode.com/svn/trunk/docs/usage.html#tabular seems like it will work
+	- How to fix certain CPT's to not get updated? (specifically, P(b21|b11) we want to precompute and have static)
+		- treat them as root nodes?
+
+=====================================================================================================================
+
+1/23/13
+
+Decided on using Bayes Net Toolbox (MATLAB).  Figured out that CPT's could be clamped, important for the belief nodes, whose CPT's will be computed offline.  Work so far in /home/andrew/downloads/bnt/toby_net.m
+
+Concerned over how I will evaluate such a hole card predictor.  Can leave some revealed hand data out of training, but the whole point is to reasonably predict the unlabeled data.  
+	- Trying to find dataset where all the hands are revealed
+		-email machine v machine, man v machine tournaments, UofAlberta
+		-trying to scrape data from cardrunners
+
+
+=========================================================================================================================
+
+1/24/13
+
+email bitches about datasets!  very important
+
+============================================================================================================================
+
+1/25/13
+
+Thought of novel approach to labeling data.  Idea: action sequences where someone folds on the flop should correspond to action_sequences that go to showdown, excluding the river itself.  That is, the behavior should be the similar because it is being generated by similar bucket sequences.  At some point, though, the river goes wrong and someone has to fold.
+
+So, we can take the labeled data and k-cluster it by bucket sequences.  Label the action sequences with the cluster labels, and do a decision tree on it (one that is street dependent, i.e test for criteria regarding info up to flop before testing on info up to turn).  Now look at data where the flop has a fold.  Plink that through the decision tree and see which clusters it most resembles.  Draw a bucket sequence (or multiple?) from the combination of these two groups.
+
+Now we have more labeled data for pf, flop, turn sequences.  Do the clustering on sequeces again (what should this look like?), learn a new decision tree of length -1, and send through the examples where someone folded on turn.  Label.  Recurse.
+
+This all hinges on the assumptions that:
+1) The bucket sequences cluster relatively distinctly
+2) The decision tree can segregate the clusters reasonable well.
+
+TODO: test 1) first.  Might need more than 10,000 hands to do a good job.
+
+-----------
+
+Got distracted trying on figuring out way to compute P(bF,bT | F,T) i.e what are the chances we were in bucket bF at Flop and bT at turn, given specific flop and turn?  Trying to utilize suit symmetry
+How about this:  want to compute the transition scores between canonical flop/turn pairs.  So for ABC_h_2f -> ABCX_h_3f, pick a particular flop, make ABCX_h_3f true, and do the specific computation.  Is this the same for all specific choices of flop and turn?
+
+------------
+
+Also, have done bucketing wrong.  Below 678x would map to same canonical, and both results (on and off suit) for 910 would get accumulated.  This washes everything out, we want one 50, one 100, not two 75's for 678_3f.
+     pocket    HS2
+     910h      100
+678h
+     910d      50
+
+     910h      50
+678d
+     910d      100
+
+To solve, maintain an 'already_repped' variable, in this case 678_3s would be placed inside.  In results, we would have '678h'.  Now 678d comes in, sees its canonical form is already represented, and does not add its d_pocket_HS2 data to the results accumulator.  (Remember only want to accumulate data from boards starting with exactly '678h')
+
+Remember to go ahead and save (pocket,EHS2) pairs this time.  Perhaps instead of saving suit, we save 's1' and 's2' when the hole card suit matches the salient suit of the board.  Might this help solve the problem above?  MMM not really still too complicated
+================================================================================================================================
+
+1/26/13
+
+Need some functions to sandbox different bucketTransistionProbabilities.  Need a function to get {pocket:EHS2} for a given board.  Altered mapReduceComputeEHS2() to do it, while maintain the properties it needed to do eventual full-bore bucketing.
+
+Now need function to bucket these {pocket:EHS2} according to some percentiles.
+
+Then need function to take two such {pocket:bucket probs} dictionaries, one for each of flop and turn, and compute the prob that a hand was in bF and bT.
+
+P( bF,bT | F, T) = P( bT | bF,T,F ) * P( bF | F ) 
+                         [A]             [by construction of percentiles]
+
+bF <- F   
+/\    |
+p     |
+\/    \/  
+bT <- T
+
+[A] P( bT | bF,T,F ) = sum_pockets P(bT,p|bF,T,F) = sum_p P(bT|p,T)                     *  P(p|bF,F)
+                                                          [lookup in membership probs]      [B]
+
+[B] P(b|bF,F) = P(bF|p,F)                    * P(p|F)                    /     P(bF|F)
+              [lookup in membership probs]    [0or1 if legal assignment]      [by construction of percentiles]
+
+Again, big pictures:  we would like to show that the bucket transistion probs (BTP's) between all legal pairs in canonical(F) and canonical(T) are equivalent (or at least very close).  This is not enough though, becaus there are 15k turns and 38k rivers, ~500,000,000 pairs, too big for CPT.
+So hoping that the cardinality independent part is enough, i.e 234_s_2f -> 2348_s_3f is roughly the same as 567_s_2f -> 567Q_s_3f
+
+===========================================================================================================================================
+
+1/28/13
+
+Weeeee data from past acpc comp available.  got a butt load of it
+
+need to get the rules clear, format seems pretty self explanatory
+
+no limit is Doyle's game, everyone cashes out after every hand, then cashes back in with 1000 at the next start
+
+Game	                No-Limit Texas Hold'em (Doyle's Game)
+Competition Format	Series of heads-up duplicate matches
+Hands Per Match	        3000
+Stack Sizes	        200 big blinds (400 small blinds)
+Bet Sizes	        No limit
+Blind Sizes	        50/100
+Blind Structure	        Reverse blinds, no ascending blinds
+Showdown Mucking	No
+Illegal Actions	        Any illegal action is interpreted as a call if raise is illegal. If it is a raise for an illegal amount, it is interpreted as the closest possible raise amount.
+
+Winner Determination
+
+Bankroll instant run-off and total bankroll
+
+===========================================================================================================================================
+
