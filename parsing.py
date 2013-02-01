@@ -9,6 +9,8 @@ from globles import veryClose
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
+
+#partypoker logs from handhq.com
 re_game_id = re.compile(r'\*\*\*\*\* Hand History for Game (\d+) \*\*\*\*\*')
 re_table_name = re.compile(r'Table (.*) \(Real Money\)')
 re_button = re.compile(r'Seat (\d) is the button')
@@ -79,6 +81,7 @@ def reGroupsToAmount( dollar_group, cent_group ) :
     else : cents = 0
     return dollars+cents
 
+#yield a dict {"action_states", "buckets", "gameid"}
 def iterateActionStates( filename ) :
     num_games, num_revealed = 0,0
 
@@ -241,6 +244,41 @@ def iterateActionStates( filename ) :
 
     print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
+
+def iterateActionStatesACPC( filename ) :
+    fin = open(filename)
+    #TODO: glean this from file, or always the same?
+    #TODO: parse players[] from filename
+    tbl = table.Table( small_blind=50 )
+    header = fin.readline()
+    for i in range(3) : burn = fin.readline()
+    for line in fin.readlines() : 
+        #emit the {"action_state", "buckets", "gameid"} dict for the last hand
+        #t.newHand(players, pockets, stacks, button)
+        #   players fixed, leave pockets along, 
+        #   stacks always 1000, button alternates
+
+        splt = line.split(':')
+        game_id = int(splt[1])
+        action_sequence = splt[2]
+        cards = splt[3]
+        win_lose = splt[4]
+        players = splt[5]
+
+        pockets = [['__','__'],['__','__']]
+        for street, action_string, card_string in enumerate(zip( action_sequence.split('/'), cards.split("/"))) :
+            if ix == 0 :
+                pass
+                #register actions, wait for end to registerRevealed
+            else :
+                #register dealt cards
+                #parse action string
+                #register actions
+                pass
+
+        #register revealed
+            
+
 
 #Indexes (built around training_data.txt) :
 #   index_last_street.txt
