@@ -330,9 +330,9 @@ p     |
 bT <- T
 
 [A] P( bT | bF,T,F ) = sum_pockets P(bT,p|bF,T,F) = sum_p P(bT|p,T)                     *  P(p|bF,F)
-                                                          [lookup in membership probs]      [B]
+                                                          [membership of p in bT)]           [B]
 
-[B] P(b|bF,F) = P(bF|p,F)                    * P(p|F)                    /     P(bF|F)
+[B] P(p|bF,F) = P(bF|p,F)                    * P(p|F)                    /     P(bF|F)
               [lookup in membership probs]    [0or1 if legal assignment]      [by construction of percentiles]
 
 Again, big pictures:  we would like to show that the bucket transistion probs (BTP's) between all legal pairs in canonical(F) and canonical(T) are equivalent (or at least very close).  This is not enough though, becaus there are 15k turns and 38k rivers, ~500,000,000 pairs, too big for CPT.
@@ -364,3 +364,24 @@ Bankroll instant run-off and total bankroll
 
 ===========================================================================================================================================
 
+2/2/13
+
+Done with parsing ACPC files, need to double check everything is correct, though
+
+Don't think it makes sense to learn one big network.  Instead, let's learn the 4-level network, only looking at hands that make it four rounds.  
+Use this model to label the unlabeled examples (where someone folded on river).  Using this true+estimated label set, turn attention to 3-level hands and label hands where someone folded on turn. Rinse repeat.
+
+This should help eliminate bias?  Check accuracy, street and global, after each level.
+
+Quesiton:  how do we instantiate CPT for each round?  First should be random?  Then do we use the CPTS from the previous round as the starting point?  Seems reasonable.
+
+======================================================================================================
+
+2/3/13
+
+Can compute bucket transition probabilities.  Unfortunately, the distribution changes, sometimes (what seems like) signifcantly, among the groups.
+For instance 238Q_h_2fxoox -> 238TQ_h_3fxooxx and 239Q_h_2fxoox are noticable different.  However, the change between 'xoox' and 'xxoo' seems ignorable.
+
+We could group manually, but why not use a clustering algorithm.  Each row is a tuple, each number is a bucket -> bucket' prob.  Given k, we assign each row a group.  We compute the average trans probs for the group, and use that for the entire group.
+
+First step, though, is generate the d_pocket_EHS2 for each board

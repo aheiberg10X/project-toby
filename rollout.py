@@ -107,9 +107,9 @@ def mapReduceComputeEHS2( board,
                                                 board, \
                                                 'HS')
     mapped = p.map( computeEHS2, all_pockets_plus_globals )
+    p.close()
     #mapped: [{pocket1: HS2, __: HS2},{pocket2: HS2, __:HS2},...]
     
-    print "lenMapped:" , len(mapped)
     d_pocket_HS2 = {}
     for pocket_hs in mapped :
         for pocket in pocket_hs :

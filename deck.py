@@ -163,6 +163,8 @@ def isStraight( sorted_cardinalities ) :
 
 
 def collapseBoard( board ) :
+    if type(board) == str :
+        board = [board[i:i+2] for i in range(0,len(board),2)]
     board = truncate(board)
     board = sorted(board, key=lambda c : getCardinality(c))
 

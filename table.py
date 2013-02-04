@@ -405,6 +405,7 @@ class Table() :
         return self.players[ix].name == NA
 
     def getObligation( self, player_ix ) :
+        
         #return the first non-zero current-bet of a non-folded player
         ixs = range( player_ix-1, -1, -1) + \
               range( self.num_players-1, player_ix, -1)
@@ -415,8 +416,8 @@ class Table() :
                        self.current_bets[player_ix]
                 if not diff >= 0 :
                     print "action_to", self.action_to
-                    print "player_ix", player_ix, self.current_bets[player_ix]
                     print "ix: ", ix, self.current_bets[ix]
+                    print "player_ix", player_ix, self.current_bets[player_ix]
                     assert False
                 return diff
         #everyone has folded
@@ -456,7 +457,7 @@ class Table() :
 
                 if not self.current_bets[p] == 0 :
                     was_aggressive = int( (self.aggressive_pip[p] / \
-                                             self.current_bets[p]) > .1 )
+                                           float(self.current_bets[p])) > .1 )
                     t.append( was_aggressive )
                     #t.append( self.passive_pip[p] / self.current_bets[p] )
                 else :
