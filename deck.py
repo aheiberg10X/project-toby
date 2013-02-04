@@ -40,6 +40,7 @@ def getSuit( card ) :
 #take integers and output card string
 def makeHuman( cards ) :
     #if already in right format, leave alone
+    if len(cards) == 0 : return []
     if type(cards[0]) == str : return cards
     r = []
     for c in cards :
@@ -52,7 +53,7 @@ def makeHuman( cards ) :
 #take strings and output card number
 def makeMachine( cards ) :
     #if already in right format, leave alone
-    if type(cards[0]) == int : return cards
+    if len(cards) == 0 or type(cards[0]) == int : return cards
     r = []
     for c in cards :
         if c == 'x' :
@@ -162,6 +163,8 @@ def isStraight( sorted_cardinalities ) :
 
 
 def collapseBoard( board ) :
+    if type(board) == str :
+        board = [board[i:i+2] for i in range(0,len(board),2)]
     board = truncate(board)
     board = sorted(board, key=lambda c : getCardinality(c))
 
@@ -464,9 +467,9 @@ def truncate( board ) :
 #our best guess at each players holding distribution.  
 
 class Deck:
-    def __init__(self, set_of_cards=set(range(52)) ) :
+    def __init__(self) :
         #print "deck init: " , set_of_cards
-        self.cards = set_of_cards
+        self.cards = set(range(52))
     
     def shuffle(self) :
         self.cards = set(range(52))
@@ -512,23 +515,32 @@ def main() :
     print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
+    print canonicalize(['__','__'])
     #main()
-    fout = open( "fullboard_collapse_test.txt", 'w' )
-    d = Deck()
-    count = 0
-    seen = set()
-    temp = []
-    for board in combinations( d.cards, 5 ) :
-        if count % 10000 == 0 : print count
-        collapsed = collapseBoard( board )
-        if collapsed in seen :
-            pass
-        else :
-            temp.append( collapsed )
-            seen.add( collapsed )
 
-        count += 1
 
-    fout.write( '\n'.join(temp) )
-    fout.close()
+    #fout = open( "fullboard_collapse_test.txt", 'w' )
+    #d = Deck()
+    #count = 0
+    #seen = set()
+    #temp = []
+    #for board in combinations( d.cards, 5 ) :
+        #if count % 10000 == 0 : print count
+        #collapsed = collapseBoard( board )
+        #if collapsed in seen :
+            #pass
+        #else :
+            #temp.append( collapsed )
+            #seen.add( collapsed )
+#
+        #count += 1
+#
+    #fout.write( '\n'.join(temp) )
+    #fout.close()
+    
+    
+    
     #print collapseBoard( ['7s','6h','8h','6s','8s'] )
+
+
+
