@@ -8,6 +8,7 @@ from os.path import exists
 import json
 from time import time
 import globles
+from multiprocessing import Process, Queue, Pool
 
 num_buckets = 20
 
@@ -354,6 +355,8 @@ def computeEHS2Dists() :
     results = {}   
     count = 0
     a = time()
+    
+    pool = Pool(processes=8)
     for board in combinations( range(52), 5 ) :
         count += 1
         if count % 100 == 0 : 
@@ -364,7 +367,8 @@ def computeEHS2Dists() :
         #pit every possible hand against 'mystery' known_pocket
         #and compute the HS2 from rollout
         known_pockets = ['__','__']
-        d_pocket_HS2 = rollout.mapReduceComputeEHS2( list(board) )
+
+        d_pocket_HS2 = rollout.mapReduceComputeEHS2( pool, list(board) )
 
         flop = ''.join( makeHuman(board[0:3]) )
         cflop = collapseBoard( flop )
@@ -405,7 +409,7 @@ def computeEHS2Dists() :
             river_hs2[pocket] =makeRound(hs2,precision)
            
         #the 5 card board is unique, so we can print out right away
-        name = "hsdists/rivers/%s.hsdist" % river
+        name = "hsdists/rivers/%s.hsdist" % criver
         if not exists(name) :
             friver = open( name, 'w' )
             friver.write( json.dumps( river_hs2 ) )
