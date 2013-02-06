@@ -410,11 +410,12 @@ def computeEHS2Dists() :
            
         #the 5 card board is unique, so we can print out right away
         name = "hsdists/rivers/%s.hsdist" % criver
-        if not exists(name) :
+        if criver not in already_repped : #not exists(name) :
             friver = open( name, 'w' )
             friver.write( json.dumps( river_hs2 ) )
             #friver.write( ";".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
             friver.close()
+            already_repped.add( criver )
             pass
 
         if count == 500 :
@@ -452,7 +453,18 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    computeEHS2Dists()
+    a = time()
+    for i in range(1000) :
+        exists("hsdists/rivers/%d.hsdist" % i)
+    b = time()
+    print b-a
+
+    a = time()
+    for i in range(1000) :
+        exists("%d.hsdist" % i)
+    b = time()
+    print b-a
+    #computeEHS2Dists()
     assert False
 
 
@@ -460,29 +472,29 @@ if __name__ == '__main__' :
     #board_prime = ['2d','3s','8h','Qd','Td']
     #board = ['3d','7s','9h','Kd']
     #board_prime = ['3d','7s','9h','Ad','Kd']
-    board = ['2s','3c','8d','Qd']
-    board_prime = ['2s','3c','8d','Qd','Td']
+    #board = ['2s','3c','8d','Qd']
+    #board_prime = ['2s','3c','8d','Qd','Td']
 
-    data = [[['Tc','4s'],['__','__']], board, 'HS']
+    #data = [[['Tc','4s'],['__','__']], board, 'HS']
 
-    d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
-    d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( board_prime )
+    #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
+    #d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( board_prime )
     #assert 'KdAd' in d_pocket_EHS2_prime
 
-    fout = open( "d_pocket_EHS2.json",'w')
-    fout.write( json.dumps( d_pocket_EHS2 ) )
-    fout.close()
+    #fout = open( "d_pocket_EHS2.json",'w')
+    #fout.write( json.dumps( d_pocket_EHS2 ) )
+    #fout.close()
 
-    fout = open( "d_pocket_EHS2_prime.json",'w')
-    fout.write( json.dumps( d_pocket_EHS2_prime ) )
-    fout.close()
+    #fout = open( "d_pocket_EHS2_prime.json",'w')
+    #fout.write( json.dumps( d_pocket_EHS2_prime ) )
+    #fout.close()
 
-    d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
-    d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
+    #d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
+    #d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
 
-    bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
-    d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
-    d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
+    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
+    #d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
+    #d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
     #assert 'KdAd' in d_pocket_bucket_prime
 
     #fout = open( "d_pocket_bucket.json",'w')
@@ -496,19 +508,19 @@ if __name__ == '__main__' :
     #for pocket in d_pocket_bucket :
         #print pocket, d_pocket_EHS2[pocket], d_pocket_bucket[pocket]
 
-    for b in range(len(bucket_percentages)) :
-        acc = 0
-        for b_prime in range(len(bucket_percentages)) :
-        #b_prime = 3 
-            prob = bucketTransitionProb( b_prime, b, d_pocket_bucket, \
-                                         d_pocket_bucket_prime, \
-                                         bucket_percentages )
-            print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
-            acc += prob
-        print "sum: ", acc
+    #for b in range(len(bucket_percentages)) :
+        #acc = 0
+        #for b_prime in range(len(bucket_percentages)) :
+        ##b_prime = 3 
+            #prob = bucketTransitionProb( b_prime, b, d_pocket_bucket, \
+                                         #d_pocket_bucket_prime, \
+                                         #bucket_percentages )
+            #print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
+            #acc += prob
+        #print "sum: ", acc
 
-    print collapseBoard( board )
-    print collapseBoard( board_prime )
+    #print collapseBoard( board )
+    #print collapseBoard( board_prime )
 
 ####################################
     #print "HS2:", rollout.computeHS2( data )
