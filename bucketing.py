@@ -350,6 +350,50 @@ def bucketPocket( pocket, board ) :
     else :
         pass
 
+def computeEHS2DistsLongways() :
+    pool = Pool( processes = 8 )
+    count = 0
+    timea = time()
+
+    for board_size in range(5,6) :
+        start_time = time()
+
+        already_repped = {}
+
+        if board_size == 3 :  
+            street_name = 'flops'
+            print_every = 10
+        elif board_size == 4 : 
+            street_name = 'turns'
+            print_every = 100
+        else : 
+            street_name = 'rivers'
+            print_every = 1000
+        count = 0
+
+        for board in combinations( range(52), board_size ) :
+            cboard = collapseBoard( board )
+            if cboard not in already_repped :
+                d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool,list(board) )
+                filename = "hsdists/%s/%s.hsdist" % (street_name, cboard)
+                fout = open( filename, 'w' )
+                fout.write( json.dumps( d_pocket_EHS2 ) )
+                fout.close()
+                already_repped[cboard] = True
+            else :
+                pass
+
+            count += 1
+            if count % print_every == 0 :
+                print "board_size: ", board_size, " count: ", count
+                print "time: ", time() - timea 
+                timea = time()
+        print "time for board_size: ", board_size, " was: ", time() - start_time
+
+    pool.close()
+
+#deprecated for being a pain in the ass
+#and i wasted so much time on it 
 def computeEHS2Dists() :
     already_repped = set([])
     results = {}   
@@ -370,11 +414,15 @@ def computeEHS2Dists() :
 
         d_pocket_HS2 = rollout.mapReduceComputeEHS2( pool, list(board) )
 
+
         flop = ''.join( makeHuman(board[0:3]) )
         cflop = collapseBoard( flop )
         turn = ''.join( makeHuman(board[0:4]) ) 
         cturn = collapseBoard( turn )
         river = ''.join( makeHuman(board) )
+        if river == '2s2c3s4s5s' :
+            print d_pocket_HS2
+            assert False
         criver =collapseBoard( river )
 
         streets = [flop,turn,river]
@@ -407,10 +455,9 @@ def computeEHS2Dists() :
                     #already_repped
 
             river_hs2[pocket] =makeRound(hs2,precision)
-           
         #the 5 card board is unique, so we can print out right away
         name = "hsdists/rivers/%s.hsdist" % criver
-        if criver not in already_repped : #not exists(name) :
+        if not exists(name) :
             friver = open( name, 'w' )
             friver.write( json.dumps( river_hs2 ) )
             #friver.write( ";".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
@@ -422,7 +469,7 @@ def computeEHS2Dists() :
             #fout = open("test.txt",'w')
             #fout.write( json.dumps(results) )
             #fout.close()
-            #break
+            break
             pass
     
     print "printing"
@@ -453,20 +500,9 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    a = time()
-    for i in range(1000) :
-        exists("hsdists/rivers/%d.hsdist" % i)
-    b = time()
-    print b-a
 
-    a = time()
-    for i in range(1000) :
-        exists("%d.hsdist" % i)
-    b = time()
-    print b-a
-    #computeEHS2Dists()
+    computeEHS2DistsLongways()
     assert False
-
 
     #board = ['2d','3s','8h','Qd']
     #board_prime = ['2d','3s','8h','Qd','Td']
@@ -478,7 +514,6 @@ if __name__ == '__main__' :
     #data = [[['Tc','4s'],['__','__']], board, 'HS']
 
     #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
-    #d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( board_prime )
     #assert 'KdAd' in d_pocket_EHS2_prime
 
     #fout = open( "d_pocket_EHS2.json",'w')
@@ -518,7 +553,6 @@ if __name__ == '__main__' :
             #print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
             #acc += prob
         #print "sum: ", acc
-
     #print collapseBoard( board )
     #print collapseBoard( board_prime )
 

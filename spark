@@ -384,4 +384,16 @@ For instance 238Q_h_2fxoox -> 238TQ_h_3fxooxx and 239Q_h_2fxoox are noticable di
 
 We could group manually, but why not use a clustering algorithm.  Each row is a tuple, each number is a bucket -> bucket' prob.  Given k, we assign each row a group.  We compute the average trans probs for the group, and use that for the entire group.
 
-First step, though, is generate the d_pocket_EHS2 for each board
+First step, though, is generate the d_pocket_EHS2 for each board.  This is now running on server
+
+Next, want to check Bayes Net matlab for inference capability.  FOr instance, if we ask it for P(a42,a31,a32,b42 | a31,a32,board ), can it do anything?  Quickly?  Will be important as part of the EM algo.
+
+=====================================================================================================
+
+2/14/13
+
+Checked on bucketing, gotten very slow.  I was setting up and tearing down a multiprocessing.Pool each mapReduce, this was stupid.  Instead, passing in the same Pool object to every mapReduce call has sped things up considerable.  Remains to be seen if it doesn't also take longer and longer.  Hovering right around 6s / 100 boards, fuck slowly creeping upwards though  whyyyyyyyy
+
+testing out inference in bayes net.  Using Dirichlet random for CPTs.  fixed matrix order bug in node_sizes.  
+
+

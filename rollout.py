@@ -87,8 +87,7 @@ def wrapWithGlobals( possible_unknown_pockets, \
 
 def mapReduceComputeEHS2( pool, \
                           board, \
-                          num_opponents = 1, \
-                          num_threads=8 ) :
+                         num_opponents = 1 ) :
 
     known_pockets = [['__','__']]
     dek = Deck()
@@ -100,7 +99,6 @@ def mapReduceComputeEHS2( pool, \
                                                 num_opponents )
    
     #map
-    #P = pOOL(PROCEsses=num_threads)
     a = time()
     all_pockets_plus_globals = wrapWithGlobals( possible_pocket_assignments, \
                                                 known_pockets, \
@@ -108,7 +106,6 @@ def mapReduceComputeEHS2( pool, \
                                                 board, \
                                                 'HS')
     mapped = pool.map( computeEHS2, all_pockets_plus_globals )
-    #p.close()
     #mapped: [{pocket1: HS2, __: HS2},{pocket2: HS2, __:HS2},...]
     
     d_pocket_HS2 = {}
