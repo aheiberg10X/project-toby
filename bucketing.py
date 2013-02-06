@@ -9,6 +9,7 @@ import json
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
+from random import sample
 
 num_buckets = 20
 
@@ -169,6 +170,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
     sorted_pockets = []
     EHS2s = []
     d_reverse = {}
+    print d_pocket_EHS2
     for pocket in sorted(d_pocket_EHS2, key=lambda x : d_pocket_EHS2[x]) :
         sorted_pockets.append( pocket )
         ehs2 = d_pocket_EHS2[pocket]
@@ -239,11 +241,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
     #hope in correct JSON format
     return membership_probs
 
-    assert 'KdAd' in sorted_pockets
         
- 
-#TODO take two sequential - {pocket:{bucket:%}} and compute, given bucket X
-# in the first, what is the likely hood of bucket Y?
 # P( b' | b, board, board' )
 def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentages ) :
     #P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
@@ -374,24 +372,210 @@ def computeEHS2DistsLongways() :
         for board in combinations( range(52), board_size ) :
             cboard = collapseBoard( board )
             if cboard not in already_repped :
-                d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool,list(board) )
-                filename = "hsdists/%s/%s.hsdist" % (street_name, cboard)
-                fout = open( filename, 'w' )
-                fout.write( json.dumps( d_pocket_EHS2 ) )
-                fout.close()
-                already_repped[cboard] = True
+                #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool,list(board) )
+                #filename = "hsdists/%s/%s.hsdist" % (street_name, cboard)
+                #fout = open( filename, 'w' )
+                #fout.write( json.dumps( d_pocket_EHS2 ) )
+                #fout.close()
+                already_repped[cboard] = makeHuman(board)
             else :
-                print "skipping"
                 pass
 
             count += 1
-            if count % print_every == 0 :
-                print "board_size: ", board_size, " count: ", count
-                print "time: ", time() - timea 
-                timea = time()
+            #if count % print_every == 0 :
+                #print "board_size: ", board_size, " count: ", count
+                #print "time: ", time() - timea 
+                #timea = time()
+
+        fout = open("hsdists/%s/collpased_representatives.txt" % street_name, 'w' )
+        fout.write( json.dumps( already_repped ) )
+        fout.close()
+
         print "time for board_size: ", board_size, " was: ", time() - start_time
 
     pool.close()
+
+def bucketAllEHS2Dists( bucket_percentiles, bucketing_version=1 ) :
+    for street_name in ['flops','turns','rivers'] :
+        dirname = "hsdists/%s/" % street_name
+        for filename in listdir( dirname ) :
+            if filename.endswith( 'bkts' ) :
+                continue
+            [name,ext] = filename.rsplit( '.', 1 )
+            path = "%s/%s" % (dirname,filename)
+            fin = open( path )
+            d_pocket_EHS2 = json.loads( fin.read() )
+            fin.close()
+            d_pocket_bucket = computeBucket( d_pocket_EHS2, \
+                                             bucket_percentiles[street_name] )
+            fout = open( "%s/%s.bkts" % (dirname, name), 'w' )
+            fout.write( json.dumps( d_pocket_bucket ) )
+            fout.close()
+            assert False 
+
+            
+
+def main() :
+    pass
+
+if __name__ == '__main__' :
+    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
+    #bucket_percentiles1 = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+                           #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+                           #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
+    #bucketAllEHS2Dists( bucket_percentiles1 ) 
+    computeEHS2DistsLongways()
+    assert False
+
+    #board = ['2d','3s','8h','Qd']
+    #board_prime = ['2d','3s','8h','Qd','Td']
+    #board = ['3d','7s','9h','Kd']
+    #board_prime = ['3d','7s','9h','Ad','Kd']
+    board = ['2h','3c','8d','Qd']
+    board_prime = ['2h','2d','3h','4h','5h']
+
+    data = [[['Tc','4s'],['__','__']], board, 'HS']
+
+    #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
+    d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( board_prime )
+    print d_pocket_EHS2_prime
+    #assert 'KdAd' in d_pocket_EHS2_prime
+
+    #fout = open( "d_pocket_EHS2.json",'w')
+    #fout.write( json.dumps( d_pocket_EHS2 ) )
+    #fout.close()
+
+    #fout = open( "d_pocket_EHS2_prime.json",'w')
+    #fout.write( json.dumps( d_pocket_EHS2_prime ) )
+    #fout.close()
+
+    #d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
+    #d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
+
+    #d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
+    #d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
+    #assert 'KdAd' in d_pocket_bucket_prime
+
+    #fout = open( "d_pocket_bucket.json",'w')
+    #fout.write( json.dumps( d_pocket_bucket ) )
+    #fout.close()
+
+    #fout = open( "d_pocket_bucket_prime.json",'w')
+    #fout.write( json.dumps( d_pocket_bucket_prime ) )
+    #fout.close()
+
+    #for pocket in d_pocket_bucket :
+        #print pocket, d_pocket_EHS2[pocket], d_pocket_bucket[pocket]
+
+    #for b in range(len(bucket_percentages)) :
+        #acc = 0
+        #for b_prime in range(len(bucket_percentages)) :
+        ##b_prime = 3 
+            #prob = bucketTransitionProb( b_prime, b, d_pocket_bucket, \
+                                         #d_pocket_bucket_prime, \
+                                         #bucket_percentages )
+            #print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
+            #acc += prob
+        #print "sum: ", acc
+#
+    #print collapseBoard( board )
+    #print collapseBoard( board_prime )
+
+####################################
+    #print "HS2:", rollout.computeHS2( data )
+    #count = 0
+    #for decision_stack in iterateDecisionPoints ( num_players=2, \
+                                                  #max_rounds=2, \
+                                                  #button=0, \
+                                                  #player_ix=0) :
+        #print decision_stack
+        #count += 1
+    #print count
+
+
+    #folder = "hsdists"
+    #computeBuckets( 'turns', dmass['turns'] )
+
+
+    #for street in listdir( folder ) :
+        #for listing in listdir("%s/%s" % (folder,street)) :
+            #if listing.endswith("hsdist") :
+                #visualizeEVDist( "%s/%s/%s" % (folder,street,listing) )
+    
+    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
+    #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
+    #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
+
+    #computeDists(3,'HS')
+    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
+    
+
+    #print bucketPocket( ['Ah','7d'], ['Ad','7h','8c','__','__'] )
+    
+    #board = ['2h','3h','4h','5h','__']
+    #board = ['Jd','Jh','8c','8d','__']
+
+    #board = ['2h','3h','4h','__','__']
+    #board = ['2c','3c','4c','__','__']
+    board = ['3c','8d','Jd','__','__']
+    #board = ['Jd','Jh','8c','__','__']
+    #board = ['Jd','Jh','8c','__','__']
+
+    #print board
+
+    #print pocketEVs['5h,9d']
+    #print pocketEVs['9d,5c']
+    #break
+
+
+
+
+
+#deprecated in favor of computeDistsHS
+def computeDists(num_known_board, EV_or_HS) :
+    already_seen = {}
+    count = 0
+    
+    if num_known_board == 3 : street = 'flops'
+    elif num_known_board == 4 : street = 'turns'
+    elif num_known_board == 5 : street = 'rivers'
+    else : assert False
+
+    for board in combinations( d.cards, num_known_board ) :
+        collapsed = collapseBoard( board )
+        if EV_or_HS == 'EV' :
+            path = "evdists/%s/%s.evdist" % (street,collapsed)
+        else :
+            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
+
+        if collapsed in already_seen or exists(path) : 
+            continue
+        else :
+            print count, collapsed
+            count += 1
+            board = makeHuman(board) + ['__']*(5-num_known_board)
+            
+            x = []
+            if EV_or_HS == 'EV' :
+                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
+                for ev in d_pocket_EV.values() :
+                    x.append( makeRound( ev ) )
+            else :
+                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
+                for hs in d_pocket_HS.values() :
+                    x.append( hs )
+
+            x.sort()
+            
+            fout = open(path, 'w')
+            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
+            fout.close()
+
+            already_seen[collapsed] = True
+
+        #print "breaking"
+        #break
+
 
 #deprecated for being a pain in the ass
 #and i wasted so much time on it 
@@ -493,165 +677,4 @@ def computeEHS2Dists() :
         fout.write( json.dumps( d_pocket_EHS2 ) )
         #fout.write( ';'.join( [str(t) for t in sorted(HS2s)] )+"\n" )
         fout.close()
-
-def main() :
-    pass
-
-if __name__ == '__main__' :
-
-    computeEHS2DistsLongways()
-    assert False
-
-    #board = ['2d','3s','8h','Qd']
-    #board_prime = ['2d','3s','8h','Qd','Td']
-    #board = ['3d','7s','9h','Kd']
-    #board_prime = ['3d','7s','9h','Ad','Kd']
-    board = ['2h','3c','8d','Qd']
-    board_prime = ['2h','2d','3h','4h','5h']
-
-    data = [[['Tc','4s'],['__','__']], board, 'HS']
-
-    #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
-    d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( board_prime )
-    print d_pocket_EHS2_prime
-    #assert 'KdAd' in d_pocket_EHS2_prime
-
-    #fout = open( "d_pocket_EHS2.json",'w')
-    #fout.write( json.dumps( d_pocket_EHS2 ) )
-    #fout.close()
-
-    #fout = open( "d_pocket_EHS2_prime.json",'w')
-    #fout.write( json.dumps( d_pocket_EHS2_prime ) )
-    #fout.close()
-
-    #d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
-    #d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
-
-    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
-    #d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
-    #d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
-    #assert 'KdAd' in d_pocket_bucket_prime
-
-    #fout = open( "d_pocket_bucket.json",'w')
-    #fout.write( json.dumps( d_pocket_bucket ) )
-    #fout.close()
-
-    #fout = open( "d_pocket_bucket_prime.json",'w')
-    #fout.write( json.dumps( d_pocket_bucket_prime ) )
-    #fout.close()
-
-    #for pocket in d_pocket_bucket :
-        #print pocket, d_pocket_EHS2[pocket], d_pocket_bucket[pocket]
-
-    #for b in range(len(bucket_percentages)) :
-        #acc = 0
-        #for b_prime in range(len(bucket_percentages)) :
-        ##b_prime = 3 
-            #prob = bucketTransitionProb( b_prime, b, d_pocket_bucket, \
-                                         #d_pocket_bucket_prime, \
-                                         #bucket_percentages )
-            #print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
-            #acc += prob
-        #print "sum: ", acc
-#
-    #print collapseBoard( board )
-    #print collapseBoard( board_prime )
-
-####################################
-    #print "HS2:", rollout.computeHS2( data )
-    #count = 0
-    #for decision_stack in iterateDecisionPoints ( num_players=2, \
-                                                  #max_rounds=2, \
-                                                  #button=0, \
-                                                  #player_ix=0) :
-        #print decision_stack
-        #count += 1
-    #print count
-
-
-    #folder = "hsdists"
-    #dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
-    #computeBuckets( 'turns', dmass['turns'] )
-
-
-    #for street in listdir( folder ) :
-        #for listing in listdir("%s/%s" % (folder,street)) :
-            #if listing.endswith("hsdist") :
-                #visualizeEVDist( "%s/%s/%s" % (folder,street,listing) )
-    
-    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
-    #visualizeEVDist( "evdists/37TK_h_4f.evdist" )
-    #visualizeEVDist( "evdists/37TK_h_3fxxxo.evdist" )
-
-    #computeDists(3,'HS')
-    #visualizeEVDist( "hsdists/flops/234_s_3f.hsdist" )
-    
-
-    #print bucketPocket( ['Ah','7d'], ['Ad','7h','8c','__','__'] )
-    
-    #board = ['2h','3h','4h','5h','__']
-    #board = ['Jd','Jh','8c','8d','__']
-
-    #board = ['2h','3h','4h','__','__']
-    #board = ['2c','3c','4c','__','__']
-    board = ['3c','8d','Jd','__','__']
-    #board = ['Jd','Jh','8c','__','__']
-    #board = ['Jd','Jh','8c','__','__']
-
-    #print board
-
-    #print pocketEVs['5h,9d']
-    #print pocketEVs['9d,5c']
-    #break
-
-
-
-
-
-#deprecated in favor of computeDistsHS
-def computeDists(num_known_board, EV_or_HS) :
-    already_seen = {}
-    count = 0
-    
-    if num_known_board == 3 : street = 'flops'
-    elif num_known_board == 4 : street = 'turns'
-    elif num_known_board == 5 : street = 'rivers'
-    else : assert False
-
-    for board in combinations( d.cards, num_known_board ) :
-        collapsed = collapseBoard( board )
-        if EV_or_HS == 'EV' :
-            path = "evdists/%s/%s.evdist" % (street,collapsed)
-        else :
-            path = "hsdists/%s/%s.hsdist" % (street,collapsed)
-
-        if collapsed in already_seen or exists(path) : 
-            continue
-        else :
-            print count, collapsed
-            count += 1
-            board = makeHuman(board) + ['__']*(5-num_known_board)
-            
-            x = []
-            if EV_or_HS == 'EV' :
-                d_pocket_EV = rollout.computeEVs( [], board, 2, num_threads=4 )
-                for ev in d_pocket_EV.values() :
-                    x.append( makeRound( ev ) )
-            else :
-                d_pocket_HS = rollout.computeHSs( board, num_threads=4 )
-                for hs in d_pocket_HS.values() :
-                    x.append( hs )
-
-            x.sort()
-            
-            fout = open(path, 'w')
-            fout.write( "%s\n" % ';'.join([str(t) for t in x]) )
-            fout.close()
-
-            already_seen[collapsed] = True
-
-        #print "breaking"
-        #break
 
