@@ -5,7 +5,9 @@ import rollout
 import matplotlib.pyplot as plt
 from os import listdir
 from os.path import exists
-import json
+#import json
+import simplejson as json
+from yaml import load, dump
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
@@ -163,14 +165,13 @@ def visualizeEVDist( filepath, buckets=40 ) :
     plt.clf()
 
 #{pocket:EHS2} -> {pocket:{bucket:%membership}}
-def computeBucket( d_pocket_EHS2, bucket_percentages ) :
-    print sum(bucket_percentages)
-    assert abs( sum(bucket_percentages) - 1.0 ) < .000001
+def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
+    print sum(bucket_percentiles)
+    assert abs( sum(bucket_percentiles) - 1.0 ) < .000001
     #sort EHS2
     sorted_pockets = []
     EHS2s = []
     d_reverse = {}
-    print d_pocket_EHS2
     for pocket in sorted(d_pocket_EHS2, key=lambda x : d_pocket_EHS2[x]) :
         sorted_pockets.append( pocket )
         ehs2 = d_pocket_EHS2[pocket]
@@ -182,7 +183,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
 
     num_EHS2s = len(EHS2s)
     #how many EHS2s does each bucket get?
-    bucket_masses = [int(round(bp*num_EHS2s)) for bp in bucket_percentages]
+    bucket_masses = [int(round(bp*num_EHS2s)) for bp in bucket_percentiles]
     #print "sum bucket_masses", sum(bucket_masses), "num_EHS2s", num_EHS2s
 
     #Info about the bucket we are currently filling
@@ -241,9 +242,8 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
     #hope in correct JSON format
     return membership_probs
 
-        
 # P( b' | b, board, board' )
-def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentages ) :
+def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentiles ) :
     #P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
     #                                             [A]
     #P( p | board,b ) = P( b|p,board) * P(p|F) / P(b|board)
@@ -272,13 +272,13 @@ def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentages ) :
         acc += A * B 
         acc2 += B
     
-    #C
-    #already checked legality of pocket against flop in 'if' above
-    #so just the probability of a given pocket
-    C = 1/float(len(board))
+    ##C
+    ##already checked legality of pocket against flop in 'if' above
+    ##so just the probability of a given pocket
+    #C = 1/float(len(board))
 
-    #D - board doesn't matter, depends on construction of percentiles
-    D = bucket_percentages[b]
+    ##D - board doesn't matter, depends on construction of percentiles
+    #D = bucket_percentiles[b]
     
     #C/D is really trying to get 1/(number of pockets in bucket b)
 
@@ -288,42 +288,54 @@ def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentages ) :
 
     return acc / float(acc2)
 
-#TODO
-#how much space/performace trade off is there in rounding off the hs2 values?
-#currently using 4 decimal places, maybe 2 is sufficient
-#and will cut down on dictionary size in memory
-#TODO: use computeBucket, once we get get everything settled
-def computeBuckets( street, bucket_percentages ) :
-    print sum(bucket_percentages)
-    assert abs( sum(bucket_percentages) - 1.0 ) < .000001
+# P( b' | b, board, board' )
+def getTransitionProbs( board, n_buckets, \
+                        board_prime, n_buckets_prime ) :
+    #P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
+    #                                             [A]
+    #P( p | board,b ) = P( b|p,board) * P(p|F) / P(b|board)
+    #                      [B]            [C]      [D]
 
-    folder = "hsdists"
-    #dflop_memprobs = {}
-    fout = open("%s/%s/membership_probs.txt" % (folder,street),'w')
+    #print board
+    #print "\n\n"
+    #print board_prime
 
-    for i,dist_file in enumerate(listdir( "%s/%s" % (folder,street) )) :
-        if not dist_file.endswith('dist') : 
-            continue 
-        collapsed_name = dist_file.split('.')[0]
-        print i, "bucketing ", collapsed_name
+    #will store (A*B,B) accumulators for every bucket x bucket_prime pair
+    acc = {}
+    for b in range(n_buckets) :
+        acc[b] = {}
+        for bprime in range(n_buckets_prime) :
+            acc[b][bprime] = [0,0]
 
-        fin = open( "%s/%s/%s" % (folder, street, dist_file) )
-        EVs = [int(ev) for ev in fin.read().strip().split(',')]
-        fin.close()
+    for pocket in combinations(range(52),globles.POCKET_SIZE) :
+        for b in range(n_buckets) :
+            for bprime in range(n_buckets_prime) :
+                pocket_str = canonicalize(list(pocket))
+                A = 0
+                if pocket_str in board_prime and \
+                   bprime in board_prime[pocket_str] :
+                    A = board_prime[pocket_str][bprime]
 
-        ##Moved to computeBucket
+                B = 0
+                if pocket_str in board and \
+                   b in board[pocket_str] :
+                    B = board[pocket_str][b]
+                
+                acc[b][bprime][0] += A * B 
+                acc[b][bprime][1] += B
+    
+    for b in range(n_buckets) :
+        for bprime in range(n_buckets_prime) :
+            if acc[b][bprime][1] == 0 :
+                assert acc[b][bprime][0] == 0
+                acc[b][bprime] = 0
+                print b, bprime
+                assert "oh so very unlikely" == "asdf"
+            else :
+                #TODO: if 0 prob, remove the bprime key from the dict, sparse
+                acc[b][bprime] = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
 
-                   #print len(dflop_memprobs)
-        #print membership_probs
-        #print len(membership_probs)
-        #a = raw_input()
-
-        #print "bucket counts", bucket_counts, "sum", sum(bucket_counts)
-        #print "num EVs bucketed:", tcount
-        #break
-    #print dflop_memprobs
-    #fout.write( json.dumps( dflop_memprobs ) )
-    fout.close()
+    return acc
 
 flop_bucket_map = {}
 def bucketPocket( pocket, board ) :
@@ -335,7 +347,8 @@ def bucketPocket( pocket, board ) :
     if street == 'flop' :
         if not flop_bucket_map :
             fflop = open("evdists/flop/membership_probs.txt")
-            flop_bucket_map = json.loads( fflop.read() )
+            #flop_bucket_map = json.loads( fflop.read() )
+            flop_bucket_map = load( fflop.read() )
             fflop.close()
         memberships = flop_bucket_map[collapsed]
         keys = memberships.keys()
@@ -395,48 +408,116 @@ def computeEHS2DistsLongways() :
 
     pool.close()
 
-def bucketAllEHS2Dists( bucket_percentiles, bucketing_version=1 ) :
-    for street_name in ['flops','turns','rivers'] :
-        dirname = "hsdists/%s/" % street_name
+def bucketAllEHS2Dists( bucket_percentiles ) :
+    for street_name in ['flop','turn','river'] :
+        dirname = "hsdists/%ss/" % street_name
         for filename in listdir( dirname ) :
-            if filename.endswith( 'bkts' ) :
+            if not filename.endswith( 'hsdist' ) :
                 continue
             [name,ext] = filename.rsplit( '.', 1 )
             path = "%s/%s" % (dirname,filename)
+            print path
             fin = open( path )
-            d_pocket_EHS2 = json.loads( fin.read() )
+            #d_pocket_EHS2 = json.loads( fin.read() )
+            d_pocket_EHS2 = load( fin.read() )
             fin.close()
             d_pocket_bucket = computeBucket( d_pocket_EHS2, \
                                              bucket_percentiles[street_name] )
             fout = open( "%s/%s.bkts" % (dirname, name), 'w' )
-            fout.write( json.dumps( d_pocket_bucket ) )
+            fout.write( dump( d_pocket_bucket ) )
             fout.close()
-            assert False 
+        break
 
-            
+def sampleTransitionProbs( street, n_samples, bucket_percentiles ) :
+    pool = Pool( processes = 4 )
+    dirname = "hsdists/%ss" % street
+
+    fout = open( "%s/transition_probs.txt" % dirname, 'w' )
+    write_buffer = [] # [[cboard, cboard', tran probs],[],...]
+
+    fin = open( "%s/collapsed_representatives.txt" % dirname )
+    representatives = load( fin.read() )
+    fin.close()
+
+    bkt_filenames = ["%s/%s" % (dirname, file) \
+                      for file in listdir( dirname ) \
+                      if file.endswith('bkts')]
+
+    dek = Deck()
+    for bkt_filename in sample( bkt_filenames, n_samples ) :
+        timea = time()
+        fin = open( bkt_filename) 
+        d_pocket_buckets = load( fin.read() )
+        fin.close()
+
+        [rest,fileext] = bkt_filename.rsplit('/',1)
+        [file,ext] = fileext.rsplit('.',1)
+
+        actual_board = [str(t) for t in representatives[file]]
+        dek.remove( actual_board )
+
+        #enumerate the possible collapsed flops
+        d_cboard_aboard = {}
+        for next_card in dek.cards :
+            aboard = actual_board + makeHuman([next_card])
+            cboard = collapseBoard( aboard )
+            if cboard not in d_cboard_aboard :
+                d_cboard_aboard[cboard] = aboard
+
+
+        for cboard in d_cboard_aboard :
+            print bkt_filename, aboard
+            aboard = d_cboard_aboard[cboard]
+            d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool, aboard )
+            d_pocket_buckets_prime = computeBucket( d_pocket_EHS2, bucket_percentiles[street] )
+
+            n_buckets = len(bucket_percentiles[street])
+            if street == "flop" :
+                n_buckets_prime = len(bucket_percentiles['turn'])
+            elif street == 'turn' :
+                n_buckets_prime = len(bucket_percentiles['river'])
+            else : assert False
+
+            #print actual_board, aboard
+            tprobs = getTransitionProbs( d_pocket_buckets, \
+                                      n_buckets, \
+                                      d_pocket_buckets_prime, \
+                                      n_buckets_prime )
+            write_buffer.append( [file,cboard,tprobs] )
+
+
+        #print bkt_filename
+        #print len(d_cboard_aboard)
+        dek.shuffle()
+        fout.write( dump( write_buffer ) )
+        write_buffer = []
+        timeb = time()
+        print "board: ", bkt_filename, " took: ", timeb-timea
+
+    pool.close()
 
 def main() :
     pass
 
 if __name__ == '__main__' :
-    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
-    #bucket_percentiles1 = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-                           #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-                           #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
-    #bucketAllEHS2Dists( bucket_percentiles1 ) 
-    computeEHS2DistsLongways()
+    sampleTransitionProbs( "flop", 1, globles.BUCKET_PERCENTILES )
+    ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
+    ##bucketAllEHS2Dists( globles.BUCKET_PERCENTILES ) 
+    #computeEHS2DistsLongways()
     assert False
 
     #board = ['2d','3s','8h','Qd']
     #board_prime = ['2d','3s','8h','Qd','Td']
-    #board = ['3d','7s','9h','Kd']
-    #board_prime = ['3d','7s','9h','Ad','Kd']
-    #board = ['2s','3c','8d','Qd']
-    #board_prime = ['2s','3c','8d','Qd','Td']
+    board = ['3d','7s','9h','Kd']
+    board_prime = ['3d','7s','9h','Ad','Kd']
+    #board = ['2h','3c','8d','Qd']
+    #board_prime = ['2h','3c','8d','Qd','5h']
 
-    #data = [[['Tc','4s'],['__','__']], board, 'HS']
+    pool = Pool( processes = 2)
 
-    #d_pocket_EHS2 = rollout.mapReduceComputeEHS2( board )
+    d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool, board )
+    d_pocket_EHS2_prime = rollout.mapReduceComputeEHS2( pool, board_prime )
+    #print d_pocket_EHS2_prime
     #assert 'KdAd' in d_pocket_EHS2_prime
 
     #fout = open( "d_pocket_EHS2.json",'w')
@@ -450,8 +531,8 @@ if __name__ == '__main__' :
     #d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
     #d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
 
-    #d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
-    #d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
+    d_pocket_bucket = computeBucket( d_pocket_EHS2, globles.BUCKET_PERCENTILES['turn'] )
+    d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, globles.BUCKET_PERCENTILES['river'] )
     #assert 'KdAd' in d_pocket_bucket_prime
 
     #fout = open( "d_pocket_bucket.json",'w')
@@ -465,18 +546,32 @@ if __name__ == '__main__' :
     #for pocket in d_pocket_bucket :
         #print pocket, d_pocket_EHS2[pocket], d_pocket_bucket[pocket]
 
-    #for b in range(len(bucket_percentages)) :
+    n_buckets = len(globles.BUCKET_PERCENTILES['turn'])
+    n_buckets_prime = len(globles.BUCKET_PERCENTILES['river'])
+    probs = getTransitionProbs( d_pocket_bucket, \
+                                n_buckets, \
+                                d_pocket_bucket_prime, \
+                                n_buckets_prime )
+
+    for b in range(n_buckets ) :
+        for bprime in range(n_buckets_prime ) :
+            print "%d - %d : %f" % (b,bprime,probs[b][bprime])
+        print "\n\n"
+
+    #for b in range(len(bucket_percentiles)) :
         #acc = 0
-        #for b_prime in range(len(bucket_percentages)) :
+        #for b_prime in range(len(bucket_percentiles)) :
         ##b_prime = 3 
             #prob = bucketTransitionProb( b_prime, b, d_pocket_bucket, \
                                          #d_pocket_bucket_prime, \
-                                         #bucket_percentages )
+                                         #bucket_percentiles )
             #print "b: ", b, " b_prime: ", b_prime, " prob: ", prob
             #acc += prob
         #print "sum: ", acc
     #print collapseBoard( board )
     #print collapseBoard( board_prime )
+
+    pool.close()
 
 ####################################
     #print "HS2:", rollout.computeHS2( data )

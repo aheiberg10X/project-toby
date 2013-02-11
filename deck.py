@@ -206,7 +206,9 @@ def collapseBoard( board ) :
                 if   suits[0] == suits[1] : rsuit = '2fxxo'
                 elif suits[0] == suits[2] : rsuit = '2fxox'
                 elif suits[1] == suits[2] : rsuit = '2foxx'
-                else : assert False
+                else : 
+                    print "assert 1"
+                    assert False
         else                : rsuit = 'r'
 
         #s3f  3-Straight-Flush = 12
@@ -264,7 +266,8 @@ def collapseBoard( board ) :
                 elif suits[1] == suits[2] : temp = 'oxxo'
                 elif suits[1] == suits[3] : temp = 'oxox'
                 elif suits[2] == suits[3] : temp = 'ooxx'
-                else : assert False
+                else : 
+                    assert False
 
                 if rcard == 'p' :
                     for c in card_counts :
