@@ -9,6 +9,7 @@ import json
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
+from random import sample
 
 num_buckets = 20
 
@@ -169,6 +170,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
     sorted_pockets = []
     EHS2s = []
     d_reverse = {}
+    print d_pocket_EHS2
     for pocket in sorted(d_pocket_EHS2, key=lambda x : d_pocket_EHS2[x]) :
         sorted_pockets.append( pocket )
         ehs2 = d_pocket_EHS2[pocket]
@@ -239,11 +241,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentages ) :
     #hope in correct JSON format
     return membership_probs
 
-    assert 'KdAd' in sorted_pockets
         
- 
-#TODO take two sequential - {pocket:{bucket:%}} and compute, given bucket X
-# in the first, what is the likely hood of bucket Y?
 # P( b' | b, board, board' )
 def bucketTransitionProb( b_prime, b, board, board_prime, bucket_percentages ) :
     #P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
@@ -379,7 +377,7 @@ def computeEHS2DistsLongways() :
                 fout = open( filename, 'w' )
                 fout.write( json.dumps( d_pocket_EHS2 ) )
                 fout.close()
-                already_repped[cboard] = True
+                already_repped[cboard] = makeHuman(board)
             else :
                 pass
 
@@ -388,119 +386,44 @@ def computeEHS2DistsLongways() :
                 print "board_size: ", board_size, " count: ", count
                 print "time: ", time() - timea 
                 timea = time()
+
+        fout = open("hsdists/%s/collpased_representatives.txt" % street_name, 'w' )
+        fout.write( json.dumps( already_repped ) )
+        fout.close()
+
         print "time for board_size: ", board_size, " was: ", time() - start_time
 
     pool.close()
 
-#deprecated for being a pain in the ass
-#and i wasted so much time on it 
-def computeEHS2Dists() :
-    already_repped = set([])
-    results = {}   
-    count = 0
-    a = time()
-    
-    pool = Pool(processes=8)
-    for board in combinations( range(52), 5 ) :
-        count += 1
-        if count % 100 == 0 : 
-            print count
-            print time() - a
-            a = time()
-        
-        #pit every possible hand against 'mystery' known_pocket
-        #and compute the HS2 from rollout
-        known_pockets = ['__','__']
+def bucketAllEHS2Dists( bucket_percentiles, bucketing_version=1 ) :
+    for street_name in ['flops','turns','rivers'] :
+        dirname = "hsdists/%s/" % street_name
+        for filename in listdir( dirname ) :
+            if filename.endswith( 'bkts' ) :
+                continue
+            [name,ext] = filename.rsplit( '.', 1 )
+            path = "%s/%s" % (dirname,filename)
+            fin = open( path )
+            d_pocket_EHS2 = json.loads( fin.read() )
+            fin.close()
+            d_pocket_bucket = computeBucket( d_pocket_EHS2, \
+                                             bucket_percentiles[street_name] )
+            fout = open( "%s/%s.bkts" % (dirname, name), 'w' )
+            fout.write( json.dumps( d_pocket_bucket ) )
+            fout.close()
+            assert False 
 
-        d_pocket_HS2 = rollout.mapReduceComputeEHS2( pool, list(board) )
-
-
-        flop = ''.join( makeHuman(board[0:3]) )
-        cflop = collapseBoard( flop )
-        turn = ''.join( makeHuman(board[0:4]) ) 
-        cturn = collapseBoard( turn )
-        river = ''.join( makeHuman(board) )
-        if river == '2s2c3s4s5s' :
-            print d_pocket_HS2
-            assert False
-        criver =collapseBoard( river )
-
-        streets = [flop,turn,river]
-        cstreets = [cflop, cturn, criver]
-
-        for street, cstreet in zip(streets[:2],cstreets[:2]) :
-            if cstreet not in already_repped and street not in results :
-                results[street] = {}
-
-        for cstreet in cstreets :
-            already_repped.add( cstreet )
-
-        
-        #rounding precision
-        precision = 4
-        #collect the HS2 for the river
-        river_hs2 = {} 
-        for pocket in d_pocket_HS2 :
-            hs2 = d_pocket_HS2[pocket]
-            #flop and turn
-            for street in streets[:2] :
-                if street in results :
-                    if pocket not in results[street] :
-                        results[street][pocket] = [hs2,1]
-                    else :
-                        results[street][pocket][0] += hs2
-                        results[street][pocket][1] += 1
-                else :
-                    pass
-                    #already_repped
-
-            river_hs2[pocket] =makeRound(hs2,precision)
-        #the 5 card board is unique, so we can print out right away
-        name = "hsdists/rivers/%s.hsdist" % criver
-        if not exists(name) :
-            friver = open( name, 'w' )
-            friver.write( json.dumps( river_hs2 ) )
-            #friver.write( ";".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
-            friver.close()
-            already_repped.add( criver )
-            pass
-
-        if count == 500 :
-            #fout = open("test.txt",'w')
-            #fout.write( json.dumps(results) )
-            #fout.close()
-            break
-            pass
-    
-    print "printing"
-    #once all the boards are done, have results[board][pocket] = HS2sum, count
-    for board in results :
-        collapsed_board = collapseBoard( board )
-        num_cards = len(collapsed_board.split('_')[0])
-        if num_cards == 3 :   street_name = 'flops'
-        elif num_cards == 4 : street_name = 'turns'
-        else: assert False
-
-        #print "collapsed name:", collapsed_board, " street name: " , street_name
-
-        d_pocket_EHS2 = {}
-        for pocket in results[board] :
-            (HS2sum, count) = results[board][pocket]
-            ehs2 = makeRound( HS2sum / count, precision )
-            d_pocket_EHS2[pocket] = ehs2
-
-        filename = "hsdists/%s/%s.hsdist" % (street_name, collapsed_board)
-        fout = open( filename, 'w' )
-        #print "len HS2s: ", len(HS2s)
-        fout.write( json.dumps( d_pocket_EHS2 ) )
-        #fout.write( ';'.join( [str(t) for t in sorted(HS2s)] )+"\n" )
-        fout.close()
+            
 
 def main() :
     pass
 
 if __name__ == '__main__' :
-
+    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
+    #bucket_percentiles1 = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+                           #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
+                           #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
+    #bucketAllEHS2Dists( bucket_percentiles1 ) 
     computeEHS2DistsLongways()
     assert False
 
@@ -527,7 +450,6 @@ if __name__ == '__main__' :
     #d_pocket_EHS2 = json.loads( open('d_pocket_EHS2.json').read() )
     #d_pocket_EHS2_prime = json.loads( open('d_pocket_EHS2_prime.json').read() )
 
-    #bucket_percentages = [.5,.3,.1,.05,.02,.02,.01]
     #d_pocket_bucket = computeBucket( d_pocket_EHS2, bucket_percentages )
     #d_pocket_bucket_prime = computeBucket( d_pocket_EHS2_prime, bucket_percentages )
     #assert 'KdAd' in d_pocket_bucket_prime
@@ -569,9 +491,6 @@ if __name__ == '__main__' :
 
 
     #folder = "hsdists"
-    #dmass = {'flops' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             #'turns' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
-             #'rivers': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
     #computeBuckets( 'turns', dmass['turns'] )
 
 
@@ -653,4 +572,106 @@ def computeDists(num_known_board, EV_or_HS) :
 
         #print "breaking"
         #break
+
+
+#deprecated for being a pain in the ass
+#and i wasted so much time on it 
+def computeEHS2Dists() :
+    already_repped = set([])
+    results = {}   
+    count = 0
+    a = time()
+    for board in combinations( range(52), 5 ) :
+        count += 1
+        if count % 100 == 0 : 
+            print count
+            print time() - a
+            a = time()
+        
+        #pit every possible hand against 'mystery' known_pocket
+        #and compute the HS2 from rollout
+        known_pockets = ['__','__']
+        d_pocket_HS2 = rollout.mapReduceComputeEHS2( list(board) )
+
+
+        flop = ''.join( makeHuman(board[0:3]) )
+        cflop = collapseBoard( flop )
+        turn = ''.join( makeHuman(board[0:4]) ) 
+        cturn = collapseBoard( turn )
+        river = ''.join( makeHuman(board) )
+        if river == '2s2c3s4s5s' :
+            print d_pocket_HS2
+            assert False
+        criver =collapseBoard( river )
+
+        streets = [flop,turn,river]
+        cstreets = [cflop, cturn, criver]
+
+        for street, cstreet in zip(streets[:2],cstreets[:2]) :
+            if cstreet not in already_repped and street not in results :
+                results[street] = {}
+
+        for cstreet in cstreets :
+            already_repped.add( cstreet )
+
+        
+        #rounding precision
+        precision = 4
+        #collect the HS2 for the river
+        river_hs2 = {} 
+        for pocket in d_pocket_HS2 :
+            hs2 = d_pocket_HS2[pocket]
+            #flop and turn
+            for street in streets[:2] :
+                if street in results :
+                    if pocket not in results[street] :
+                        results[street][pocket] = [hs2,1]
+                    else :
+                        results[street][pocket][0] += hs2
+                        results[street][pocket][1] += 1
+                else :
+                    pass
+                    #already_repped
+
+            river_hs2[pocket] =makeRound(hs2,precision)
+           
+        #the 5 card board is unique, so we can print out right away
+        name = "hsdists/rivers/%s.hsdist" % criver
+        if not exists(name) :
+            friver = open( name, 'w' )
+            friver.write( json.dumps( river_hs2 ) )
+            #friver.write( ";".join( [str(t) for t in sorted(river_hs2)] ) + "\n" )
+            friver.close()
+            pass
+
+        if count == 500 :
+            #fout = open("test.txt",'w')
+            #fout.write( json.dumps(results) )
+            #fout.close()
+            break
+            pass
+    
+    print "printing"
+    #once all the boards are done, have results[board][pocket] = HS2sum, count
+    for board in results :
+        collapsed_board = collapseBoard( board )
+        num_cards = len(collapsed_board.split('_')[0])
+        if num_cards == 3 :   street_name = 'flops'
+        elif num_cards == 4 : street_name = 'turns'
+        else: assert False
+
+        #print "collapsed name:", collapsed_board, " street name: " , street_name
+
+        d_pocket_EHS2 = {}
+        for pocket in results[board] :
+            (HS2sum, count) = results[board][pocket]
+            ehs2 = makeRound( HS2sum / count, precision )
+            d_pocket_EHS2[pocket] = ehs2
+
+        filename = "hsdists/%s/%s.hsdist" % (street_name, collapsed_board)
+        fout = open( filename, 'w' )
+        #print "len HS2s: ", len(HS2s)
+        fout.write( json.dumps( d_pocket_EHS2 ) )
+        #fout.write( ';'.join( [str(t) for t in sorted(HS2s)] )+"\n" )
+        fout.close()
 

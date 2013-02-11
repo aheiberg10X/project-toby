@@ -424,12 +424,12 @@ def collapseBoard( board ) :
                             break
                     rsuit = ['3f']
                     for i in range(5) :
-                        if i == trip_ix :
+                        if i == trip_ix or \
+                           i == trip_ix + 1 or \
+                           i == trip_ix + 2:
                             rsuit.append('x')
-                        elif i+1 == trip_ix or i+2 == trip_ix :
-                            rsuit.append('o')
                         else :
-                            rsuit.append('x')
+                            rsuit.append('o')
                 elif rcard == 's' or rcard == 'h' :
                     for i in range(5) :
                         if suits[i] == max_suit :
