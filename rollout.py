@@ -87,7 +87,7 @@ def wrapWithGlobals( possible_unknown_pockets, \
 
 def mapReduceComputeEHS2( pool, \
                           board, \
-                         num_opponents = 1 ) :
+                          num_opponents = 1 ) :
 
     known_pockets = [['__','__']]
     dek = Deck()
