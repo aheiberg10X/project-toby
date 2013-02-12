@@ -444,14 +444,17 @@ Ignoring partial bucketing, this is equivalent to 1/(# of pockets in bucket).  S
 Very annoying problem with json.  It encodes the d_pocket_buckets as 'pocket' : {'bucket' : prob}.  This makes sampleTransitionProbs awkward, as it is trying to deal with version loaded from file (strings) and those computed by computeBucket (int).  This confuses getTransitionProb.
 
 Find another encoder and use this
+
+=========================================================================================================================
+
+2/8/13
+
+changed from JSON to YAML.  Re-writing the bucketing files on genomequery currently.
+What, though, is our final bucket break down going to be?  Right now it is a hand coded distribution.  Can we justify it, encode it more mathematically?  Just uniform doesn't seem right, as we want better discrimination between the high bucket hands, ie the ones that will be bet on, and therefore money can be won or lost on it.  Can just hand wave some exponential argument?
  
+to compute the transition probs for a flop to all it's turns takes ~150s.  times 1755 is a few days.  will
 
-
-
-
-
-
-
+Consider moving data to database.  That way it is indexed and less hectic than a bunch of tiny flat files.  Is the time spent doing this worth it?  Prob yes if I am going to have to rerun compute bucketAll again
 
 
 

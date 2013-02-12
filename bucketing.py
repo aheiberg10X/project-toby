@@ -165,7 +165,8 @@ def visualizeEVDist( filepath, buckets=40 ) :
     plt.clf()
 
 #{pocket:EHS2} -> {pocket:{bucket:%membership}}
-def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
+def computeBucket( data  ) :
+    [d_pocket_EHS2, bucket_percentiles] = data
     print sum(bucket_percentiles)
     assert abs( sum(bucket_percentiles) - 1.0 ) < .000001
     #sort EHS2
@@ -174,7 +175,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
     d_reverse = {}
     for pocket in sorted(d_pocket_EHS2, key=lambda x : d_pocket_EHS2[x]) :
         sorted_pockets.append( pocket )
-        ehs2 = d_pocket_EHS2[pocket]
+        ehs2 = round(d_pocket_EHS2[pocket],3)
         EHS2s.append( ehs2 )
         if ehs2 in d_reverse :
             d_reverse[ehs2].append( pocket )
@@ -184,6 +185,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
     num_EHS2s = len(EHS2s)
     #how many EHS2s does each bucket get?
     bucket_masses = [int(round(bp*num_EHS2s)) for bp in bucket_percentiles]
+    print bucket_masses
     #print "sum bucket_masses", sum(bucket_masses), "num_EHS2s", num_EHS2s
 
     #Info about the bucket we are currently filling
@@ -206,15 +208,26 @@ def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
         if not ehs2 == last_seen_ehs2 :
             unbucketed_count = count
             remaining_space = bucket_total_mass - bucket_mass
-            for pocket in d_reverse[ehs2] :
+            #doprint = pocket[0] == 'Q' and pocket[2] == 'Q' 
+            doprint = True
+            if doprint :
+                print "herer"
+                print 'bucketix: ', bucket_ix
+                print 'remaining space: ', remaining_space
+                print 'unbucketd: ', unbucketed_count
+#
+            for pocket in d_reverse[last_seen_ehs2] :
+                if doprint : print pocket
                 membership_probs[pocket] = {}
+
+            #if doprint : assert False
 
             #if we can't fit the unbucketed EHS2s in the current bucket
             #fill it up and increment to the next bucket
             #rinse repeat
             while remaining_space < unbucketed_count :
                 #fill up current bucket rest of the way
-                for pocket in d_reverse[ehs2] :
+                for pocket in d_reverse[last_seen_ehs2] :
                     membership_probs[pocket][bucket_ix] = \
                             float(remaining_space) / count
                 unbucketed_count -= remaining_space
@@ -227,7 +240,7 @@ def computeBucket( d_pocket_EHS2, bucket_percentiles ) :
                 remaining_space = bucket_total_mass
             
             bucket_mass += unbucketed_count
-            for pocket in d_reverse[ehs2] :
+            for pocket in d_reverse[last_seen_ehs2] :
                 membership_probs[pocket][bucket_ix] = \
                         float(unbucketed_count) / count
 
@@ -333,7 +346,11 @@ def getTransitionProbs( board, n_buckets, \
                 assert "oh so very unlikely" == "asdf"
             else :
                 #TODO: if 0 prob, remove the bprime key from the dict, sparse
-                acc[b][bprime] = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
+                v = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
+                if v > 0.0 :
+                    acc[b][bprime] = v
+                else :
+                    del acc[b][bprime]
 
     return acc
 
@@ -409,8 +426,23 @@ def computeEHS2DistsLongways() :
     pool.close()
 
 def bucketAllEHS2Dists( bucket_percentiles ) :
+    pool = Pool( processes = 4 )
+    atime = time()
     for street_name in ['flop','turn','river'] :
         dirname = "hsdists/%ss/" % street_name
+
+        ##diff chunk sizes for each street so that they mod in
+        #if street_name == 'flop' :
+            #chunk_size = 27  
+        #elif street_name == 'turn' :
+            #chunk_size = 26
+        #else :
+            #chunk_size = 13
+            
+        chunk_size = 20 
+
+        names = []
+        data = []
         for filename in listdir( dirname ) :
             if not filename.endswith( 'hsdist' ) :
                 continue
@@ -418,22 +450,48 @@ def bucketAllEHS2Dists( bucket_percentiles ) :
             path = "%s/%s" % (dirname,filename)
             print path
             fin = open( path )
-            #d_pocket_EHS2 = json.loads( fin.read() )
             d_pocket_EHS2 = load( fin.read() )
             fin.close()
-            d_pocket_bucket = computeBucket( d_pocket_EHS2, \
-                                             bucket_percentiles[street_name] )
+            data.append( [d_pocket_EHS2,bucket_percentiles[street_name]] )
+            names.append( name )
+            print len(data)
+            if len(data) == chunk_size :
+                print "mapping!"
+                results = pool.map( computeBucket, data )
+
+
+            #d_pocket_bucket = computeBucket( d_pocket_EHS2, \
+                                             #bucket_percentiles[street_name] )
+                for (name,d_pocket_bucket) in zip(names,results) :
+                    fout = open( "%s/%s.bkts" % (dirname, name), 'w' )
+                    fout.write( dump( d_pocket_bucket ) )
+                    fout.close()
+                names = []
+                data = []
+
+        #clean up
+        print "last map"
+        results = pool.map( computeBucket, data )
+        #d_pocket_bucket = computeBucket( d_pocket_EHS2, \
+                                         #bucket_percentiles[street_name] )
+        for (name,d_pocket_bucket) in zip(names,results) :
             fout = open( "%s/%s.bkts" % (dirname, name), 'w' )
             fout.write( dump( d_pocket_bucket ) )
             fout.close()
+
         break
+
+    print "took: ", time()-atime
+    pool.close()
 
 def sampleTransitionProbs( street, n_samples, bucket_percentiles ) :
     pool = Pool( processes = 4 )
     dirname = "hsdists/%ss" % street
 
-    fout = open( "%s/transition_probs.txt" % dirname, 'w' )
-    write_buffer = [] # [[cboard, cboard', tran probs],[],...]
+    fout1 = open( "%s/transition_names.txt" % dirname, 'w' )
+    fout2 = open( "%s/transition_probs.txt" % dirname, 'w' )
+    write_buffer_1 = []
+    write_buffer_2 = [] # [[cboard, cboard', tran probs],[],...]
 
     fin = open( "%s/collapsed_representatives.txt" % dirname )
     representatives = load( fin.read() )
@@ -483,14 +541,27 @@ def sampleTransitionProbs( street, n_samples, bucket_percentiles ) :
                                       n_buckets, \
                                       d_pocket_buckets_prime, \
                                       n_buckets_prime )
-            write_buffer.append( [file,cboard,tprobs] )
+            prob_vector = []
+            for b in range(n_buckets) :
+                for bprime in range(n_buckets_prime) :
+                    if b in tprobs and bprime in tprobs[b] :
+                        prob_vector.append( tprobs[b][bprime] )
+                    else :
+                        prob_vector.append( 0.0 )
+
+            #write_buffer_1.append( "%s\t%s" % (file,cboard) )
+            fout1.write( "%s\t%s\n" % (file,cboard) )
+            fout2.write( dump( prob_vector, width=6000 )[1:-2] + "\n" )
+            #write_buffer_2.append ( prob_vector )
 
 
         #print bkt_filename
         #print len(d_cboard_aboard)
         dek.shuffle()
-        fout.write( dump( write_buffer ) )
-        write_buffer = []
+        #fout1.write( dump( write_buffer_1 ) )
+        #fout2.write( dump( write_buffer_2, width=5000 )[2:] )
+        #write_buffer_1 = []
+        #write_buffer_2 = []
         timeb = time()
         print "board: ", bkt_filename, " took: ", timeb-timea
 
@@ -500,9 +571,14 @@ def main() :
     pass
 
 if __name__ == '__main__' :
-    sampleTransitionProbs( "flop", 1, globles.BUCKET_PERCENTILES )
+    fin = open( "hsdists/flops/TTTT_q_r.hsdist2" )
+    d_pocket_EHS2 = load( fin.read() )
+    d_pocket_bucket = computeBucket( [d_pocket_EHS2, globles.BUCKET_PERCENTILES['turn']] )
+    print d_pocket_bucket['QdKd']
+    print d_pocket_bucket['2cAs']
+    #sampleTransitionProbs( "flop", 5, globles.BUCKET_PERCENTILES )
     ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
-    ##bucketAllEHS2Dists( globles.BUCKET_PERCENTILES ) 
+    #bucketAllEHS2Dists( globles.BUCKET_PERCENTILES ) 
     #computeEHS2DistsLongways()
     assert False
 
