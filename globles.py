@@ -3,6 +3,11 @@ BUCKET_PERCENTILES = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
                       'turn' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
                       'river': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }
 
+BUCKET_PERCENTILES_SMALL = {'flop' : [.4,.2,.15,.10,.08,.07], \
+                            'turn' : [.4,.3,.2,.1], \
+                            'river' : [.5,.5] }
+
+
 EVALUATOR = "pokereval"
 GAME = 'holdem'
 NA = 'xx'
