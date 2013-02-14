@@ -190,7 +190,7 @@ def computeBucket( data  ) :
     #print bucket_masses
     diff = sum(bucket_masses) - num_EHS2s
     bucket_masses[-1] -= diff
-    print "sum bucket_masses", sum(bucket_masses), "num_EHS2s", num_EHS2s
+    #print "sum bucket_masses", sum(bucket_masses), "num_EHS2s", num_EHS2s
 
     #Info about the bucket we are currently filling
     bucket_ix = 0
@@ -439,9 +439,12 @@ def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
     q = """select cboard,pocket,ehs2
            from EHS2_%s
            order by cboard,ehs2
-           limit 20000""" % (street_name.upper())
+           """ % (street_name.upper())
 
+    fout = open("%s_bulk_load.csv" % street_name,'w')
+    
     def process() :
+        buffer = []
         data = [pockets, ehs2s, bucket_percentiles[street_name]]
         d_pocket_bucket = computeBucket( data )
         for pocket in d_pocket_bucket :
@@ -454,22 +457,33 @@ def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
                     values.append( d_pocket_bucket[pocket][b] )
                 else :
                     values.append( 0 )
-            #print values
-            conn2.insert( bucket_table, values, skip_dupes = True )
+            ##print values
+            #conn2.insert( bucket_table, values, skip_dupes = True )
+            buffer.append( ",".join( [str(v) for v in values] ) )
+        fout.write( '\n'.join( buffer ) )
 
     last_cboard = ""
     pockets = []
     ehs2s = []
-    for row in conn.query( q ) :
+    for i,row in enumerate( conn.query( q ) ) :
         [cboard,pocket,ehs2] = row
-        if not last_cboard == cboard and not last_cboard == "" :
-            process()
+        if not last_cboard == cboard :
+            if last_cboard == "" :
+                pass
+            else :
+                process()
             last_cboard = cboard
+            pockets = [pocket]
+            ehs2s = [ehs2]
         else : 
             pockets.append( pocket )
             ehs2s.append( ehs2 )
 
+        if i % 10000 == 0 : print i
+
     process()
+
+    fout.close()
 
 def bucketAllEHS2Dists( bucket_percentiles ) :
     pool = Pool( processes = 4 )
