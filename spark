@@ -457,5 +457,25 @@ to compute the transition probs for a flop to all it's turns takes ~150s.  times
 Consider moving data to database.  That way it is indexed and less hectic than a bunch of tiny flat files.  Is the time spent doing this worth it?  Prob yes if I am going to have to rerun compute bucketAll again
 
 
+========================================================================================================================
+
+2/13/13
+
+moved onto DB storage scheme.  
+
+tables to store EHS2 and BUCKETS for each street
+
+loaded compute EHS2 data, computing Buckets directly from DB.  Fastest way:  bucketALLEHS2Dists_DB(): stream ehs2 data from database in an ordered fashion.  chunk it into groups computeBucket can handle.  Write insert statemenst to one big flat file.  Destroy indexes in BUCKET table, do 'load data infile 'file' into table toby.BUCKET;  (First copy file into /var/lib/mysql/toby/)
+
+very fast:  bucket the flop (2 mil <cboard,pocket> pairs) in 30s.
+
+------------
+
+Talked to charles today
+
+Need to focus on getting SOME kind of model up and working.  No point putting all this time in to transition probabilities if there is no need.  Build basic table and train.
+
+Also, don't think charles understands the game that well, a lot of his advice was very cursory.  Need to have something concrete to show, not just keep talking about board texture.
+
 
 
