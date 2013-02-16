@@ -478,4 +478,18 @@ Need to focus on getting SOME kind of model up and working.  No point putting al
 Also, don't think charles understands the game that well, a lot of his advice was very cursory.  Need to have something concrete to show, not just keep talking about board texture.
 
 
+=======================================================================================
 
+2/15/13
+
+The bucket belief nodes are continuous...  It's a prob distribution over the membership.  Can use Softmax or noisy or for the CPD to represent Belief->Action edge.  This will mean mixing the continuous belief state with discrete action states, how to analyze? Alternatively, to get started, can just take max or weighted avg of the prob_dist and use the winning bucket as the value.  Can also discretize the prob dist into units of 1/n (will make state space too big??)
+
+------------------
+
+Most immediate things to do: 
+
+1) compute EHS2 and buckets for the preflop stage
+2) come up with reasonable exponential bucketing percentiles, rebuild the BUCKETING tables on genomequery
+3) modify iterateActionStatesACPC to only emit showdown hands
+4) Tweak network to remove texture edges
+5) Train networked (this will be fully labeled, then test on remaining 10%)

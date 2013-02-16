@@ -209,24 +209,16 @@ def computeBucket( data  ) :
     count = 0 
     #append a -1 so the last run of values gets processed
     EHS2s.append(-1)
+    sorted_pockets.append(-1)
     for ehs2,pocket in zip(EHS2s,sorted_pockets) :
         if not ehs2 == last_seen_ehs2 :
             unbucketed_count = count
             remaining_space = bucket_total_mass - bucket_mass
             percentile = num_lower_ranked / float(sum(bucket_masses))
             #doprint = pocket[0] == 'Q' and pocket[2] == 'Q' 
-            doprint = False
-            if doprint :
-                print "herer"
-                print 'bucketix: ', bucket_ix
-                print 'remaining space: ', remaining_space
-                print 'unbucketd: ', unbucketed_count
             for pocket in d_reverse[last_seen_ehs2] :
-                if doprint : print pocket
                 membership_probs[pocket] = {}
                 membership_probs[pocket]['percentile'] = percentile
-
-            #if doprint : assert False
 
             #if we can't fit the unbucketed EHS2s in the current bucket
             #fill it up and increment to the next bucket
@@ -433,7 +425,7 @@ def computeEHS2DistsLongways() :
     pool.close()
 
 def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
-    street_name = 'flop'
+    street_name = 'turn'
     conn = db.Conn("localhost")
     conn2 = db.Conn("localhost", dry_run=False)
     q = """select cboard,pocket,ehs2
@@ -441,31 +433,38 @@ def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
            order by cboard,ehs2
            """ % (street_name.upper())
 
-    fout = open("%s_bulk_load.csv" % street_name,'w')
+    fout = open("/var/lib/mysql/toby/%s_bulk_load.csv" % street_name,'w')
+    #then run "mysql> load data infile '<file>' into table toby.<BUCKET>;"
     
     def process() :
         buffer = []
         data = [pockets, ehs2s, bucket_percentiles[street_name]]
         d_pocket_bucket = computeBucket( data )
+        #print d_pocket_bucket
         for pocket in d_pocket_bucket :
             perc = d_pocket_bucket[pocket]['percentile']
-            values = [cboard,pocket,perc]
+            values = [last_cboard,pocket,perc]
             #print values
-            db_buckets = max([len(bucket_percentiles[sn]) for sn in bucket_percentiles])
-            for b in range(db_buckets) :
+            #db_buckets = max([len(bucket_percentiles[sn]) for sn in bucket_percentiles])
+            nbuckets = len(bucket_percentiles[street_name])
+            bucket_string = []
+            for b in range(nbuckets) : #db_buckets) :
                 if b in d_pocket_bucket[pocket] :
-                    values.append( d_pocket_bucket[pocket][b] )
+                    #values.append
+                    bucket_string.append( d_pocket_bucket[pocket][b] )
                 else :
-                    values.append( 0 )
+                    bucket_string.append( 0 )
             ##print values
             #conn2.insert( bucket_table, values, skip_dupes = True )
+            bucket_string = ':'.join([str(t) for t in bucket_string])
+            values.append(bucket_string)
             buffer.append( ",".join( [str(v) for v in values] ) )
         fout.write( '\n'.join( buffer ) )
 
     last_cboard = ""
     pockets = []
     ehs2s = []
-    for i,row in enumerate( conn.query( q ) ) :
+    for i,row in enumerate( conn.iterateQuery( q ) ) :
         [cboard,pocket,ehs2] = row
         if not last_cboard == cboard :
             if last_cboard == "" :
@@ -635,7 +634,8 @@ def insertRepresentatives() :
 if __name__ == '__main__' :
     #sampleTransitionProbs( "flop", 5, globles.BUCKET_PERCENTILES )
     ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
-    bucketAllEHS2Dists_DB( 'BUCKET_HANDCRAFTED', globles.BUCKET_PERCENTILES_SMALL ) 
+    bucketAllEHS2Dists_DB( globles.BUCKET_TABLE_PREFIX, \
+                           globles.BUCKET_PERCENTILES_EXPO ) 
     #insertRepresentatives()
     #computeEHS2DistsLongways()
     assert False

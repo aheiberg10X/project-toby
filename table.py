@@ -1,8 +1,10 @@
 from history import History
 from player import Player
-from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS
+from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
 from deck import makeHuman
 import rollout
+
+import db
 
 # for storing information about the state of the game
 
@@ -28,6 +30,8 @@ class Table() :
             self.history = {}
             for s in STREET_NAMES :
                 self.history[s] = []
+
+        self.conn = db.Conn("localhost")
 
     def __str__(self) :
         r = []
@@ -309,15 +313,45 @@ class Table() :
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
         for street in range(len(self.action_states)) :
-            if   street == 1 : board = self.board[:3]
-            elif street == 2 : board = self.board[:4]
-            elif street == 3 : board = self.board
-            EHS2 = rollout.computeEHS2( pocket, board )
+            if steet == 0 :
+                q = """select *
+                       from %s%s
+                       where pocket = '%s'""" % \
+                               (BUCKET_TABLE_PREFIX,\
+                                'PREFLOP',\
+                                canonicalize(pocket))
+            else :
+                if   street == 1 : 
+                    board = self.board[:3]
+                    street_name = 'flop'
+                elif street == 2 : 
+                    board = self.board[:4]
+                    street_name = 'turn'
+                elif street == 3 : 
+                    board = self.board
+                    street_name = 'river'
+
+                #EHS2 = rollout.computeSingleEHS2( pocket, self.board )
+                q = """select *
+                       from %s%s
+                       where cboard = '%s' and pocket = '%s'""" % \
+                               (BUCKET_TABLE_PREFIX,\
+                                street_name.upper(),\
+                                collapseBoard(board),\
+                                canonicalize(pocket) )
+
+            [[row]] = db.query( q )
+            #TODO
+            #eventually the beliefs should be a continuous node, for now let's just
+            #cram it into the closest to the average
+            bucket = round((sum(row)/float(len(row))))
+
+
             if street == len(self.buckets)+1 :
                 self.buckets[street][pix] = EHS2
             else:
                 self.buckets.append( [0,0] )
-                self.bucket[street][pix] = EHS2
+                self.buckets[street][pix] = EHS2
 
             #self.action_states[street][pix].append( EHS2 )
         #print self.action_states
@@ -517,4 +551,4 @@ def main() :
     #t.newHand()
 
 if __name__ == '__main__' :
-    main()
+    eain()
