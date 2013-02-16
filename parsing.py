@@ -5,6 +5,7 @@ import json
 
 import table
 from globles import veryClose
+from deck import listify
 
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
@@ -246,7 +247,9 @@ def iterateActionStates( filename ) :
     print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
 
-def iterateActionStatesACPC( filename ) :
+def iterateActionStatesACPC( filename, \
+                             min_betting_rounds = 1, \
+                             must_have_showdown = False ) :
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
 
@@ -277,18 +280,21 @@ def iterateActionStatesACPC( filename ) :
         action_strings = splt[2].split('/')
         card_strings = splt[3].split('/')
         win_lose = splt[4]
-        button_player = splt[5].split("|")[1]
+        player_order = splt[5].split("|")
+        button_player = player_order[1]
         button = players.index(button_player)
-        
+ 
+        betting_rounds = len(action_strings)
+        if betting_rounds == 4 :
+            has_showdonw = 'f' not in action_string[3]
+       
         #print "new stacks: ", fresh_stacks
         tbl.newHand(players, pockets, [20000,20000], button)
 
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
             print street, action_string, card_string
             if street > 0 :
-                cards = [card_string[i:i+2] \
-                         for i in range(0,len(card_string),2)]
-                tbl.advanceStreet( cards )
+                tbl.advanceStreet( listify(card_string) )
             else :
                 tbl.registerAction('c')
                 tbl.registerAction('c')
@@ -338,12 +344,20 @@ def iterateActionStatesACPC( filename ) :
             pass
         tbl.advanceStreet(False)
         #register revealed
+        pocket_strings = card_strings[0].split('|')
+        for player_name, pocket_string in zip(player_order,pocket_strings) :
+            tbl.registerRevealedPocket( player_name, listify(pocket_string) )
 
 
         #emit the {"action_state", "buckets", "gameid"} dict for the last hand
-        yield {"action_states" : tbl.action_states, \
-               "buckets" : tbl.buckets, \
-               "game_id" : game_id}
+        if betting_rounds >= min_betting_rounds and \
+           (not must_have_showdown or \
+            (must_have_showdown and has_showdown) ) :
+            yield {"action_states" : tbl.action_states, \
+                   "buckets" : tbl.buckets, \
+                   "game_id" : game_id}
+        else :
+            pass
 
         #toggle button
         #if button == 0 : button = 1

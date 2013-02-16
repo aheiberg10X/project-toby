@@ -91,6 +91,12 @@ def deCanonicalize( card_string ) :
              for i \
              in range(0,len(splt),2) ]
 
+#turn card string into list
+def listify( card_string ) :
+    cards = [card_string[i:i+2] \
+             for i in range(0,len(card_string),2)]
+    return cards
+
 
 #return the distinct type of hole card (1326 -> 169)
 #hole_cards are [int,int]

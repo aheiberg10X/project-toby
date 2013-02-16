@@ -121,7 +121,14 @@ def mapReduceComputeEHS2( pool, \
 
 if __name__ == "__main__" :
 
-    print computeSingleEHS2( ['2h','9d'], [] )
+    print computeSingleEHS2( ['3c','9h'], ['2h','2d','3h'] )
+
+    #pool = Pool( processes = 2 )
+    #d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )
+    #fout = open("preflop_ehs2.txt",'w')
+    #fout.write( dump(d_pocket_EHS2) )
+    #fout.close()
+    #pool.close()
 
     #pocket_assignment = [['7d','2h'],['__','__']]
     #board = ['Ts','Jh','5s','7h','6d']
