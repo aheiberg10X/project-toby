@@ -1,7 +1,7 @@
 from history import History
 from player import Player
 from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
-from deck import makeHuman
+from deck import makeHuman, canonicalize
 import rollout
 
 import db
@@ -313,8 +313,8 @@ class Table() :
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
         for street in range(len(self.action_states)) :
-            if steet == 0 :
-                q = """select *
+            if street == 0 :
+                q = """select memberships 
                        from %s%s
                        where pocket = '%s'""" % \
                                (BUCKET_TABLE_PREFIX,\
@@ -332,7 +332,7 @@ class Table() :
                     street_name = 'river'
 
                 #EHS2 = rollout.computeSingleEHS2( pocket, self.board )
-                q = """select *
+                q = """select memberships
                        from %s%s
                        where cboard = '%s' and pocket = '%s'""" % \
                                (BUCKET_TABLE_PREFIX,\
@@ -340,10 +340,12 @@ class Table() :
                                 collapseBoard(board),\
                                 canonicalize(pocket) )
 
-            [[row]] = db.query( q )
+            [[memberships]] = self.conn.query( q )
             #TODO
             #eventually the beliefs should be a continuous node, for now let's just
             #cram it into the closest to the average
+            print memberships
+            assert "stop" == "here"
             bucket = round((sum(row)/float(len(row))))
 
 
@@ -551,4 +553,4 @@ def main() :
     #t.newHand()
 
 if __name__ == '__main__' :
-    eain()
+    main()

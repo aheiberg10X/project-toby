@@ -284,8 +284,8 @@ def iterateActionStatesACPC( filename, \
         button_player = player_order[1]
         button = players.index(button_player)
  
-        betting_rounds = len(action_strings)
-        if betting_rounds == 4 :
+        n_betting_rounds = len(action_strings)
+        if n_betting_rounds == 4 :
             has_showdonw = 'f' not in action_string[3]
        
         #print "new stacks: ", fresh_stacks
@@ -350,7 +350,7 @@ def iterateActionStatesACPC( filename, \
 
 
         #emit the {"action_state", "buckets", "gameid"} dict for the last hand
-        if betting_rounds >= min_betting_rounds and \
+        if n_betting_rounds >= min_betting_rounds and \
            (not must_have_showdown or \
             (must_have_showdown and has_showdown) ) :
             yield {"action_states" : tbl.action_states, \
@@ -365,27 +365,6 @@ def iterateActionStatesACPC( filename, \
    
 
 
-#Indexes (built around training_data.txt) :
-#   index_last_street.txt
-#   want rows(games) who reached the given street
-#   {..., ..., 2 : [line num of games that reached the turn], ...}
-#   
-#   index_aXY.txt
-#   for action_state on street X, player Y
-#   {a00 : [[line nums of games matching action_state_value1],[],...],
-#    a01 : [[],[line nums of games matching action_state_value2],...],
-#     ...}
-#   8 keys with list of ~7*2*2 inner lists.  Total ints in inner list ==
-#   the number of games in training data
-#   
-#   Will have to enumerate action_state values in some canonical order to make
-#   lists above be meaningful
-#   index_action_states.txt
-#   "[action,state,value1] : 0,
-#   "[action,state,value2} : 1, ... }
-#
-#   Should rep action_states as the str( list tuple of values )
-def indexActionStatesFile( filename ) :
     pass
 
 #deprecated 

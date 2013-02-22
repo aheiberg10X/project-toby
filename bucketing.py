@@ -425,7 +425,7 @@ def computeEHS2DistsLongways() :
     pool.close()
 
 def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
-    street_name = 'turn'
+    street_name = 'preflop'
     conn = db.Conn("localhost")
     conn2 = db.Conn("localhost", dry_run=False)
     q = """select cboard,pocket,ehs2
@@ -628,7 +628,6 @@ def insertRepresentatives() :
         for cboard in reps :
             aboard = ''.join(reps[cboard])
             conn.insert('REPRESENTATIVES',[cboard,aboard]  )
-
 
 
 if __name__ == '__main__' :

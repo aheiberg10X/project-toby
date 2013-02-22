@@ -467,6 +467,8 @@ tables to store EHS2 and BUCKETS for each street
 
 loaded compute EHS2 data, computing Buckets directly from DB.  Fastest way:  bucketALLEHS2Dists_DB(): stream ehs2 data from database in an ordered fashion.  chunk it into groups computeBucket can handle.  Write insert statemenst to one big flat file.  Destroy indexes in BUCKET table, do 'load data infile 'file' into table toby.BUCKET;  (First copy file into /var/lib/mysql/toby/)
 
+"mysql> load data infile '<file>' into table toby.<BUCKET> fields terminated by ',';"
+
 very fast:  bucket the flop (2 mil <cboard,pocket> pairs) in 30s.
 
 ------------
@@ -493,3 +495,19 @@ Most immediate things to do:
 3) modify iterateActionStatesACPC to only emit showdown hands
 4) Tweak network to remove texture edges
 5) Train networked (this will be fully labeled, then test on remaining 10%)
+	-how to do network training on server.  prob wont want to be doing on laptop
+
+---------------------
+
+head up preflop EV for 2 player
+http://wizardofodds.com/games/texas-hold-em/2-player-game/
+
+----------------------------
+
+wrote exponential.py, generating bulk load files on genomequery to load BUCKET tables.  Collapsed multiple bucket fileds into one CSV field
+
+==================================================================
+
+2/21/13
+
+on step 3
