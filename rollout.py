@@ -121,7 +121,8 @@ def mapReduceComputeEHS2( pool, \
 
 if __name__ == "__main__" :
 
-    print computeSingleEHS2( ['3c','9h'], ['2h','2d','3h'] )
+    print computeSingleEHS2( ['3h','3c'], ['Kd','6s','3d'] )
+    print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )
 
     #pool = Pool( processes = 2 )
     #d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )

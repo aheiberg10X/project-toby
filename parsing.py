@@ -296,6 +296,8 @@ def iterateActionStatesACPC( filename, \
             if street > 0 :
                 tbl.advanceStreet( listify(card_string) )
             else :
+                #force the first two 'calls' 
+                #registerAction translates them as the blind posting
                 tbl.registerAction('c')
                 tbl.registerAction('c')
                 tbl.advanceStreet( ['down','cards'] )
@@ -304,6 +306,7 @@ def iterateActionStatesACPC( filename, \
             ix = 0
             while ix < len(action_string) :
                 act = action_string[ix]
+                #'c' is overloaded, when no prev bet it means chec'k'
                 if act == 'c' and (prev_act != 'r' and \
                                    prev_act != 'b' and \
                                    prev_act != 'blinds') :
@@ -312,6 +315,7 @@ def iterateActionStatesACPC( filename, \
                     ix += 1
 
                 elif act == 'r' :
+                    #iterate through string to extract the bet amount
                     ints = []
                     ix += 1
                     while action_string[ix] not in ['r','c','f'] :
@@ -319,6 +323,7 @@ def iterateActionStatesACPC( filename, \
                         ix += 1
                     bet_amount = int(''.join(ints))
 
+                    #correct overbets
                     stack_amount = tbl.stacks[tbl.action_to]
                     if bet_amount > stack_amount :
                         bet_amount = stack_amount
@@ -340,10 +345,14 @@ def iterateActionStatesACPC( filename, \
 
                 prev_act = act
 
-            
-            pass
+        #all done iterating through the action/card lists
         tbl.advanceStreet(False)
+
         #register revealed
+        #TODO
+        #logic controlling whether or not we want to register...
+        #may want to emit the rest of the info about hands when a showdown
+        #didn't happen
         pocket_strings = card_strings[0].split('|')
         for player_name, pocket_string in zip(player_order,pocket_strings) :
             tbl.registerRevealedPocket( player_name, listify(pocket_string) )

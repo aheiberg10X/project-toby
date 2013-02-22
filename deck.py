@@ -459,6 +459,12 @@ def collapseBoard( board ) :
     crdnlts = ''.join([stringifyCardinality(c) for c in cardinalities])
     return "%s_%s_%s" % (crdnlts, rcard, rsuit)
 
+
+#need to change board -> board_prime (e.g we have EHS2 values for board prime,
+#but have observed board in the actual game.
+def symmetricComplement( board, pocket, board_prime ) :
+    pass
+
 def getStreet( board ) :
     num_unknown = sum([c == '__' for c in board])
     if   num_unknown == 5 : return 'preflop'

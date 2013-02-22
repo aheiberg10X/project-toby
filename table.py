@@ -1,8 +1,9 @@
 from history import History
 from player import Player
 from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
-from deck import makeHuman, canonicalize
+from deck import makeHuman, canonicalize, collapseBoard
 import rollout
+import globles
 
 import db
 
@@ -119,7 +120,7 @@ class Table() :
         #2nd dim = player 0 - (self.num_players-1)
         #3rd dim = particular feature.  The last one is the EHS2 belief
         self.action_states = []
-        self.buckets = []
+        self.buckets = [[-1,-1],[-1,-1],[-1,-1],[-1,-1]]
 
         self.features = { \
             #DONE (defacto)
@@ -314,11 +315,12 @@ class Table() :
         #print "registerRevealed player:", player_name
         for street in range(len(self.action_states)) :
             if street == 0 :
+                street_name = "preflop"
                 q = """select memberships 
                        from %s%s
                        where pocket = '%s'""" % \
                                (BUCKET_TABLE_PREFIX,\
-                                'PREFLOP',\
+                                street_name.upper(),\
                                 canonicalize(pocket))
             else :
                 if   street == 1 : 
@@ -331,29 +333,44 @@ class Table() :
                     board = self.board
                     street_name = 'river'
 
+                cboard = collapseBoard( board )
+                aboard = #look it up
+                nboard = canonicalize( board )
+                npocket = canonicalize( pocket )
+
+                #against aboard (which is what cboard was computed against)
+                #what is the pocket pair that has the same suit relationships
+                #as npocket does to nboard?
+                apocket = deck.symmetricComplement( nboard, npocket, aboard )
+
                 #EHS2 = rollout.computeSingleEHS2( pocket, self.board )
                 q = """select memberships
                        from %s%s
                        where cboard = '%s' and pocket = '%s'""" % \
                                (BUCKET_TABLE_PREFIX,\
                                 street_name.upper(),\
-                                collapseBoard(board),\
-                                canonicalize(pocket) )
+                                cboard,\
+                                apocket )
 
+            print  q 
             [[memberships]] = self.conn.query( q )
             #TODO
             #eventually the beliefs should be a continuous node, for now let's just
             #cram it into the closest to the average
-            print memberships
-            assert "stop" == "here"
-            bucket = round((sum(row)/float(len(row))))
+            memberships = [float(t) for t in memberships.split(':')]
+            #print "membs", memberships
+            wsum = [i*m for i,m in enumerate(memberships)]
+            #print "wsum:", wsum
+            bucket = round((sum(wsum)/len(wsum)))
+            #print "bucket,", bucket
 
 
-            if street == len(self.buckets)+1 :
-                self.buckets[street][pix] = EHS2
-            else:
-                self.buckets.append( [0,0] )
-                self.buckets[street][pix] = EHS2
+            #if street == len(self.buckets)+1 :
+                #self.buckets[street][pix] = bucket
+            #else:
+                #self.buckets.append( [0,0] )
+                #self.buckets[street][pix] = bucket
+            self.buckets[street][pix] = bucket
 
             #self.action_states[street][pix].append( EHS2 )
         #print self.action_states
