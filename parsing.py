@@ -285,8 +285,9 @@ def iterateActionStatesACPC( filename, \
         button = players.index(button_player)
  
         n_betting_rounds = len(action_strings)
+        has_showdown = False
         if n_betting_rounds == 4 :
-            has_showdonw = 'f' not in action_string[3]
+            has_showdonw = 'f' not in action_strings[3]
        
         #print "new stacks: ", fresh_stacks
         tbl.newHand(players, pockets, [20000,20000], button)
@@ -403,7 +404,7 @@ def splitActionStatesIntoTrainingFiles( filename ) :
 if __name__ == '__main__' :
 
     filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
-    filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
+    #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
 
     for thing in iterateActionStatesACPC( filename ) :
         print thing

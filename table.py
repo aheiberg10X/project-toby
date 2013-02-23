@@ -1,7 +1,7 @@
 from history import History
 from player import Player
 from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
-from deck import makeHuman, canonicalize, collapseBoard
+from deck import makeHuman, canonicalize, collapseBoard, listify, symmetricComplement
 import rollout
 import globles
 
@@ -334,15 +334,19 @@ class Table() :
                     street_name = 'river'
 
                 cboard = collapseBoard( board )
-                aboard = #look it up
-                nboard = canonicalize( board )
-                npocket = canonicalize( pocket )
+                q = """select aboard
+                       from REPRESENTATIVES
+                       where cboard = '%s'""" % (cboard)
+                [[aboard]] = self.conn.query(q)
+                aboard = listify(aboard)
 
-                #against aboard (which is what cboard was computed against)
-                #what is the pocket pair that has the same suit relationships
-                #as npocket does to nboard?
-                apocket = deck.symmetricComplement( nboard, npocket, aboard )
-
+                #pocket:board::apocket:aboard
+                print "board",board
+                print "aboard", aboard
+                apocket = symmetricComplement( board, pocket, aboard )
+                print "pocket",pocket
+                print "apocket", apocket
+                
                 #EHS2 = rollout.computeSingleEHS2( pocket, self.board )
                 q = """select memberships
                        from %s%s
@@ -359,9 +363,9 @@ class Table() :
             #cram it into the closest to the average
             memberships = [float(t) for t in memberships.split(':')]
             #print "membs", memberships
-            wsum = [i*m for i,m in enumerate(memberships)]
+            w = [i*m for i,m in enumerate(memberships)]
             #print "wsum:", wsum
-            bucket = round((sum(wsum)/len(wsum)))
+            bucket = int(round(sum(w)))
             #print "bucket,", bucket
 
 
@@ -505,8 +509,12 @@ class Table() :
                 t.append( closest_ratio )
 
                 #1 if last to act
-                #TODO: currently only works for heads-up
-                t.append( int(self.button == p) )
+                #TODO: hardcoded for heads up
+                #if advancing from preflop
+                if self.street == 1 :
+                    t.append( int(self.button != p ) )
+                else :
+                    t.append( int(self.button == p) )
 
                 if not self.current_bets[p] == 0 :
                     was_aggressive = int( (self.aggressive_pip[p] / \

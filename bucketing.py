@@ -1,5 +1,5 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize
+from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement
 from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
@@ -402,7 +402,7 @@ def computeEHS2DistsLongways() :
             cboard = collapseBoard( board )
             if cboard not in already_repped :
                 d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool,list(board) )
-                filename = "hsdists/%s/%s.hsdist" % (street_name, cboard)
+                filename = "hsdists/%s_2/%s.hsdist" % (street_name, cboard)
                 fout = open( filename, 'w' )
                 fout.write( json.dumps( d_pocket_EHS2 ) )
                 fout.close()
@@ -626,17 +626,85 @@ def insertRepresentatives() :
         reps = load( fin.read() )
         fin.close()
         for cboard in reps :
-            aboard = ''.join(reps[cboard])
+            aboard = canonicalize( reps[cboard] )
             conn.insert('REPRESENTATIVES',[cboard,aboard]  )
+
+def testSymmetric() :
+    conn  = db.Conn("localhost")
+    tests = []
+    #cboard is 455_p_r
+    #representative is 4h5d5c
+    board = ['4d','5h','5c']
+    pocket = ['5d','7s']
+    tests.append( (board,pocket,'FLOP') )
+
+    #cboard is 9TQ_h_2fxox
+    #rep is 9hQhTd
+    board = ['9s','Qs','Tc']
+    pocket = ['7h','Th']
+    tests.append( (board,pocket,'FLOP') )
+
+    #cboard is 34QK_h_3foxxx
+    #rep is 3h3dQdKd
+    board = ['3s','3h','Qh','Kh']
+    pocket = ['7h','Tc']
+    tests.append( (board, pocket, 'TURN') )
+
+    #cboard is
+    #rep is   2h   4h   7d   9d   Ad
+    board = ['2c','4h','7d','9h','Ah']
+    pocket = ['3c','Kh']
+    tests.append( (board,pocket,'RIVER') ) 
+
+    #cboard is 2335K_p_4f
+    #2h3h5hKh3d
+    board = ['2c','3d','3c','5c','Kc']
+    pocket = ['5s','Qc']
+    tests.append( (board,pocket,'RIVER') )
+
+    board = ['5c','5d','7c','7d','Qs']
+    pocket = ['6c','Qh']
+    tests.append( (board,pocket,'RIVER') )
+
+    for (board,pocket,street_name) in tests :
+
+        cboard = collapseBoard( board )
+        #print "cboard", cboard
+        q = """select aboard from REPRESENTATIVES where cboard = '%s'""" % \
+                (cboard)
+        [[aboard]] = conn.query(q)
+        #print "board", board
+        #print "aboard", listify(aboard)
+        #print "pocket", pocket
+
+        pocketp = listify( symmetricComplement( board, \
+                                                pocket,\
+                                                listify(aboard) ) )
+
+        #print "pocketp: " , pocketp
+        ehs2 = rollout.computeSingleEHS2( pocket, board )
+        print ehs2
+        q = """select ehs2 from EHS2_%s
+               where cboard = '%s' and pocket = '%s'""" % (street_name, \
+                                                           cboard, \
+                                                           canonicalize(pocketp) )
+        [[ehs2p]] = conn.query(q)
+        ehs2p = float(ehs2p)
+        print ehs2p
+        assert round(ehs2,4) == round(ehs2p,4)
+        #ehs2p = 
+
+
 
 
 if __name__ == '__main__' :
+    #testSymmetric()
     #sampleTransitionProbs( "flop", 5, globles.BUCKET_PERCENTILES )
     ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
-    bucketAllEHS2Dists_DB( globles.BUCKET_TABLE_PREFIX, \
-                           globles.BUCKET_PERCENTILES_EXPO ) 
+    #bucketAllEHS2Dists_DB( globles.BUCKET_TABLE_PREFIX, \
+                           #globles.BUCKET_PERCENTILES_EXPO ) 
     #insertRepresentatives()
-    #computeEHS2DistsLongways()
+    computeEHS2DistsLongways()
     assert False
 
     #board = ['2d','3s','8h','Qd']

@@ -79,6 +79,8 @@ def intifyCardinality( c ) :
 
 #return a comma separated list of human readable cards, sorted by numeric value
 def canonicalize( cards ) :
+    if type(cards) == str :
+        cards = listify(cards)
     cards = makeMachine(cards)
     cards.sort()
     return ''.join( makeHuman(cards) )
@@ -337,7 +339,6 @@ def collapseBoard( board ) :
                     #rsuit = '4f'+ 'x'*i + 'o' + 'x'*(5-i-1)
                 else:
                     assert False
-                rsuit = '4f' 
             elif max_suit_count == 3 :
                 if rcard == 'p' :
                     for c in card_counts :
@@ -460,10 +461,159 @@ def collapseBoard( board ) :
     return "%s_%s_%s" % (crdnlts, rcard, rsuit)
 
 
-#need to change board -> board_prime (e.g we have EHS2 values for board prime,
-#but have observed board in the actual game.
-def symmetricComplement( board, pocket, board_prime ) :
-    pass
+#returns the pocketp that satisfies:
+#'pocketp' : 'boardp' :: 'pocket' : 'board' 
+def symmetricComplement( board, pocket, boardp ) :
+    cboard = collapseBoard(board)
+
+    #if the board is a rainbow, it doesn't matter what the mapping is
+    #it only matters that pocketp has the right cardinalities, and that
+    #the cards do not conflict with boardp
+    is_rainbow = cboard[-1] == 'r'
+    if is_rainbow :
+        #pick two cards of correct cardinality that don't conflict with boardp
+        pocketp = [-1,-1]
+        for pix in range(len(pocket)) :
+            p = pocket[pix]
+            card,suit = p[0],p[1]
+            suits = [suit,'h','d','c','s']
+            found = False
+            for s in suits :
+                if card+s not in boardp :
+                    pocketp[pix] = card+s
+                    found = True
+                    break
+            assert found
+        return canonicalize(pocketp)
+
+    ##align board to boardp
+    ##new_board = [0]*len(board)
+    ##if an element in board doesn't match anything in boardp exactly
+    ###place in 'leftovers' for further processing
+    #leftovers = []
+    #for c in board :
+        #match_found = False
+        #for j in range(len(boardp)) :
+            #cp = boardp[j]
+            #if c == cp :
+                #new_board[j] = c
+                #match_found = True
+                #break
+        #if not match_found :
+            #leftovers.append(c) 
+    #for c in leftovers :
+        ##for j in range(len(boardp)) :
+            #cp = boardp[j]
+            #if c[0] == cp[0] and new_board[j] == 0 :
+                #new_board[j] = c
+                #break
+#
+
+    #info about the suits in board
+    board_suits = [getSuit(c) for c in board]
+    board_suit_counts = {}
+    board_max_suit, board_max_suit_count = 'uninit',0
+    for s in board_suits :
+        if s in board_suit_counts :
+            board_suit_counts[s] += 1
+        else:
+            board_suit_counts[s] = 1
+        if board_suit_counts[s] > board_max_suit_count :
+            board_max_suit_count = board_suit_counts[s]
+            board_max_suit = s
+
+    #info about the suits in boardp
+    boardp_suits = [getSuit(c) for c in boardp]
+    boardp_suit_counts = {}
+    boardp_max_suit, boardp_max_suit_count = 'uninit',0
+    for s in boardp_suits :
+        if s in boardp_suit_counts :
+            boardp_suit_counts[s] += 1
+        else:
+            boardp_suit_counts[s] = 1
+        if boardp_suit_counts[s] > boardp_max_suit_count :
+            boardp_max_suit_count = boardp_suit_counts[s]
+            boardp_max_suit = s
+
+    assert boardp_max_suit_count == board_max_suit_count
+    #sort the suits for each board in descended order according to their counts
+    board_sorted_suits = sorted( board_suit_counts, key=lambda s:board_suit_counts[s], reverse=True )
+    boardp_sorted_suits = sorted( boardp_suit_counts, key=lambda s:boardp_suit_counts[s], reverse=True )
+
+    #will hold the final suit mapping
+    suit_map = {}
+    #these recond which suits have been used by each board
+    suits = set(['h','d','c','s'])
+    suitsp = set(['h','d','c','s'])
+
+    #map the most frequent suits in each board together
+    for bsuit, bpsuit in zip(board_sorted_suits, boardp_sorted_suits) :
+        #assert board_suit_counts[bsuit] == boardp_suit_counts[bpsuit]
+        if board_suit_counts[bsuit] > 1 and boardp_suit_counts[bpsuit] > 1 :
+            suit_map[bsuit] = bpsuit
+            suits.remove(bsuit)
+            suitsp.remove(bpsuit)
+    print "intermediate suit_map: " , suit_map
+
+    illegal_map = {}
+    for p in pocket :
+        print pocket
+        pc = getCardinality(p)
+        ps = getSuit(p)
+        for b in boardp :
+            bc = getCardinality(b)
+            bs = getSuit(b)
+            if pc == bc and ps not in suit_map :
+                print "!", pc,ps,bc,bs
+                if ps in illegal_map :
+                    illegal_map[ps][bs] = 1
+                else :
+                    illegal_map[ps] = {bs:1}
+    print "illegal_map:", illegal_map
+
+    used = {}
+    #map the ones with illegalities
+    for s in illegal_map :
+        print "illegal suit: ", s, illegal_map[s]
+        for sp in suitsp :
+            if sp not in used and sp not in illegal_map[s] :
+                suit_map[s] = sp
+                if s in suits :
+                    suits.remove(s)
+                print suit_map, suits, suitsp
+                break
+
+    #arbitrarily map the remaining minority suits to one another
+    for s in suits :
+        print "s",s
+        for sp in suitsp :
+            print "sp",sp
+            if sp not in used and not (s in illegal_map and sp in illegal_map[s]) :
+                print "mapping", s, " to " , sp
+                suit_map[s] = sp
+                used[sp] = True
+                break
+            else :
+                print "not allowed"
+            #if not (s in illegal_map and sp in illegal_map[s]) :
+                #print "not illegal"
+                #suit_map[s] = sp
+                #if s not in illegal_map :
+                    #illegal_map[s] = {sp:1}
+                #else :
+                    #illegal_map[s][sp] = 1
+                #break
+    pocket = canonicalize(pocket) #sorted( pocket, key=lambda x:x[0] )
+    print suit_map
+    #the new pocket to be returned
+    pocketp = []
+    #apply the mapping
+    for c in pocket :
+        if c in suit_map :
+            pocketp.append( suit_map[c] )
+        else :
+            pocketp.append( c )
+    return canonicalize( ''.join(pocketp) )
 
 def getStreet( board ) :
     num_unknown = sum([c == '__' for c in board])
@@ -530,7 +680,16 @@ def main() :
     print deCanonical( '3d8cTs' )
 
 if __name__ == '__main__' :
-    print canonicalize(['__','__'])
+    board = ['3h','Qh','3d','Kh']
+    boardp= ['3s','Qh','Kh','3h']
+    pocket = ['5d','7s']
+
+    print collapseBoard(['2h','3h','4h','9h','Kd'])
+    print collapseBoard(['2h','3h','4s','9h','Kh'])
+
+    #print symmetricComplement( board, pocket,\
+                         #boardp )
+
     #main()
 
 

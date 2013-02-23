@@ -4,10 +4,12 @@ import pokereval
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
+from yaml import load, dump
 
 pe = pokereval.PokerEval()
 
 def computeSingleEHS2( pocket, board ) :
+    print pocket
     r = computeEHS2( [ [['__','__'],pocket], board, 'HS' ] )
     return r[canonicalize(pocket)]
 
@@ -120,16 +122,16 @@ def mapReduceComputeEHS2( pool, \
 ########################################################################
 
 if __name__ == "__main__" :
+#
+    #print computeSingleEHS2( ['3h','3c'], ['Kd','6s','3d'] )
+    #print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )
 
-    print computeSingleEHS2( ['3h','3c'], ['Kd','6s','3d'] )
-    print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )
-
-    #pool = Pool( processes = 2 )
-    #d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )
-    #fout = open("preflop_ehs2.txt",'w')
-    #fout.write( dump(d_pocket_EHS2) )
-    #fout.close()
-    #pool.close()
+    pool = Pool( processes = 8 )
+    d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )
+    fout = open("preflop_ehs2.txt",'w')
+    fout.write( dump(d_pocket_EHS2) )
+    fout.close()
+    pool.close()
 
     #pocket_assignment = [['7d','2h'],['__','__']]
     #board = ['Ts','Jh','5s','7h','6d']
