@@ -4,18 +4,7 @@ from pokereval import PokerEval
 import globles
 import re
 
-#DEPRECATED, just using pokereval string2card and card2string to convert
-#human-readable values for the 52 cards
-#matches that of pypoker-eval
-#humancards = []
-#for suit in suits :
-    #for num in [str(v) for v in range(2,10)] + ['T','J','Q','K','A'] :
-        #humancards.append( str(num)+suit )
-#WILDCARD 52
-#humancards.append( '__' )
-#WILDCARD 53
-#humancards.append( 'x' )
-
+#this is the suit ordering that PokerEval uses
 suits = ('h','d','c','s')
 pe = PokerEval()
 
@@ -62,7 +51,6 @@ def makeMachine( cards ) :
             r.append( pe.string2card(c) )
     return r
 
-
 CARDINALITIES = [str(v) for v in range(2,10)] + ['T','J','Q','K','A']
 def stringifyCardinality( c ) :
     d = {}
@@ -71,6 +59,7 @@ def stringifyCardinality( c ) :
     #d = {2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9', \
          #10:'T',11:'J',12:'Q',13:'K',14:'A'}
     return d[c]
+
 def intifyCardinality( c ) :
     d = {}
     for i,card in enumerate(CARDINALITIES) :
@@ -85,6 +74,7 @@ def canonicalize( cards ) :
     cards.sort()
     return ''.join( makeHuman(cards) )
 
+#used anywhere?
 suit_split = re.compile(r'([hsdc])')
 def deCanonicalize( card_string ) :
     if card_string.startswith('d') : card_string = card_string[1:]
@@ -98,7 +88,6 @@ def listify( card_string ) :
     cards = [card_string[i:i+2] \
              for i in range(0,len(card_string),2)]
     return cards
-
 
 #return the distinct type of hole card (1326 -> 169)
 #hole_cards are [int,int]
@@ -123,52 +112,6 @@ def collapsePocket( hole_cards ) :
         return ('%s%s%s' % (stringifyCardinality(c1), \
                             stringifyCardinality(c2),
                             suit) )
-
-#TODO
-#To be continued???
-#def numPocketsMakeStraight( sorted_cardinalities ) :
-    #values = []
-    #counts = {}
-    #l = len(sorted_cardinalities)
-    #max_count = 0
-    #max_value = -1
-    #for i,c in enumerate(sorted_cardinalities) :
-        #v = c+l-i
-        #if v in counts :
-            #counts[v] += 1
-        #else :
-            #counts[v] = 1
-        #if counts[v] >= max_count :
-            #max_count = counts[v]
-            #max_value = v
-        #values.append( v )
-#
-    #print max_value
-    #print max_count
-#
-    ##put a hole on the beginning and end
-    #holes = [0]*2 + map( lambda x : x == max_value, values ) + [0]*2
-
-
-def isStraight( sorted_cardinalities ) :
-    if sorted_cardinalities[-1] == 14 :
-        if isStraight( [1] + sorted_cardinalities[0:-1] ) :
-            return True
-      
-    value = -1
-    l = len(sorted_cardinalities) - 1
-    for i,c in enumerate(sorted_cardinalities) :
-        i = l - i
-        if value == -1 :
-            value = i+c
-        else :
-            if not i+c == value : return False
-    return True
-
-#def flushString( suits ) :
-    #l = len(suits)
-    #combinations( range(l), 
-
 
 def collapseBoard( board ) :
     if type(board) == str :
@@ -460,7 +403,6 @@ def collapseBoard( board ) :
     crdnlts = ''.join([stringifyCardinality(c) for c in cardinalities])
     return "%s_%s_%s" % (crdnlts, rcard, rsuit)
 
-
 #returns the pocketp that satisfies:
 #'pocketp' : 'boardp' :: 'pocket' : 'board' 
 def symmetricComplement( board, pocket, boardp ) :
@@ -486,28 +428,8 @@ def symmetricComplement( board, pocket, boardp ) :
             assert found
         return canonicalize(pocketp)
 
-    ##align board to boardp
-    ##new_board = [0]*len(board)
-    ##if an element in board doesn't match anything in boardp exactly
-    ###place in 'leftovers' for further processing
-    #leftovers = []
-    #for c in board :
-        #match_found = False
-        #for j in range(len(boardp)) :
-            #cp = boardp[j]
-            #if c == cp :
-                #new_board[j] = c
-                #match_found = True
-                #break
-        #if not match_found :
-            #leftovers.append(c) 
-    #for c in leftovers :
-        ##for j in range(len(boardp)) :
-            #cp = boardp[j]
-            #if c[0] == cp[0] and new_board[j] == 0 :
-                #new_board[j] = c
-                #break
-#
+    #idea is to match determine the functionally important suits in board
+    #and match them to those in boardp (i.e suit count >= 2 )
 
     #info about the suits in board
     board_suits = [getSuit(c) for c in board]
@@ -536,25 +458,43 @@ def symmetricComplement( board, pocket, boardp ) :
             boardp_max_suit = s
 
     assert boardp_max_suit_count == board_max_suit_count
-    #sort the suits for each board in descended order according to their counts
-    board_sorted_suits = sorted( board_suit_counts, key=lambda s:board_suit_counts[s], reverse=True )
-    boardp_sorted_suits = sorted( boardp_suit_counts, key=lambda s:boardp_suit_counts[s], reverse=True )
+
+    #sort the suits for each board in descending order according to their counts
+    board_sorted_suits = sorted( board_suit_counts, \
+                                 key = lambda s:board_suit_counts[s], \
+                                 reverse=True )
+    boardp_sorted_suits = sorted( boardp_suit_counts, \
+                                  key = lambda s:boardp_suit_counts[s], \
+                                  reverse=True )
 
     #will hold the final suit mapping
     suit_map = {}
-    #these recond which suits have been used by each board
+
+    #these hold the suits not yet used in suit_map
     suits = set(['h','d','c','s'])
     suitsp = set(['h','d','c','s'])
 
     #map the most frequent suits in each board together
     for bsuit, bpsuit in zip(board_sorted_suits, boardp_sorted_suits) :
-        #assert board_suit_counts[bsuit] == boardp_suit_counts[bpsuit]
         if board_suit_counts[bsuit] > 1 and boardp_suit_counts[bpsuit] > 1 :
             suit_map[bsuit] = bpsuit
             suits.remove(bsuit)
             suitsp.remove(bpsuit)
+        else :
+            #can be of count 2 in one board and 1 in the other
+            #e.g river with 3f and 2f, and 3f and 1f 1f.
+            pass
+
     print "intermediate suit_map: " , suit_map
 
+    #now map the remaining suits
+    #-
+    #first, recognize that some mappings are illegal
+    #consider board: [2c 3c 4c 8h 9d] and pokcet [7d Kh]
+    #        boardp: [2d 3d 4d 7s 9s]
+    #obviously c -> d.  But if we pick d -> s, 7d->7s, which is impossible
+    #according to boardp
+    #illegal_map = {board_suit : {boardp_suit : 1, ...} , ... }
     illegal_map = {}
     for p in pocket :
         print pocket
@@ -566,21 +506,27 @@ def symmetricComplement( board, pocket, boardp ) :
             if pc == bc and ps not in suit_map :
                 print "!", pc,ps,bc,bs
                 if ps in illegal_map :
-                    illegal_map[ps][bs] = 1
+                    illegal_map[ps][bs] = True
                 else :
-                    illegal_map[ps] = {bs:1}
+                    illegal_map[ps] = {bs:True}
     print "illegal_map:", illegal_map
 
+    #now we are ready to finish the mapping
+    #first map the suits that have illegal mappings
+    
+    #since we cannot modify a collection as we iterate through it,
+    #we maintain 'used' to prohibit future mappings to use a suit that
+    #has just been assigned
     used = {}
-    #map the ones with illegalities
     for s in illegal_map :
         print "illegal suit: ", s, illegal_map[s]
         for sp in suitsp :
             if sp not in used and sp not in illegal_map[s] :
                 suit_map[s] = sp
-                if s in suits :
-                    suits.remove(s)
+                #if s in suits :
+                suits.remove(s)
                 print suit_map, suits, suitsp
+                used[sp] = True 
                 break
 
     #arbitrarily map the remaining minority suits to one another
@@ -588,26 +534,18 @@ def symmetricComplement( board, pocket, boardp ) :
         print "s",s
         for sp in suitsp :
             print "sp",sp
-            if sp not in used and not (s in illegal_map and sp in illegal_map[s]) :
+            if sp not in used :
                 print "mapping", s, " to " , sp
                 suit_map[s] = sp
                 used[sp] = True
                 break
             else :
                 print "not allowed"
-            #if not (s in illegal_map and sp in illegal_map[s]) :
-                #print "not illegal"
-                #suit_map[s] = sp
-                #if s not in illegal_map :
-                    #illegal_map[s] = {sp:1}
-                #else :
-                    #illegal_map[s][sp] = 1
-                #break
+    
+    #apply the mapping
     pocket = canonicalize(pocket) #sorted( pocket, key=lambda x:x[0] )
     print suit_map
-    #the new pocket to be returned
     pocketp = []
-    #apply the mapping
     for c in pocket :
         if c in suit_map :
             pocketp.append( suit_map[c] )

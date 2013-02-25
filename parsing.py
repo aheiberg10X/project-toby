@@ -10,7 +10,145 @@ from deck import listify
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
+def iterateActionStatesACPC( filename, \
+                             min_betting_rounds = 1, \
+                             must_have_showdown = False ) :
+    fin = open(filename)
+    #TODO: glean small blind from, or always the same?
 
+    #button is the second player, small blind
+    splt = filename.split('.')
+    players = [ splt[1], splt[2] ]
+    perm = int(splt[4][5:])
+    if perm == 1 :
+        button = 0
+    else :
+        button = 1
+
+    #stacks are always reset to 20000 at the start of every game 
+    pockets = [['__','__'],['__','__']]
+
+    tbl = table.Table( small_blind=50 )
+    header = fin.readline()
+    for i in range(3) : burn = fin.readline()
+    for line in fin.readlines() : 
+
+        splt = line.strip().split(':')
+        if splt[0] == "SCORE" :
+            #do something with total score?
+            break
+
+        game_id = int(splt[1])
+        print "\nGAME_ID:", game_id
+        action_strings = splt[2].split('/')
+        card_strings = splt[3].split('/')
+        win_lose = splt[4]
+        player_order = splt[5].split("|")
+        button_player = player_order[1]
+        button = players.index(button_player)
+ 
+        n_betting_rounds = len(action_strings)
+        has_showdown = False
+        if n_betting_rounds == 4 :
+            has_showdonw = 'f' not in action_strings[3]
+       
+        #print "new stacks: ", fresh_stacks
+        tbl.newHand(players, pockets, [20000,20000], button)
+
+        for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
+            print street, action_string, card_string
+            if street > 0 :
+                tbl.advanceStreet( listify(card_string) )
+            else :
+                #force the first two 'calls' 
+                #registerAction translates them as the blind posting
+                tbl.registerAction('c')
+                tbl.registerAction('c')
+                tbl.advanceStreet( ['down','cards'] )
+            
+            prev_act = 'blinds'
+            ix = 0
+            while ix < len(action_string) :
+                act = action_string[ix]
+                #'c' is overloaded, when no prev bet it means chec'k'
+                if act == 'c' and (prev_act != 'r' and \
+                                   prev_act != 'b' and \
+                                   prev_act != 'blinds') :
+                    act = 'k'
+                    tbl.registerAction( act )
+                    ix += 1
+
+                elif act == 'r' :
+                    #iterate through string to extract the bet amount
+                    ints = []
+                    ix += 1
+                    while action_string[ix] not in ['r','c','f'] :
+                        ints.append( action_string[ix] )
+                        ix += 1
+                    bet_amount = int(''.join(ints))
+
+                    #correct overbets
+                    stack_amount = tbl.stacks[tbl.action_to]
+                    if bet_amount > stack_amount :
+                        bet_amount = stack_amount
+
+                    if prev_act == 'b' or prev_act == 'r' :
+                        act = 'r'
+                    else :
+                        act = 'b'
+
+                    tbl.registerAction( act, bet_amount )
+
+                #true call or fold
+                elif act == 'c' or act == 'f' :
+                    tbl.registerAction( act )
+                    ix += 1
+
+                else :
+                    assert False
+
+                prev_act = act
+
+        #all done iterating through the action/card lists
+        tbl.advanceStreet(False)
+
+        #register revealed
+        #TODO
+        #logic controlling whether or not we want to register...
+        #may want to emit the rest of the info about hands when a showdown
+        #didn't happen
+        pocket_strings = card_strings[0].split('|')
+        for player_name, pocket_string in zip(player_order,pocket_strings) :
+            tbl.registerRevealedPocket( player_name, listify(pocket_string) )
+
+
+        #emit the {"action_state", "buckets", "gameid"} dict for the last hand
+        if n_betting_rounds >= min_betting_rounds and \
+           (not must_have_showdown or \
+            (must_have_showdown and has_showdown) ) :
+            yield {"action_states" : tbl.action_states, \
+                   "buckets" : tbl.buckets, \
+                   "game_id" : game_id}
+        else :
+            pass
+
+
+if __name__ == '__main__' :
+
+    filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
+    #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
+
+    for thing in iterateActionStatesACPC( filename ) :
+        print thing
+
+
+    filename1 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
+
+    filename2 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt"
+ 
+#############################################################################
+##### Party Poker Stuff
+#############################################################################
 #partypoker logs from handhq.com
 re_game_id = re.compile(r'\*\*\*\*\* Hand History for Game (\d+) \*\*\*\*\*')
 re_table_name = re.compile(r'Table (.*) \(Real Money\)')
@@ -22,6 +160,7 @@ re_seat = re.compile(r'Seat (\d): (.*) \( \$(\d+)(\.(\d\d))? USD \)')
 re_dealing = re.compile(r'\*\* Dealing (.*) \*\* (.*)')
 re_shows = re.compile(r'(\w*) (doesn\'t )?show[s]? \[ (..), (..) \]')
 re_end = re.compile(r'(\w*) wins \$(\d+)(\.(\d\d))? USD from the main pot.')
+
 
 #take all the histories as downloaded from handhq and put them into one file
 def concatentateHistories( parent_dir ) :
@@ -247,198 +386,6 @@ def iterateActionStates( filename ) :
     print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
 
-def iterateActionStatesACPC( filename, \
-                             min_betting_rounds = 1, \
-                             must_have_showdown = False ) :
-    fin = open(filename)
-    #TODO: glean small blind from, or always the same?
-
-    #button is the second player, small blind
-    splt = filename.split('.')
-    players = [ splt[1], splt[2] ]
-    perm = int(splt[4][5:])
-    if perm == 1 :
-        button = 0
-    else :
-        button = 1
-
-    #stacks are always reset to 20000 at the start of every game 
-    pockets = [['__','__'],['__','__']]
-
-    tbl = table.Table( small_blind=50 )
-    header = fin.readline()
-    for i in range(3) : burn = fin.readline()
-    for line in fin.readlines() : 
-
-        splt = line.strip().split(':')
-        if splt[0] == "SCORE" :
-            #do something with total score?
-            break
-
-        game_id = int(splt[1])
-        print "\nGAME_ID:", game_id
-        action_strings = splt[2].split('/')
-        card_strings = splt[3].split('/')
-        win_lose = splt[4]
-        player_order = splt[5].split("|")
-        button_player = player_order[1]
-        button = players.index(button_player)
- 
-        n_betting_rounds = len(action_strings)
-        has_showdown = False
-        if n_betting_rounds == 4 :
-            has_showdonw = 'f' not in action_strings[3]
-       
-        #print "new stacks: ", fresh_stacks
-        tbl.newHand(players, pockets, [20000,20000], button)
-
-        for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
-            print street, action_string, card_string
-            if street > 0 :
-                tbl.advanceStreet( listify(card_string) )
-            else :
-                #force the first two 'calls' 
-                #registerAction translates them as the blind posting
-                tbl.registerAction('c')
-                tbl.registerAction('c')
-                tbl.advanceStreet( ['down','cards'] )
-            
-            prev_act = 'blinds'
-            ix = 0
-            while ix < len(action_string) :
-                act = action_string[ix]
-                #'c' is overloaded, when no prev bet it means chec'k'
-                if act == 'c' and (prev_act != 'r' and \
-                                   prev_act != 'b' and \
-                                   prev_act != 'blinds') :
-                    act = 'k'
-                    tbl.registerAction( act )
-                    ix += 1
-
-                elif act == 'r' :
-                    #iterate through string to extract the bet amount
-                    ints = []
-                    ix += 1
-                    while action_string[ix] not in ['r','c','f'] :
-                        ints.append( action_string[ix] )
-                        ix += 1
-                    bet_amount = int(''.join(ints))
-
-                    #correct overbets
-                    stack_amount = tbl.stacks[tbl.action_to]
-                    if bet_amount > stack_amount :
-                        bet_amount = stack_amount
-
-                    if prev_act == 'b' or prev_act == 'r' :
-                        act = 'r'
-                    else :
-                        act = 'b'
-
-                    tbl.registerAction( act, bet_amount )
-
-                #true call or fold
-                elif act == 'c' or act == 'f' :
-                    tbl.registerAction( act )
-                    ix += 1
-
-                else :
-                    assert False
-
-                prev_act = act
-
-        #all done iterating through the action/card lists
-        tbl.advanceStreet(False)
-
-        #register revealed
-        #TODO
-        #logic controlling whether or not we want to register...
-        #may want to emit the rest of the info about hands when a showdown
-        #didn't happen
-        pocket_strings = card_strings[0].split('|')
-        for player_name, pocket_string in zip(player_order,pocket_strings) :
-            tbl.registerRevealedPocket( player_name, listify(pocket_string) )
 
 
-        #emit the {"action_state", "buckets", "gameid"} dict for the last hand
-        if n_betting_rounds >= min_betting_rounds and \
-           (not must_have_showdown or \
-            (must_have_showdown and has_showdown) ) :
-            yield {"action_states" : tbl.action_states, \
-                   "buckets" : tbl.buckets, \
-                   "game_id" : game_id}
-        else :
-            pass
-
-        #toggle button
-        #if button == 0 : button = 1
-        #else :           button = 0
-   
-
-
-    pass
-
-#deprecated 
-def splitActionStatesIntoTrainingFiles( filename ) :
-
-    features = [[],[],[],[]]
-
-    #for bid_feature in extractBidFeatures( "%s.txt" % filename ) :
-        ##print bid_feature
-        #street = bid_feature[0]
-        #for player in range( 1,len(bid_feature) ) :
-            #features[street].append( bid_feature[player] )
-#
-    #fpre = open( "%s_preflop_bid_features.txt" % filename, 'w' )
-    #fflop = open( "%s_flop_bid_features.txt" % filename, 'w' )
-    #fturn = open( "%s_turn_bid_features.txt" % filename, 'w' )
-    #friver = open( "%s_river_bid_features.txt" % filename, 'w' )
-    #fpre.write( json.dumps( features[0] ) )
-    #fflop.write( json.dumps( features[1] ) )
-    #fturn.write( json.dumps( features[2] ) )
-    #friver.write( json.dumps( features[3] ) )
-    #fpre.close()
-    #fflop.close()
-    #fturn.close()
-    #friver.close()
-
-if __name__ == '__main__' :
-
-    filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
-    #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
-
-    for thing in iterateActionStatesACPC( filename ) :
-        print thing
-
-
-    filename1 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
-
-    filename2 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt"
- 
-    #parse EHS2 out of training_data
-    #fin = open(filename)
-    #for line in fin.readlines() :
-        #array = json.loads(line)
-        #print array, len(array)
-        #if len(array) > 1 and len(array[1][1]) == 4 :
-            #print "yep"
-        #else :
-            #print "nope"
-    #fin.close()
-
-    ##write action states to file
-    #fout = open( filename2, 'w' )
-    #for actstate in iterateActionStates( filename1 ) : 
-        #fout.write( str(actstate)+"\n" )
-    #fout.close()
-
-    
-    #splitHistoryFileByTable(filename)
-    #concatentateHistories( "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534" )
-
-    #street = "flop"
-    #cols = [0,1,2] 
-    #col_names = ["pip_to_pot","in_position","aggression"]
-    #bid_features = json.loads( open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories_%s_bid_features.txt" % street).read() )
-    #for col,name in zip(cols, col_names) :
-        #open("histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/%s_%s.txt" % (name,street) ,'w').write( json.dumps( [bf[col] for bf in bid_features]) )
 

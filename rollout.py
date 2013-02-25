@@ -119,19 +119,35 @@ def mapReduceComputeEHS2( pool, \
     #print d_pocket_HS2
     return d_pocket_HS2 
 
+def computePreflopEV() :
+    dek = Deck()
+    fout  = open("preflop_ev.txt",'w')
+    for pocket in combinations( dek.cards, 2 ) :
+        print pocket
+        r = pe.poker_eval( game=globles.GAME, \
+                           pockets=[list(pocket),['__','__']], \
+                           board=['__']*5 )
+        print r
+        fout.write( "%s,%f\n" % (pocket, r['eval'][0]['ev'] ) )
+
+    fout.close()
 ########################################################################
 
 if __name__ == "__main__" :
-#
-    #print computeSingleEHS2( ['3h','3c'], ['Kd','6s','3d'] )
+    computePreflopEV()
+    #print computeSingleEHS2( ['2h','3c'], [] )
+    #print computeHS2( ([['2h','3c'],['__','__']], ['4c','7h','8h','Qd','__'],'HS') )
+
+
+
     #print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )
 
-    pool = Pool( processes = 8 )
-    d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )
-    fout = open("preflop_ehs2.txt",'w')
-    fout.write( dump(d_pocket_EHS2) )
-    fout.close()
-    pool.close()
+    #pool = Pool( processes = 8 )
+    #d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )
+    #fout = open("preflop_ehs2.txt",'w')
+    #fout.write( dump(d_pocket_EHS2) )
+    #fout.close()
+    #pool.close()
 
     #pocket_assignment = [['7d','2h'],['__','__']]
     #board = ['Ts','Jh','5s','7h','6d']
