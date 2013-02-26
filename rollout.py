@@ -54,6 +54,7 @@ def computeHS2( data ) :
         r = pe.poker_eval( game=globles.GAME, \
                            pockets=pocket_assignment, \
                            board=board )
+        print r
         if EV_or_HS == 'EV' :
             for pocket,evl in zip( pocket_assignment, r["eval"] ) :
                 results[canonicalize(pocket)] = evl["ev"] / float(globles.EV_RANGE)
@@ -62,7 +63,8 @@ def computeHS2( data ) :
                 wins   = r["eval"][i]["winhi"]
                 ties   = r["eval"][i]["tiehi"]
                 losses = r["eval"][i]["losehi"]
-                hs = (wins + float(ties/2)) / (wins + ties + losses)
+                hs = (wins + float(ties)/2) / (wins + ties + losses)
+                print hs
                 hs2 = hs*hs;
                 #if canonicalize(pocket) == '8d8c' :
                     #print data, hs2
@@ -134,10 +136,10 @@ def computePreflopEV() :
 ########################################################################
 
 if __name__ == "__main__" :
-    computePreflopEV()
-    #print computeSingleEHS2( ['2h','3c'], [] )
-    #print computeHS2( ([['2h','3c'],['__','__']], ['4c','7h','8h','Qd','__'],'HS') )
+    #computePreflopEV()
 
+    print computeHS2( ([['Ah','5c'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
+    print computeHS2( ([['6h','Ad'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
 
 
     #print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )

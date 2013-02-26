@@ -89,6 +89,21 @@ def listify( card_string ) :
              for i in range(0,len(card_string),2)]
     return cards
 
+def isStraight( sorted_cardinalities ) :
+    if sorted_cardinalities[-1] == 14 :
+        if isStraight( [1] + sorted_cardinalities[0:-1] ) :
+            return True
+      
+    value = -1
+    l = len(sorted_cardinalities) - 1
+    for i,c in enumerate(sorted_cardinalities) :
+        i = l - i
+        if value == -1 :
+            value = i+c
+        else :
+            if not i+c == value : return False
+    return True
+
 #return the distinct type of hole card (1326 -> 169)
 #hole_cards are [int,int]
 def collapsePocket( hole_cards ) :
@@ -403,9 +418,19 @@ def collapseBoard( board ) :
     crdnlts = ''.join([stringifyCardinality(c) for c in cardinalities])
     return "%s_%s_%s" % (crdnlts, rcard, rsuit)
 
+def isAssignmentLegal( pocket, board ) :
+    pocket = makeMachine(pocket)
+    board = makeMachine(board)
+    for p in pocket :
+        if p in board : return False
+    return True
+
+
 #returns the pocketp that satisfies:
 #'pocketp' : 'boardp' :: 'pocket' : 'board' 
 def symmetricComplement( board, pocket, boardp ) :
+    legal = isAssignmentLegal( pocket, board ) 
+    if not legal : return False
     cboard = collapseBoard(board)
 
     #if the board is a rainbow, it doesn't matter what the mapping is
@@ -417,7 +442,7 @@ def symmetricComplement( board, pocket, boardp ) :
         pocketp = [-1,-1]
         for pix in range(len(pocket)) :
             p = pocket[pix]
-            card,suit = p[0],p[1]
+            card,suit = stringifyCardinality(getCardinality(p)),getSuit(p)
             suits = [suit,'h','d','c','s']
             found = False
             for s in suits :
@@ -485,7 +510,7 @@ def symmetricComplement( board, pocket, boardp ) :
             #e.g river with 3f and 2f, and 3f and 1f 1f.
             pass
 
-    print "intermediate suit_map: " , suit_map
+    #print "intermediate suit_map: " , suit_map
 
     #now map the remaining suits
     #-
@@ -497,19 +522,19 @@ def symmetricComplement( board, pocket, boardp ) :
     #illegal_map = {board_suit : {boardp_suit : 1, ...} , ... }
     illegal_map = {}
     for p in pocket :
-        print pocket
+        #print pocket
         pc = getCardinality(p)
         ps = getSuit(p)
         for b in boardp :
             bc = getCardinality(b)
             bs = getSuit(b)
             if pc == bc and ps not in suit_map :
-                print "!", pc,ps,bc,bs
+                #print "!", pc,ps,bc,bs
                 if ps in illegal_map :
                     illegal_map[ps][bs] = True
                 else :
                     illegal_map[ps] = {bs:True}
-    print "illegal_map:", illegal_map
+    #print "illegal_map:", illegal_map
 
     #now we are ready to finish the mapping
     #first map the suits that have illegal mappings
@@ -519,32 +544,35 @@ def symmetricComplement( board, pocket, boardp ) :
     #has just been assigned
     used = {}
     for s in illegal_map :
-        print "illegal suit: ", s, illegal_map[s]
+        #print "illegal suit: ", s, illegal_map[s]
         for sp in suitsp :
             if sp not in used and sp not in illegal_map[s] :
                 suit_map[s] = sp
                 #if s in suits :
                 suits.remove(s)
-                print suit_map, suits, suitsp
+                #print suit_map, suits, suitsp
                 used[sp] = True 
                 break
 
     #arbitrarily map the remaining minority suits to one another
     for s in suits :
-        print "s",s
+        #print "s",s
         for sp in suitsp :
-            print "sp",sp
+            #print "sp",sp
             if sp not in used :
-                print "mapping", s, " to " , sp
+                #print "mapping", s, " to " , sp
                 suit_map[s] = sp
                 used[sp] = True
                 break
             else :
-                print "not allowed"
-    
+                pass
+                #print "not allowed"
+
+    print "sm: ", suit_map
+
     #apply the mapping
     pocket = canonicalize(pocket) #sorted( pocket, key=lambda x:x[0] )
-    print suit_map
+    #print suit_map
     pocketp = []
     for c in pocket :
         if c in suit_map :
