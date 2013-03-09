@@ -360,16 +360,64 @@ def computeEHS2DistsLongways() :
 
     pool.close()
 
+def computeEHS2DistsLongways_special() :
+    pool = Pool( processes = 8 )
+    count = 0
+    timea = time()
+
+    for board_size in range(4,5) :
+        start_time = time()
+
+        already_repped = {}
+
+        if board_size == 3 :  
+            street_name = 'flops'
+            print_every = 10
+        elif board_size == 4 : 
+            street_name = 'turns'
+            print_every = 100
+        else : 
+            street_name = 'rivers'
+            print_every = 1000
+        count = 0
+
+        for board in combinations( range(52), board_size ) :
+            cboard = collapseBoard( board )
+            if cboard.endswith( "_p_22f" ) and cboard not in already_repped :
+                d_pocket_EHS2 = rollout.mapReduceComputeEHS2( pool,list(board) )
+                filename = "hsdists/%s/%s.hsdist" % (street_name, cboard)
+                fout = open( filename, 'w' )
+                fout.write( json.dumps( d_pocket_EHS2 ) )
+                fout.close()
+                already_repped[cboard] = makeHuman(board)
+            else :
+                pass
+
+            count += 1
+            if count % print_every == 0 :
+                print "board_size: ", board_size, " count: ", count
+                print "time: ", time() - timea 
+                timea = time()
+
+        fout = open("hsdists/%s/special_representatives.txt" % street_name, 'w' )
+        fout.write( json.dumps( already_repped ) )
+        fout.close()
+
+        print "time for board_size: ", board_size, " was: ", time() - start_time
+
+    pool.close()
+
 def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
-    street_name = 'flop'
+    street_name = 'turn'
     conn = db.Conn("localhost")
     conn2 = db.Conn("localhost", dry_run=False)
     q = """select cboard,pocket,ehs2
            from EHS2_%s
+           where cboard like '____\_p\_22f'
            order by cboard,ehs2
            """ % (street_name.upper())
 
-    fout = open("/var/lib/mysql/toby/%s_bulk_load.csv" % street_name,'w')
+    fout = open("/var/lib/mysql/toby/%s_bulk_load_22f.csv" % street_name,'w')
     #then run "mysql> load data infile '<file>' into table toby.<BUCKET>;"
     
     def process() :
@@ -570,14 +618,15 @@ def sampleTransitionProbs( street, n_samples, bucket_percentiles ) :
 
 def insertRepresentatives() :
     conn = db.Conn("localhost")
-    for street_name in ['flop','turn','river'] :
+    for street_name in ['turn'] : #['flop','turn','river'] :
         dirname = "hsdists/%ss/" % street_name
-        fin = open("%s/representatives.txt" % dirname)
+        fin = open("%s/special_representatives.txt" % dirname)
         reps = load( fin.read() )
         fin.close()
         for cboard in reps :
             aboard = canonicalize( reps[cboard] )
             conn.insert('REPRESENTATIVES',[cboard,aboard]  )
+
 
 def testSymmetric() :
     conn  = db.Conn("localhost")
@@ -647,26 +696,19 @@ def testSymmetric() :
 
 if __name__ == '__main__' :
     #testSymmetric()
-    conn = db.Conn("localhost")
-    getTransitionProbs_DB( conn, \
-                           ['2h','2c','2d','2s'], 'turn', \
-                           ['2h','2c','2d','2s','As'], 'river' )
-                            #['2h','4h','7d'], 'flop', \
-                            #['2h','4h','7d','Td'], 'turn' )
-    #247_h_2fxxo
-    #247T_h_22fxxoo
-    #d_pocket_bucket = load( open("hsdists/flops/247_h_2fxxo.bkts").read() )
-    #d_pocket_bucket_prime  = load(open("hsdists/turns/247T_h_22fxxoo.hsdist").read() )
-    #getTransitionProbs( d_pocket_bucket, len(globles.BUCKET_PERCENTILES['flop']), \
-                        #d_pocket_bucket_prime, len(globles.BUCKET_PERCENTILES['turn']) )
-
+    #conn = db.Conn("localhost")
+    #getTransitionProbs_DB( conn, \
+                           #['2h','2c','2d','2s'], 'turn', \
+                           #['2h','2c','2d','2s','As'], 'river' )
+                            ##['2h','4h','7d'], 'flop', \
+                            ##['2h','4h','7d','Td'], 'turn' )
 
     #sampleTransitionProbs( "flop", 5, globles.BUCKET_PERCENTILES )
     ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
     #bucketAllEHS2Dists_DB( globles.BUCKET_TABLE_PREFIX, \
                            #globles.BUCKET_PERCENTILES )
-    #insertRepresentatives()
-    #computeEHS2DistsLongways()
+    insertRepresentatives()
+    #computeEHS2DistsLongways_special()
     assert False
 
     #board = ['2d','3s','8h','Qd']

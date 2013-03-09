@@ -337,6 +337,7 @@ class Table() :
                 q = """select aboard
                        from REPRESENTATIVES
                        where cboard = '%s'""" % (cboard)
+                print q
                 [[aboard]] = self.conn.query(q)
                 aboard = listify(aboard)
 
@@ -508,7 +509,7 @@ class Table() :
                                      key = lambda bet : abs(pip_to_pot-bet) )
                 t.append( closest_ratio )
 
-                #1 if last to act
+                #1 if in position, last to act
                 #TODO: hardcoded for heads up
                 #if advancing from preflop
                 if self.street == 1 :
@@ -516,6 +517,7 @@ class Table() :
                 else :
                     t.append( int(self.button == p) )
 
+                #1 if aggressive PIP ratio
                 if not self.current_bets[p] == 0 :
                     was_aggressive = int( (self.aggressive_pip[p] / \
                                            float(self.current_bets[p])) > .1 )

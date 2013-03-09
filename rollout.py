@@ -54,7 +54,6 @@ def computeHS2( data ) :
         r = pe.poker_eval( game=globles.GAME, \
                            pockets=pocket_assignment, \
                            board=board )
-        print r
         if EV_or_HS == 'EV' :
             for pocket,evl in zip( pocket_assignment, r["eval"] ) :
                 results[canonicalize(pocket)] = evl["ev"] / float(globles.EV_RANGE)
@@ -64,7 +63,6 @@ def computeHS2( data ) :
                 ties   = r["eval"][i]["tiehi"]
                 losses = r["eval"][i]["losehi"]
                 hs = (wins + float(ties)/2) / (wins + ties + losses)
-                print hs
                 hs2 = hs*hs;
                 #if canonicalize(pocket) == '8d8c' :
                     #print data, hs2

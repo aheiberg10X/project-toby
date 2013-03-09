@@ -4,15 +4,38 @@ import os.path
 import json
 
 import table
-from globles import veryClose
+from globles import veryClose, BET_RATIOS
 from deck import listify
 
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
+def actionState2Str( action_state ) :
+    return ','.join( [str(t) for t in action_state] )
+
+#coordinate with table.advanceStreet, which builds the action_states themselvesa
+#BET_RATIOS
+#1/0 last_to_act
+#1/0
+actionState2int = {}
+count = 0;
+for br in BET_RATIOS :
+    for last_to_act in [1,0] :
+        for aggressivePIP in [1,0] :
+            astate_str = actionState2Str( [br,last_to_act,aggressivePIP] )
+            actionState2int[ astate_str ] = count
+            count += 1
+
+
+
+#take entry from table.action_states and map it to an in for MATLAB to crunch
+def mapActionState2Int( action_state ) :
+    return actionState2int[ actionState2Str( action_state ) ]
+
 def iterateActionStatesACPC( filename, \
                              min_betting_rounds = 1, \
                              must_have_showdown = False ) :
+
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
 
@@ -40,8 +63,8 @@ def iterateActionStatesACPC( filename, \
 
         game_id = int(splt[1])
         print "\nGAME_ID:", game_id
-        action_strings = splt[2].split('/')
-        card_strings = splt[3].split('/')
+        action_strings = splt[2].strip('/').split('/')
+        card_strings = splt[3].strip('/').split('/')
         win_lose = splt[4]
         player_order = splt[5].split("|")
         button_player = player_order[1]
@@ -56,7 +79,7 @@ def iterateActionStatesACPC( filename, \
         tbl.newHand(players, pockets, [20000,20000], button)
 
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
-            print street, action_string, card_string
+            print "Street,action_string,card_stringL ", street, action_string, card_string
             if street > 0 :
                 tbl.advanceStreet( listify(card_string) )
             else :
@@ -91,6 +114,7 @@ def iterateActionStatesACPC( filename, \
                     stack_amount = tbl.stacks[tbl.action_to]
                     if bet_amount > stack_amount :
                         bet_amount = stack_amount
+                        act = 'a'
 
                     if prev_act == 'b' or prev_act == 'r' :
                         act = 'r'
@@ -110,6 +134,7 @@ def iterateActionStatesACPC( filename, \
                 prev_act = act
 
         #all done iterating through the action/card lists
+
         tbl.advanceStreet(False)
 
         #register revealed
@@ -124,11 +149,34 @@ def iterateActionStatesACPC( filename, \
 
         #emit the {"action_state", "buckets", "gameid"} dict for the last hand
         if n_betting_rounds >= min_betting_rounds and \
-           (not must_have_showdown or \
-            (must_have_showdown and has_showdown) ) :
-            yield {"action_states" : tbl.action_states, \
-                   "buckets" : tbl.buckets, \
-                   "game_id" : game_id}
+           (not must_have_showdown or (must_have_showdown and has_showdown) ) :
+            #TODO yield the data in same order as bnet expects
+            #TODO map the action_state tuples to integers, will simplify 
+            #     MATLAB processing
+            #b11,b12,a11,a12,b21,b22,a21,...
+            training_instance = []
+            for street in range(0,min_betting_rounds) :
+                #print "street: ", street
+                #print "    b1: ", tbl.buckets[street][0]
+                #print "    b2: " , tbl.buckets[street][1]
+                #print "    a1: ", tbl.action_states[street][0]
+                #print "    a2: ", tbl.action_states[street][1]
+                try :
+                    training_instance.append( tbl.buckets[street][0] )
+                    training_instance.append( tbl.buckets[street][1] )
+                    asint = mapActionState2Int( tbl.action_states[street][0] )
+                    training_instance.append( asint )
+                    asint = mapActionState2Int( tbl.action_states[street][1] )
+                    training_instance.append( asint )
+                except IndexError as ie :
+                    print ie
+                    print tbl.action_states
+                    assert False
+
+            yield training_instance
+            #yield {"action_states" : tbl.action_states, \
+                   #"buckets" : tbl.buckets, \
+                   #"game_id" : game_id}
         else :
             pass
 
@@ -138,8 +186,10 @@ if __name__ == '__main__' :
     filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
     #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
 
-    for thing in iterateActionStatesACPC( filename ) :
+
+    for thing in iterateActionStatesACPC( filename, min_betting_rounds=4 ) :
         print thing
+
 
 
     filename1 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
