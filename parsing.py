@@ -25,8 +25,10 @@ for br in BET_RATIOS :
             astate_str = actionState2Str( [br,last_to_act,aggressivePIP] )
             actionState2int[ astate_str ] = count
             count += 1
-
-
+#TODO unify all the possible states into a single iterator??...
+#special states
+actionState2int['f'] = count
+count += 1
 
 #take entry from table.action_states and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state ) :
@@ -69,15 +71,10 @@ def iterateActionStatesACPC( filename, \
         player_order = splt[5].split("|")
         button_player = player_order[1]
         button = players.index(button_player)
- 
-        n_betting_rounds = len(action_strings)
-        has_showdown = False
-        if n_betting_rounds == 4 :
-            has_showdonw = 'f' not in action_strings[3]
-       
-        #print "new stacks: ", fresh_stacks
+
         tbl.newHand(players, pockets, [20000,20000], button)
 
+        allin_round = 42
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
             print "Street,action_string,card_stringL ", street, action_string, card_string
             if street > 0 :
@@ -88,7 +85,7 @@ def iterateActionStatesACPC( filename, \
                 tbl.registerAction('c')
                 tbl.registerAction('c')
                 tbl.advanceStreet( ['down','cards'] )
-            
+
             prev_act = 'blinds'
             ix = 0
             while ix < len(action_string) :
@@ -115,6 +112,7 @@ def iterateActionStatesACPC( filename, \
                     if bet_amount > stack_amount :
                         bet_amount = stack_amount
                         act = 'a'
+                        allin_round = street
 
                     if prev_act == 'b' or prev_act == 'r' :
                         act = 'r'
@@ -142,10 +140,21 @@ def iterateActionStatesACPC( filename, \
         #logic controlling whether or not we want to register...
         #may want to emit the rest of the info about hands when a showdown
         #didn't happen
-        pocket_strings = card_strings[0].split('|')
-        for player_name, pocket_string in zip(player_order,pocket_strings) :
-            tbl.registerRevealedPocket( player_name, listify(pocket_string) )
+        #pocket_strings = card_strings[0].split('|')
+        #for player_name, pocket_string in zip(player_order,pocket_strings) :
+            #tbl.registerRevealedPocket( player_name, listify(pocket_string) )
 
+        pockets = [listify(p) for p in card_strings[0].split('|')]
+        print "pockets: ", pockets
+        tbl.registerRevealedPockets( pockets )
+
+        #TODO
+        #Need to figure out if/when there is an all in action
+        #then the num betting rounds is only this long 
+        #(see spark 3/9/13 for rationale
+        n_betting_rounds = min( [len(action_strings), allin_round+1] )
+        has_showdown = 'f' not in action_strings[n_betting_rounds-1]
+        print "nbetrounds: ", n_betting_rounds, " has_showdown: " , has_showdown
 
         #emit the {"action_state", "buckets", "gameid"} dict for the last hand
         if n_betting_rounds >= min_betting_rounds and \
@@ -155,7 +164,7 @@ def iterateActionStatesACPC( filename, \
             #     MATLAB processing
             #b11,b12,a11,a12,b21,b22,a21,...
             training_instance = []
-            for street in range(0,min_betting_rounds) :
+            for street in range(0,n_betting_rounds) :
                 #print "street: ", street
                 #print "    b1: ", tbl.buckets[street][0]
                 #print "    b2: " , tbl.buckets[street][1]
@@ -187,7 +196,9 @@ if __name__ == '__main__' :
     #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
 
 
-    for thing in iterateActionStatesACPC( filename, min_betting_rounds=4 ) :
+    for thing in iterateActionStatesACPC( filename, \
+                                          min_betting_rounds=0, \
+                                          must_have_showdown=True) :
         print thing
 
 

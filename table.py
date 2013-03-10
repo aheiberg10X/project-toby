@@ -120,7 +120,8 @@ class Table() :
         #2nd dim = player 0 - (self.num_players-1)
         #3rd dim = particular feature.  The last one is the EHS2 belief
         self.action_states = []
-        self.buckets = [[-1,-1],[-1,-1],[-1,-1],[-1,-1]]
+        #self.buckets = [[-1,-1],[-1,-1],[-1,-1],[-1,-1]]
+        self.buckets = []
 
         self.features = { \
             #DONE (defacto)
@@ -309,76 +310,79 @@ class Table() :
         self.acted[player_ix] = True
         self.action_to = self.nextUnfoldedPlayer( player_ix )
 
-    def registerRevealedPocket( self, player_name, pocket ) :
-        pix = self.players.index(player_name)
+    def registerRevealedPockets( self, pockets ) :
+        #pix = self.players.index(player_name)
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
         for street in range(len(self.action_states)) :
-            if street == 0 :
-                street_name = "preflop"
-                q = """select memberships 
-                       from %s%s
-                       where pocket = '%s'""" % \
-                               (BUCKET_TABLE_PREFIX,\
-                                street_name.upper(),\
-                                canonicalize(pocket))
-            else :
-                if   street == 1 : 
-                    board = self.board[:3]
-                    street_name = 'flop'
-                elif street == 2 : 
-                    board = self.board[:4]
-                    street_name = 'turn'
-                elif street == 3 : 
-                    board = self.board
-                    street_name = 'river'
+            self.buckets.append( [] )
+            for pix,pocket in enumerate(pockets) :
+                if street == 0 :
+                    street_name = "preflop"
+                    q = """select memberships 
+                           from %s%s
+                           where pocket = '%s'""" % \
+                                   (BUCKET_TABLE_PREFIX,\
+                                    street_name.upper(),\
+                                    canonicalize(pocket))
+                else :
+                    if street == 1 :
+                        board = self.board[:3]
+                        street_name = 'flop'
+                    elif street == 2 :
+                        board = self.board[:4]
+                        street_name = 'turn'
+                    elif street == 3 :
+                        board = self.board
+                        street_name = 'river'
 
-                cboard = collapseBoard( board )
-                q = """select aboard
-                       from REPRESENTATIVES
-                       where cboard = '%s'""" % (cboard)
-                print q
-                [[aboard]] = self.conn.query(q)
-                aboard = listify(aboard)
+                    cboard = collapseBoard( board )
+                    q = """select aboard
+                           from REPRESENTATIVES
+                           where cboard = '%s'""" % (cboard)
+                    #print q
+                    [[aboard]] = self.conn.query(q)
+                    aboard = listify(aboard)
 
-                #pocket:board::apocket:aboard
-                print "board",board
-                print "aboard", aboard
-                apocket = symmetricComplement( board, pocket, aboard )
-                print "pocket",pocket
-                print "apocket", apocket
-                
-                #EHS2 = rollout.computeSingleEHS2( pocket, self.board )
-                q = """select memberships
-                       from %s%s
-                       where cboard = '%s' and pocket = '%s'""" % \
-                               (BUCKET_TABLE_PREFIX,\
-                                street_name.upper(),\
-                                cboard,\
-                                apocket )
+                    #pocket:board::apocket:aboard
+                    #print "board",board
+                    #print "aboard", aboard
+                    apocket = symmetricComplement( board, pocket, aboard )
+                    #print "pocket",pocket
+                    #print "apocket", apocket
 
-            print  q 
-            [[memberships]] = self.conn.query( q )
-            #TODO
-            #eventually the beliefs should be a continuous node, for now let's just
-            #cram it into the closest to the average
-            memberships = [float(t) for t in memberships.split(':')]
-            #print "membs", memberships
-            w = [i*m for i,m in enumerate(memberships)]
-            #print "wsum:", wsum
-            bucket = int(round(sum(w)))
-            #print "bucket,", bucket
+                    q = """select memberships
+                           from %s%s
+                           where cboard = '%s' and pocket = '%s'""" % \
+                                   (BUCKET_TABLE_PREFIX,\
+                                    street_name.upper(),\
+                                    cboard,\
+                                    apocket )
 
+                #print  q 
+                [[memberships]] = self.conn.query( q )
 
-            #if street == len(self.buckets)+1 :
+                #TODO
+                #eventually the beliefs should be a continuous node, 
+                #for now let's just
+                #cram it into the closest to the average
+                memberships = [float(t) for t in memberships.split(':')]
+                #print "membs", memberships
+                w = [i*m for i,m in enumerate(memberships)]
+                #print "wsum:", wsum
+                bucket = int(round(sum(w)))
+                #print "bucket,", bucket
+
+                self.buckets[street].append( bucket )
+                #if street == len(self.buckets) :
+                    #self.buckets.append( [0,0] )
+                    #self.buckets[street][pix] = bucket
+                #else:
+                    #self.buckets[street][pix] = bucket
                 #self.buckets[street][pix] = bucket
-            #else:
-                #self.buckets.append( [0,0] )
-                #self.buckets[street][pix] = bucket
-            self.buckets[street][pix] = bucket
 
-            #self.action_states[street][pix].append( EHS2 )
-        #print self.action_states
+                #self.action_states[street][pix].append( EHS2 )
+            #print self.action_states
 
     #TODO: work in progress, not clear if going to be used
     def extractFeatures( self ) :
@@ -501,44 +505,48 @@ class Table() :
 
             #compute the features we want to emit
             #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
-            ratios = []
+            action_states = []
             for p in acted_players :
-                t = []
+                action_state = []
+                if self.folded[p] :
+                    action_states.append( 'f' )
+                    continue
+
                 pip_to_pot = self.current_bets[p] / float(self.pot)
                 closest_ratio = min( BET_RATIOS, \
                                      key = lambda bet : abs(pip_to_pot-bet) )
-                t.append( closest_ratio )
+                action_state.append( closest_ratio )
 
                 #1 if in position, last to act
                 #TODO: hardcoded for heads up
                 #if advancing from preflop
                 if self.street == 1 :
-                    t.append( int(self.button != p ) )
+                    action_state.append( int(self.button != p ) )
                 else :
-                    t.append( int(self.button == p) )
+                    action_state.append( int(self.button == p) )
 
                 #1 if aggressive PIP ratio
                 if not self.current_bets[p] == 0 :
                     was_aggressive = int( (self.aggressive_pip[p] / \
                                            float(self.current_bets[p])) > .1 )
-                    t.append( was_aggressive )
+                    action_state.append( was_aggressive )
                     #t.append( self.passive_pip[p] / self.current_bets[p] )
                 else :
-                    t.append(0)
+                    action_state.append(0)
                     #t.append(0)
-                ratios.append(t)
-         
-            #meaningless to register ratios where no one acts
+                action_states.append(action_state)
+
+            #meaningless to register action_states where no one acts
             #this can happend when an all-In is called
             #future streets are dealt but there are no actions to take
             if len(acted_players) > 0 : 
-                self.action_states.append( ratios )
-        
+                self.action_states.append( action_states )
+
         #bookkeeping
         if cards :
 
             #remember self.street has already been advanced by now
-                        
+
             if   self.street == 1    : self.board[:3] = cards
             elif self.street == 2    : self.board[3]  = cards[0]
             elif self.street == 3    : self.board[4]  = cards[0]
