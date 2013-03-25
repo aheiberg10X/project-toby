@@ -439,30 +439,8 @@ def isAssignmentLegal( pocket, board ) :
 #returns the pocketp that satisfies:
 #'pocketp' : 'boardp' :: 'pocket' : 'board' 
 def symmetricComplement( board, pocket, boardp ) :
-    legal = isAssignmentLegal( pocket, board ) 
-    if not legal : return False
+    assert isAssignmentLegal( pocket, board ) 
     cboard = collapseBoard(board)
-
-    #if the board is a rainbow, it doesn't matter what the mapping is
-    #it only matters that pocketp has the right cardinalities, and that
-    #the cards do not conflict with boardp
-    is_rainbow = cboard[-1] == 'r'
-    if False :
-    #if is_rainbow :
-        #pick two cards of correct cardinality that don't conflict with boardp
-        pocketp = [-1,-1]
-        for pix in range(len(pocket)) :
-            p = pocket[pix]
-            card,suit = stringifyCardinality(getCardinality(p)),getSuit(p)
-            suits = [suit,'h','d','c','s']
-            found = False
-            for s in suits :
-                if card+s not in boardp :
-                    pocketp[pix] = card+s
-                    found = True
-                    break
-            assert found
-        return canonicalize(pocketp)
 
     #idea is to match determine the functionally important suits in board
     #and match them to those in boardp (i.e suit count >= 2 )
@@ -499,28 +477,28 @@ def symmetricComplement( board, pocket, boardp ) :
     suit_map = {}
 
     #first, recognize that some mappings are illegal
-    #consider board: [2c 3c 4c 8h 9d] and pokcet [7d Kh]
+    #consider board: [2c 3c 4c 7h 9d] and pokcet [7d Kh]
     #        boardp: [2d 3d 4d 7s 9s]
-    #obviously c -> d.  But if we pick d -> s, 7d->7s, which is impossible
-    #according to boardp
+    #If we pick d -> s, 7d->7s, which is impossible according to boardp
     #illegal_map = {board_suit : {boardp_suit : 1, ...} , ... }
     illegal_map = {}
     for p in pocket :
-        #print pocket
         pc = getCardinality(p)
         ps = getSuit(p)
         for b in boardp :
             bc = getCardinality(b)
             bs = getSuit(b)
-            if pc == bc and ps not in suit_map :
-                #print "!", pc,ps,bc,bs
+            if pc == bc and ps :
                 if ps in illegal_map :
                     illegal_map[ps][bs] = True
                 else :
                     illegal_map[ps] = {bs:True}
     print "illegal_map:", illegal_map
 
-    #sort by suit_count, has illegal mapping
+    #We want to rank the suits in each board by decreasing count
+    #This way we can map the the 3 count suits together, the 2 count, etc
+    #Also, we want to map the suits with illegal mappings as soon as possible
+
     #suit_count*10+int(has_illegal_mapping)
     def sortKeyClosure( suit_counts ) :
         def sortKey( s ) :
@@ -528,7 +506,7 @@ def symmetricComplement( board, pocket, boardp ) :
             return t
         return sortKey
 
-    #sort the suits for each board in descending order according to their counts
+    #use sortKeyClosure to sort the suits for each board in descending order
     board_sorted_suits = sorted( board_suit_counts, \
                                  key = sortKeyClosure(board_suit_counts), \
                                  reverse=True )
@@ -538,32 +516,31 @@ def symmetricComplement( board, pocket, boardp ) :
 
     print board_sorted_suits, boardp_sorted_suits
 
-    ##these hold the suits not yet used in suit_map
-    suits = set(['h','d','c','s'])
-    suitsp = set(['h','d','c','s'])
-
-    
-    #since we cannot modify a collection as we iterate through it,
-    #we maintain 'used' to prohibit future mappings to use a suit that
+    #As we go through and assign mappings
+    #maintain 'used' to prohibit future mappings to use a suit that
     #has just been assigned
     used = {}
 
-    for suit in suits :
+    #add in those suits missing from the boards
+    for suit in ['h','d','c','s'] :
         if suit not in board_sorted_suits :
             board_sorted_suits.append( suit )
         if suit not in boardp_sorted_suits :
             boardp_sorted_suits.append( suit )
 
+    #build the mapping
     for bsuit in board_sorted_suits :
-        print "bsuit: ", bsuit
+        #print "bsuit: ", bsuit
         for bpsuit in boardp_sorted_suits :
-            print "bpsuit: ", bpsuit
-            if not (bsuit in illegal_map and bpsuit in illegal_map[bsuit]) and \
-               bpsuit not in used :
-                print "match!"
+            #print "bpsuit: ", bpsuit
+            if bpsuit not in used and \
+               not (bsuit in illegal_map and bpsuit in illegal_map[bsuit]) :
+                #print "match!"
                 suit_map[bsuit] = bpsuit
                 used[bpsuit] = True
-                suits.remove(bsuit)
+                #either the cardinalities are equal or
+                #one of the cardinalities is 1 or
+                #one of the cardinalities is 0
                 assert (bsuit not in board_suit_counts or \
                         bpsuit not in boardp_suit_counts) or \
                        (board_suit_counts[bsuit] == 1 or \
@@ -572,56 +549,17 @@ def symmetricComplement( board, pocket, boardp ) :
                 break
 
 
-    ##first map the suits that have illegal mappings
-    #for s in illegal_map :
-        ##print "illegal suit: ", s, illegal_map[s]
-        #for sp in suitsp :
-            #if sp not in used and sp not in illegal_map[s] :
-                #suit_map[s] = sp
-                ##if s in suits :
-                #suits.remove(s)
-                ##print suit_map, suits, suitsp
-                ##used[sp] = True 
-                ##break
-
-    ##map the most frequent suits in each board together
-    #for bsuit, bpsuit in zip(board_sorted_suits, boardp_sorted_suits) :
-        #if board_suit_counts[bsuit] > 1 and boardp_suit_counts[bpsuit] > 1 :
-            #suit_map[bsuit] = bpsuit
-            #suits.remove(bsuit)
-            #suitsp.remove(bpsuit)
-        #else :
-            ##can be of count 2 in one board and 1 in the other
-            ##e.g river with 3f and 2f, and 3f and 1f 1f.
-            #pass
-
-
-
-    #arbitrarily map the remaining minority suits to one another
-    #for s in suits :
-        ##print "s",s
-        #for sp in suitsp :
-            ##print "sp",sp
-            #if sp not in used :
-                ##print "mapping", s, " to " , sp
-                #suit_map[s] = sp
-                #used[sp] = True
-                #break
-            #else :
-                #pass
-                ##print "not allowed"
-
     print "sm: ", suit_map
 
     #apply the mapping
     pocket = canonicalize(pocket) #sorted( pocket, key=lambda x:x[0] )
     #print suit_map
     pocketp = []
-    for c in pocket :
-        if c in suit_map :
-            pocketp.append( suit_map[c] )
+    for char in pocket :
+        if char in suit_map :
+            pocketp.append( suit_map[char] )
         else :
-            pocketp.append( c )
+            pocketp.append( char )
     return canonicalize( ''.join(pocketp) )
 
 def getStreet( board ) :

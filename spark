@@ -511,3 +511,102 @@ wrote exponential.py, generating bulk load files on genomequery to load BUCKET t
 2/21/13
 
 on step 3
+
+Problem now with bucketing.  
+
+We computed 36K_h_2fxox EHS2 numbers from 3h,3d,Kh
+But now we want to know the EHS2 of 3h3c.  Ob this was never computed.
+Need a function to generate the symmetric pocket pair, and use that to lookup against the already computed value
+
+new deck::symmetricComplement
+
+=================================================================
+2/22/13
+
+Lot of head smashing to get symmetricComplement working well.  Think carefully first like with Goby, then implement.  Right now it is hack after hack to get it to work
+
+I think it is, and it revealed a typo error in collapseBoard.  on the river, different types of 4f were getting collpased to just 4f, rather than 4fxoxxx etc.  Type fixed, rerunning EHS2 dist comp now.
+
+After that, rebuild REPRESENTATIVES and EXPO_RIVER.
+
+Continue from there trying to parse and bucket using symmetry
+
+==================================================================
+
+2/24/13
+
+New EHS2 table loaded.  Yet to bucket.  Cleaned some code up and commented
+
+organized and commented the hackathon that symmetricComplement was/is
+
+=====================================================================
+
+2/25/13
+
+Makes me nervous that EHS2 of 27o is higher than that of 23o.  How does this make sense?  23 should make more straights, which would favor the squaring function, as well as fact that it has a higher hand strength to begin with....
+
+slight bug in computeHS2:
+
+hs = (wins + float(ties/2)) / (wins + ties + losses) old
+vs
+hs = (wins + float(ties)/2) / (wins + ties + losses) fixed
+
+big deal?  
+
+Bucketing:  In light of 22223_q_r, the bucketing strikes me as off.  Something like Th5d is lumped in with 
+
+Also, wtf, why does pokerEval give slightly different EV results forprint ['Ah','5c'] ['2h','8h','Kh','2d','8d']
+['6h','Ad'] ['2h','8h','Kh','2d','8d']
+
+
+Have to rerun bucketing, sigh, cause the following was happening:
+22223_q_r	4hTc	0.324699	0.259259259259:0.740740740741:0:0:0:0:0:0:0:022224_q_r
+Turns out was not inserting the trailing \n after the '\n.join(buffer) write
+
+
+Arg why are the bucket probabilities not coming out to 1????????????
+
+Started constructing simplified test case to investigate
+Maybe hold off on this until we get some preliminary results done
+-----------------
+
+=======================================================================
+
+3/8/13
+
+Another bug in collapseBoard.  These are painful, because it means the wrong EV dists for a given cboard was computed.
+
+Eg. ['2d', '5s', 'Qs', 'Qd'] was collapsing to 25QQ_p_3f, who is represented by 2h 5h Qh Qd.  Insteas should have mapped to p_22f
+
+Also got 
+
+Go through collapse board with a fine toothed comb and pen and paper.  FIx all remaining errors.
+
+If not too many, is there a way to repair the mistakes without doing the whole extended EV/bucket recomputation?
+
+In the case above, we have introduced some new cboards whose representatives would need to be freshly computed and integrated.  Same for the cboards with incorrect representatives.  
+
+Add a valid, field to REPRESENTATIVES, set all matching p_3f to false.
+Also add any new additions to the table with valid = false.
+
+------------------
+
+Fixed the 22f TURN bug and the data is loaded.  Rewrote symmetricComplement after it broke trying to parse.  Conceptually simpler now.  
+
+Hooray just parsed an entire game log file!
+
+------------------------------
+
+TODO: backup DB now that it seems good, dont' want to lose
+
+===================================================================
+
+3/9/13
+
+Do we treat all-ins as checking the useless rounds?  Will be be learning the right thing?  Or should there be another state. We probably should treat it as a k < 4 betting round game where cards are revealed.  This way we do not have to confuse the notion of checking with auto-passing, and do not have to introduce another state for the network to learn (uselessly).  However, right now this is not how things are parsed
+
+Did this...:
+
+So, can now emit only states that go to showdown.  Time for some fully labeled parameter learning
+
+=====================================================================
