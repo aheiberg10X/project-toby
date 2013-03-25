@@ -493,7 +493,7 @@ def symmetricComplement( board, pocket, boardp ) :
                     illegal_map[ps][bs] = True
                 else :
                     illegal_map[ps] = {bs:True}
-    print "illegal_map:", illegal_map
+    #print "illegal_map:", illegal_map
 
     #We want to rank the suits in each board by decreasing count
     #This way we can map the the 3 count suits together, the 2 count, etc
@@ -514,7 +514,7 @@ def symmetricComplement( board, pocket, boardp ) :
                                   key = sortKeyClosure(boardp_suit_counts), \
                                   reverse=True )
 
-    print board_sorted_suits, boardp_sorted_suits
+    #print board_sorted_suits, boardp_sorted_suits
 
     #As we go through and assign mappings
     #maintain 'used' to prohibit future mappings to use a suit that
@@ -533,8 +533,9 @@ def symmetricComplement( board, pocket, boardp ) :
         #print "bsuit: ", bsuit
         for bpsuit in boardp_sorted_suits :
             #print "bpsuit: ", bpsuit
-            if bpsuit not in used and \
-               not (bsuit in illegal_map and bpsuit in illegal_map[bsuit]) :
+            illegal_matching = bsuit in illegal_map and \
+                               bpsuit in illegal_map[bsuit]
+            if not illegal_matching and bpsuit not in used :
                 #print "match!"
                 suit_map[bsuit] = bpsuit
                 used[bpsuit] = True
