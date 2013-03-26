@@ -473,6 +473,13 @@ def symmetricComplement( board, pocket, boardp ) :
 
     assert boardp_max_suit_count == board_max_suit_count
     
+    #add in those suits missing from the boards
+    for suit in ['h','d','c','s'] :
+        if suit not in board_suit_counts :
+            board_suit_counts[suit] = 0
+        if suit not in boardp_suit_counts :
+            boardp_suit_counts[suit] = 0
+
     #will hold the final suit mapping
     suit_map = {}
 
@@ -502,7 +509,8 @@ def symmetricComplement( board, pocket, boardp ) :
     #suit_count*10+int(has_illegal_mapping)
     def sortKeyClosure( suit_counts ) :
         def sortKey( s ) :
-            t = 10*suit_counts[s] + int(s in illegal_map)
+            t = 10*int(s in illegal_map) + suit_counts[s]
+            #t = 10*suit_counts[s] + int(s in illegal_map)
             return t
         return sortKey
 
@@ -516,41 +524,47 @@ def symmetricComplement( board, pocket, boardp ) :
 
     #print board_sorted_suits, boardp_sorted_suits
 
+    
     #As we go through and assign mappings
     #maintain 'used' to prohibit future mappings to use a suit that
     #has just been assigned
     used = {}
 
-    #add in those suits missing from the boards
-    for suit in ['h','d','c','s'] :
-        if suit not in board_sorted_suits :
-            board_sorted_suits.append( suit )
-        if suit not in boardp_sorted_suits :
-            boardp_sorted_suits.append( suit )
+    #the suit count that makes a suit important.  I.e on the river, 
+    #we don't care if there are two of a suit
+    functional_thresh = 2
+    if len(board) == 5 :
+        functional_thresh = 3
 
     #build the mapping
     for bsuit in board_sorted_suits :
-        #print "bsuit: ", bsuit
+        bsuit_is_functional = board_suit_counts[bsuit] >= functional_thresh
+        #print "bsuit: ", bsuit, " is functional: ", bsuit_is_functional
         for bpsuit in boardp_sorted_suits :
-            #print "bpsuit: ", bpsuit
+            #print "    bpsuit: ", bpsuit
             illegal_matching = bsuit in illegal_map and \
                                bpsuit in illegal_map[bsuit]
-            if not illegal_matching and bpsuit not in used :
+            suit_counts_compatible = not bsuit_is_functional or \
+                                (bsuit_is_functional and \
+                                (board_suit_counts[bsuit] == \
+                                 boardp_suit_counts[bpsuit]))
+            #print "    illegal?: ", illegal_matching, "compatible: ", suit_counts_compatible, "free?:", bpsuit not in used
+            if bpsuit not in used and \
+               not illegal_matching and \
+               suit_counts_compatible :
                 #print "match!"
                 suit_map[bsuit] = bpsuit
                 used[bpsuit] = True
                 #either the cardinalities are equal or
                 #one of the cardinalities is 1 or
                 #one of the cardinalities is 0
-                assert (bsuit not in board_suit_counts or \
-                        bpsuit not in boardp_suit_counts) or \
-                       (board_suit_counts[bsuit] == 1 or \
-                        boardp_suit_counts[bpsuit] == 1) or \
+                assert (board_suit_counts[bsuit] <= 1 or \
+                        boardp_suit_counts[bpsuit] <= 1) or \
                         board_suit_counts[bsuit] == boardp_suit_counts[bpsuit]
                 break
 
 
-    print "sm: ", suit_map
+    #print "sm: ", suit_map
 
     #apply the mapping
     pocket = canonicalize(pocket) #sorted( pocket, key=lambda x:x[0] )
@@ -632,13 +646,10 @@ if __name__ == '__main__' :
     #boardp= ['2h','4h','Td','Ad']
     #pocket = ['4h','Qh']
 
-    board = ['8s', '8c', '3h']
-    boardp = ['3h', '8d', '8c']
-    pocket = ['8d', '8h']
+    board = ['7d', '2c', '4c', '4h', '3h']
+    boardp = ['2h', '3h', '4d', '7d', '4c']
+    pocket = ['4s', '4d']
 
-    board = ['Jc', '9h', '4c', 'Ts', '3s']
-    boardp =  ['3h', '4h', '9d', 'Td', 'Jc']
-    pocket = ['Jh','7c']
     #print collapseBoard(['2h','3h','4h','9h','Kd'])
     #print collapseBoard(['2h','3h','4s','9h','Kh'])
 

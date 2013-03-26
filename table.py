@@ -1,5 +1,3 @@
-from history import History
-from player import Player
 from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
 from deck import makeHuman, canonicalize, collapseBoard, listify, symmetricComplement
 import rollout
@@ -24,6 +22,7 @@ class Table() :
 
         self.small_blind = small_blind
         self.logging = logging
+        self.error_file = open("table_errors.txt",'w')
 
         if self.logging :
             self.history = History()
@@ -106,7 +105,7 @@ class Table() :
         #will worry about this bridge when we come to it
         self.side_pot = {}
         self.board = makeHuman([WILDCARD]*5)
-        
+
         self.streets = iter( STREET_NAMES )
         ##extra one to take it out of uninit state
         self.street = self.streets.next()
@@ -120,7 +119,6 @@ class Table() :
         #2nd dim = player 0 - (self.num_players-1)
         #3rd dim = particular feature.  The last one is the EHS2 belief
         self.action_states = []
-        #self.buckets = [[-1,-1],[-1,-1],[-1,-1],[-1,-1]]
         self.buckets = []
 
         self.features = { \
@@ -247,7 +245,7 @@ class Table() :
                 oblig = self.small_blind*2
             else :
                 oblig = self.getObligation(player_ix)
-            
+
             #TODO figure out if raise or call
             if action == 'a' :
                 print "registering all in action"
@@ -264,7 +262,7 @@ class Table() :
                     print self.committed[player_ix]
                     print self.current_bets[player_ix]
                     assert False
-                
+
                 #feature bookkeeping
                 #self.features["
                 self.features["num_aggressive_actions"][self.street] += 1
@@ -275,7 +273,7 @@ class Table() :
 
             else : #action == 'c'
                 self.updateStack( player_ix, oblig, "passive" )
-            
+
                 #If player cannot call the required amount, put all in
                 #and credit the solvent players the difference
                 #TODO: instead of crediting back, put the difference in sidepot
@@ -295,7 +293,7 @@ class Table() :
                             else :
                                 self.updateStack( pix, adj_amt, "aggressive" )
                     #TODO: form a side pot
-                
+
                 #feature bookkeeping
                 self.features["num_passive_actions"][self.street] += 1
                 self.features["callers_since_last_raise"] += 1
@@ -341,13 +339,18 @@ class Table() :
                            from REPRESENTATIVES
                            where cboard = '%s'""" % (cboard)
                     #print q
-                    [[aboard]] = self.conn.query(q)
+                    try :
+                        [[aboard]] = self.conn.query(q)
+                    except Exception as ve :
+                        self.error_file.write( "%s\n\n" % q )
+
                     aboard = listify(aboard)
 
                     #pocket:board::apocket:aboard
                     #print "board",board
                     #print "aboard", aboard
                     apocket = symmetricComplement( board, pocket, aboard )
+                    #apocket = 'AhAs'
                     #print "pocket",pocket
                     #print "apocket", apocket
 
@@ -360,7 +363,11 @@ class Table() :
                                     apocket )
 
                 #print  q 
-                [[memberships]] = self.conn.query( q )
+                try :
+                    [[memberships]] = self.conn.query( q )
+                except Exception as ve :
+                    self.error_file.write( "%s\n\n" % q )
+                    assert False
 
                 #TODO
                 #eventually the beliefs should be a continuous node, 
@@ -368,7 +375,8 @@ class Table() :
                 #cram it into the closest to the average
                 memberships = [float(t) for t in memberships.split(':')]
                 #print "membs", memberships
-                w = [i*m for i,m in enumerate(memberships)]
+                #we want the buckets to be from 1->N, not 0->N-1
+                w = [(i+1)*m for i,m in enumerate(memberships)]
                 #print "wsum:", wsum
                 bucket = int(round(sum(w)))
                 #print "bucket,", bucket
@@ -467,7 +475,6 @@ class Table() :
         return self.players[ix].name == NA
 
     def getObligation( self, player_ix ) :
-        
         #return the first non-zero current-bet of a non-folded player
         ixs = range( player_ix-1, -1, -1) + \
               range( self.num_players-1, player_ix, -1)
@@ -494,7 +501,7 @@ class Table() :
             self.street = self.streets.next()
         except StopIteration :
             return 
-        
+
         #pointless to report actions about automatic blinds
         #(remember self.streets already incremented here)
         if self.street > 0 :

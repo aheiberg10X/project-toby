@@ -136,11 +136,13 @@ def computePreflopEV() :
 if __name__ == "__main__" :
     #computePreflopEV()
 
-    print computeHS2( ([['Ah','5c'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
-    print computeHS2( ([['6h','Ad'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
+    #print computeHS2( ([['Ah','5c'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
+    #print computeHS2( ([['6h','Ad'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
 
 
     #print computeSingleEHS2( ['3d','3c'], ['Kh','6s','3h'] )
+    print computeSingleEHS2( ['4s', '4d'], ['7d', '2c', '4c', '4h', '3h'] )
+    print computeSingleEHS2( ['4h','4s'], ['2h', '3h', '4d', '7d', '4c'] )
 
     #pool = Pool( processes = 8 )
     #d_pocket_EHS2 = mapReduceComputeEHS2( pool, [] )

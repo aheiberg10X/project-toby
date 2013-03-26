@@ -4,7 +4,7 @@ import os.path
 import json
 
 import table
-from globles import veryClose, BET_RATIOS
+from globles import veryClose, BET_RATIOS, LOG_DIRECTORY, LOG_YEAR
 from deck import listify
 
 MIN_BET_THRESH = 1
@@ -18,25 +18,48 @@ def actionState2Str( action_state ) :
 #1/0 last_to_act
 #1/0
 actionState2int = {}
-count = 0;
+#want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
+int_repr = 1;
 for br in BET_RATIOS :
     for last_to_act in [1,0] :
         for aggressivePIP in [1,0] :
             astate_str = actionState2Str( [br,last_to_act,aggressivePIP] )
-            actionState2int[ astate_str ] = count
-            count += 1
+            actionState2int[ astate_str ] = int_repr
+            int_repr += 1
 #TODO unify all the possible states into a single iterator??...
 #special states
-actionState2int['f'] = count
-count += 1
+actionState2int['f'] = int_repr
+int_repr += 1
+
 
 #take entry from table.action_states and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state ) :
     return actionState2int[ actionState2Str( action_state ) ]
 
-def iterateActionStatesACPC( filename, \
-                             min_betting_rounds = 1, \
-                             must_have_showdown = False ) :
+#TODO leave_out_runs does nothing
+def logs2Nodes( p1, p2, perm, leave_out_runs, \
+                min_betting_rounds, must_have_showdown ) :
+    out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
+                   (LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
+                    min_betting_rounds, must_have_showdown )
+    fout = open( out_filename, 'w' )
+
+    for run in range(100) :
+        print "Run: %d" % run
+        in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
+                      (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
+        buffer = []
+        for nodes in log2Nodes( in_filename, \
+                                min_betting_rounds=min_betting_rounds, \
+                                must_have_showdown=must_have_showdown ) :
+            nodes = ','.join([str(node) for node in nodes])
+            buffer.append( nodes )
+        fout.write( '\n'.join( buffer ) )
+    fout.close()
+
+def log2Nodes( filename, \
+               min_betting_rounds = 1, \
+               must_have_showdown = False ) :
 
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
@@ -72,11 +95,16 @@ def iterateActionStatesACPC( filename, \
         button_player = player_order[1]
         button = players.index(button_player)
 
+        has_showdown = 'f' not in action_strings[len(action_strings)-1]
+        if must_have_showdown and not has_showdown :
+            continue
+
         tbl.newHand(players, pockets, [20000,20000], button)
 
+        #mark the round where an allin occurred
         allin_round = 42
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
-            print "Street,action_string,card_stringL ", street, action_string, card_string
+            #print "Street,action_string,card_stringL ", street, action_string, card_string
             if street > 0 :
                 tbl.advanceStreet( listify(card_string) )
             else :
@@ -153,16 +181,12 @@ def iterateActionStatesACPC( filename, \
         #then the num betting rounds is only this long 
         #(see spark 3/9/13 for rationale
         n_betting_rounds = min( [len(action_strings), allin_round+1] )
-        has_showdown = 'f' not in action_strings[n_betting_rounds-1]
+        #has_showdown = 'f' not in action_strings[n_betting_rounds-1]
         print "nbetrounds: ", n_betting_rounds, " has_showdown: " , has_showdown
 
         #emit the {"action_state", "buckets", "gameid"} dict for the last hand
         if n_betting_rounds >= min_betting_rounds and \
            (not must_have_showdown or (must_have_showdown and has_showdown) ) :
-            #TODO yield the data in same order as bnet expects
-            #TODO map the action_state tuples to integers, will simplify 
-            #     MATLAB processing
-            #b11,b12,a11,a12,b21,b22,a21,...
             training_instance = []
             for street in range(0,n_betting_rounds) :
                 #print "street: ", street
@@ -171,6 +195,7 @@ def iterateActionStatesACPC( filename, \
                 #print "    a1: ", tbl.action_states[street][0]
                 #print "    a2: ", tbl.action_states[street][1]
                 try :
+                    #see toby_net.m for the node ordering
                     training_instance.append( tbl.buckets[street][0] )
                     training_instance.append( tbl.buckets[street][1] )
                     asint = mapActionState2Int( tbl.action_states[street][0] )
@@ -195,11 +220,23 @@ if __name__ == '__main__' :
     filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
     #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
 
+    for t in actionState2int :
+        print actionState2int[t], ' - ', t
 
-    for thing in iterateActionStatesACPC( filename, \
-                                          min_betting_rounds=0, \
-                                          must_have_showdown=True) :
-        print thing
+    p1 = "Rembrant"
+    p2 = "SartreNL"
+    perm = 1
+    #does nothign right now
+    leave_out_runs = range(90,100)
+    min_betting_rounds = 4
+    must_have_showdown = True
+    logs2Nodes( p1, p2, perm, leave_out_runs, \
+                min_betting_rounds, must_have_showdown )
+
+    #for nodes in log2Nodes( filename, \
+                            #min_betting_rounds=0, \
+                            #must_have_showdown=True) :
+        #print nodes
 
 
 
