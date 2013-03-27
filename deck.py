@@ -509,7 +509,11 @@ def symmetricComplement( board, pocket, boardp ) :
     #suit_count*10+int(has_illegal_mapping)
     def sortKeyClosure( suit_counts ) :
         def sortKey( s ) :
-            t = 10*int(s in illegal_map) + suit_counts[s]
+            if s in illegal_map :
+                num_illegal = len(illegal_map[s])
+            else:
+                num_illegal = 0
+            t = 10*num_illegal + suit_counts[s]
             #t = 10*suit_counts[s] + int(s in illegal_map)
             return t
         return sortKey
@@ -649,6 +653,15 @@ if __name__ == '__main__' :
     board = ['7d', '2c', '4c', '4h', '3h']
     boardp = ['2h', '3h', '4d', '7d', '4c']
     pocket = ['4s', '4d']
+
+    board = ['2c','Ad','2h','Ac','2s']
+    boardp = ['2h','Ah','2d','Ad','2c']
+    pocket = ['2d', 'As']
+
+    board = ['As','Tc','2d','8c','6d']
+    boardp = ['2h','6h','8d','Td','Ac']
+    pocket = ['4h','6s']
+    #pocket = ['4s','2h']
 
     #print collapseBoard(['2h','3h','4h','9h','Kd'])
     #print collapseBoard(['2h','3h','4s','9h','Kh'])

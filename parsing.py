@@ -39,10 +39,12 @@ def mapActionState2Int( action_state ) :
 #TODO leave_out_runs does nothing
 def logs2Nodes( p1, p2, perm, leave_out_runs, \
                 min_betting_rounds, must_have_showdown ) :
-    out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
-                   (LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
-                    min_betting_rounds, must_have_showdown )
-    fout = open( out_filename, 'w' )
+    #out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
+                   #(LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
+                    #min_betting_rounds, must_have_showdown )
+
+    train_fout = open( "training.csv", 'w' )
+    test_fout = open("test.csv",'w')
 
     for run in range(100) :
         print "Run: %d" % run
@@ -54,8 +56,13 @@ def logs2Nodes( p1, p2, perm, leave_out_runs, \
                                 must_have_showdown=must_have_showdown ) :
             nodes = ','.join([str(node) for node in nodes])
             buffer.append( nodes )
-        fout.write( '\n'.join( buffer ) )
-    fout.close()
+        if run in leave_out_runs :
+            test_fout.write( '\n'.join( buffer ) )
+        else :
+            train_fout.write( '\n'.join( buffer ) )
+
+    train_fout.close()
+    test_fout.close()
 
 def log2Nodes( filename, \
                min_betting_rounds = 1, \
