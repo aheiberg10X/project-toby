@@ -610,3 +610,72 @@ Did this...:
 So, can now emit only states that go to showdown.  Time for some fully labeled parameter learning
 
 =====================================================================
+
+3/25
+
+Smashing together all runs from a permutation (leaving a few out) as input.
+Need to run BNT on the fully labeled data (no board texture edges) and see how well it can predict 4th round actions, or, given actions, predict 4th round buckets.  Actually, predict the actions/buckets of any given round.
+
+Parsing takes a long time.  Database accesses + symmComplement have to be the culprits?  Yep...., a huge difference.  Mostly db, a little symmCompl
+
+---------------------------
+
+another symmComplement 'not enough rows' from DB query error, STILL!
+created a log file to catch all of these and not stop
+
+Also, need to be sure of mapping from BNT node values to the correct interpretation.  Will reorder bucket, state number assignments to start from 1, not 0.  Have to do this, otherwise inference engine gives invalid index when trying to lookup row 0 in CPT.  did it
+
+whats the deal, it learned on data with values outside the number of possible values I gave it.  Eg 20 flop bucket values, but toby_net.m specified only 6.  Turns out anything over the top got smashed into the 
+top's probability
+
+--------------------------
+
+preliminary training/inference with BNT look promising.  To really tell, need to isolate and fix parsing error described about, then rerun with data 1-indexed instead of 0-indexed
+
+------------------------------------
+
+evaluating accuracy: get distribution for query node.  sum up the probabilities of predicting the true labels.  Harder: capture the notion of closeness for the action_states.  this needs thinking/work, and a finalized conception of action_state (still a ways away)
+
+
+=========================================================================
+
+3/26/13
+
+More errors with symmComplement....and more errors....
+
+Fleshing out testing code in toby_net
+
+---------------------
+
+Inspecting MLE parameters for fully labelled case just to verify things are interpretable and making sense.  THey are.
+
+--------------------------------
+
+Strategerizing:
+
+Was thinking about reworking the action_states.  Could keep a aggressive/passive ratio instead of the pot fraction.  Does this cluster as nicely as pot fraction.  Would also need to include the multiple of the big blind to have some absolute measure.  Then perhaps an indicator of check_raise, was_check_raised  
+
+How much of a weakness is including no information about >=2 part actions?  i.e the differences between a small and a ludicrously big check raise?
+
+Also, how much is lost not letting the first player's action_state have an edge to the nexts?  Tried to incorporate this with 'in_position' part of the state, but seems lacking.  Trouble is that using one big node to sum the entire round of actions is not fair, because the second player didn't make their sum total decisions based on this info, only a part of it.
+
+But then again, really that bad?  All we are doing computing is: when we see action state X, action state Y is correlated with it by this much.  During the course of a game, player 1 makes the first move, and this automatically precludes some final action_states, and makes other final action states more likely.
+
+If we try including the edge, need to change how the data is parsed.  Right now all of player 1's actions (Rembrant) go to the left node, and all player 2's actions (SartreNL) go the right.  We would want to parse it so the inputs flip flopped (or just include the games were Rembrant was in_position so we are not mixing player action distributions)
+
+----------------------------
+
+Idle question: can we detect different styles of play in a bot when it plays different opponents?
+
+--------------------------------
+
+Want a way to only parse out those games of length N WIHTOUT a showdown, also.  Then can append with/withouts together and not spend so much time parsing
+
+On that note, can we speed up parsing?  that is, speed up the database accesses?
+
+--------------------------------
+
+very preliminary results of predicting the correct bucket are not great: .2828.  More data, more edges, better abstractions
+
+==========================================================
+

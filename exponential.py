@@ -1,5 +1,6 @@
 from math import pow
 
+#first number is ratio, second is 2 times the number of buckets
 ks = [(.6,20),(.75,40),(.7,30),(.65,20)]
 k = 3 
 
