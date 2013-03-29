@@ -37,36 +37,53 @@ def mapActionState2Int( action_state ) :
     return actionState2int[ actionState2Str( action_state ) ]
 
 #TODO leave_out_runs does nothing
-def logs2Nodes( p1, p2, perm, leave_out_runs, \
-                min_betting_rounds, must_have_showdown ) :
+def logs2Nodes( p1, p2, perm, leave_out_runs ) :
     #out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
                    #(LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
                     #min_betting_rounds, must_have_showdown )
 
-    train_fout = open( "training.csv", 'w' )
-    test_fout = open("test.csv",'w')
+    #TODO
+    #take each node output and write it to the corrent file handle
+    handles = {}
+    buffers = {}
+    for min_betting_rounds in [1,2,3,4] :
+        handles[min_betting_rounds] = {}
+        buffers[min_betting_rounds] = {}
+        for must_have_showdown in [True,False] :
+            handles[min_betting_rounds][must_have_showdown] = {}
+            buffers[min_betting_rounds][must_have_showdown] = {}
+            ss = "no-showdown"
+            if must_have_showdown : ss = "showdown"
+            for learn_test in ['training','test'] :
+                fout = open("nodes/%s_%s_perm-%d/%s_%d-rounds_%s.csv" % \
+                               (p1,p2,perm,learn_test,min_betting_rounds,ss),'w')
+                handles[min_betting_rounds][must_have_showdown][learn_test] = fout
+                buffers[min_betting_rounds][must_have_showdown][learn_test] = []
 
     for run in range(100) :
         print "Run: %d" % run
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
-                      (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
-        buffer = []
-        for nodes in log2Nodes( in_filename, \
-                                min_betting_rounds=min_betting_rounds, \
-                                must_have_showdown=must_have_showdown ) :
+                       (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
+        for ((rounds,showdown),nodes) in log2Nodes( in_filename ) :
             nodes = ','.join([str(node) for node in nodes])
-            buffer.append( nodes )
-        if run in leave_out_runs :
-            test_fout.write( '\n'.join( buffer ) )
-        else :
-            train_fout.write( '\n'.join( buffer ) )
+            print nodes, "goto: " , rounds, showdown
+            if run in leave_out_runs :
+                buffers[rounds][showdown]['test'].append( nodes )
+            else :
+                buffers[rounds][showdown]['training'].append(nodes)
 
-    train_fout.close()
-    test_fout.close()
+        for rounds in [1,2,3,4] :
+            for showdown in [True,False] :
+                for test_train in ['training','test'] :
+                    handles[rounds][showdown][test_train].write( \
+                          '\n'.join( buffers[rounds][showdown][test_train]) \
+                    )
 
-def log2Nodes( filename, \
-               min_betting_rounds = 1, \
-               must_have_showdown = False ) :
+    #TODO close handles
+
+def log2Nodes( filename ) :
+               #min_betting_rounds = 1, \
+               #must_have_showdown = False ) :
 
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
@@ -94,7 +111,10 @@ def log2Nodes( filename, \
             break
 
         game_id = int(splt[1])
-        print "\nGAME_ID:", game_id
+        print "GAME_ID:", game_id
+        #if game_id % 100 == 0 :
+            #print "GAME_ID:", game_id
+
         action_strings = splt[2].strip('/').split('/')
         card_strings = splt[3].strip('/').split('/')
         win_lose = splt[4]
@@ -102,9 +122,10 @@ def log2Nodes( filename, \
         button_player = player_order[1]
         button = players.index(button_player)
 
-        has_showdown = 'f' not in action_strings[len(action_strings)-1]
-        if must_have_showdown and not has_showdown :
-            continue
+        #has_showdown = 'f' not in action_strings[len(action_strings)-1]
+        #if must_have_showdown and not has_showdown or \
+           #not must_have_showdown and has_showdown :
+            #continue
 
         tbl.newHand(players, pockets, [20000,20000], button)
 
@@ -169,6 +190,15 @@ def log2Nodes( filename, \
         #all done iterating through the action/card lists
 
         tbl.advanceStreet(False)
+        
+            #TODO
+        #Need to figure out if/when there is an all in action
+        #then the num betting rounds is only this long 
+        #(see spark 3/9/13 for rationale
+        n_betting_rounds = min( [len(action_strings), allin_round+1] )
+        has_showdown = 'f' not in action_strings[n_betting_rounds-1]
+        #print "nbetrounds: ", n_betting_rounds, " has_showdown: " , has_showdown
+
 
         #register revealed
         #TODO
@@ -178,48 +208,50 @@ def log2Nodes( filename, \
         #pocket_strings = card_strings[0].split('|')
         #for player_name, pocket_string in zip(player_order,pocket_strings) :
             #tbl.registerRevealedPocket( player_name, listify(pocket_string) )
+        if has_showdown :
+            pockets = [listify(p) for p in card_strings[0].split('|')]
+            #print "pockets: ", pockets
+            try :
+                tbl.registerRevealedPockets( pockets )
+            except Exception as e :
+                print "file: %s, game_id: %d, \n    message: %s\n\n" % (filename,game_id,e.message)
+                continue
 
-        pockets = [listify(p) for p in card_strings[0].split('|')]
-        print "pockets: ", pockets
-        tbl.registerRevealedPockets( pockets )
+                #emit the {"action_state", "buckets", "gameid"} dict for the last hand
+        #if n_betting_rounds >= min_betting_rounds and \
+           #(    (not must_have_showdown and not has_showdown ) \
+             #or (must_have_showdown and has_showdown) ) :
+        training_instance = []
+        #if n_betting_rounds == min_betting_rounds and allin_round+1 < len(action_strings) :
+            #assert False
+        for street in range(0,n_betting_rounds) :
 
-        #TODO
-        #Need to figure out if/when there is an all in action
-        #then the num betting rounds is only this long 
-        #(see spark 3/9/13 for rationale
-        n_betting_rounds = min( [len(action_strings), allin_round+1] )
-        #has_showdown = 'f' not in action_strings[n_betting_rounds-1]
-        print "nbetrounds: ", n_betting_rounds, " has_showdown: " , has_showdown
-
-        #emit the {"action_state", "buckets", "gameid"} dict for the last hand
-        if n_betting_rounds >= min_betting_rounds and \
-           (not must_have_showdown or (must_have_showdown and has_showdown) ) :
-            training_instance = []
-            for street in range(0,n_betting_rounds) :
-                #print "street: ", street
-                #print "    b1: ", tbl.buckets[street][0]
-                #print "    b2: " , tbl.buckets[street][1]
-                #print "    a1: ", tbl.action_states[street][0]
-                #print "    a2: ", tbl.action_states[street][1]
-                try :
-                    #see toby_net.m for the node ordering
+            #print "street: ", street
+            #print "    b1: ", tbl.buckets[street][0]
+            #print "    b2: " , tbl.buckets[street][1]
+            #print "    a1: ", tbl.action_states[street][0]
+            #print "    a2: ", tbl.action_states[street][1]
+            try :
+                #see toby_net.m for the node ordering
+                if has_showdown :
                     training_instance.append( tbl.buckets[street][0] )
                     training_instance.append( tbl.buckets[street][1] )
-                    asint = mapActionState2Int( tbl.action_states[street][0] )
-                    training_instance.append( asint )
-                    asint = mapActionState2Int( tbl.action_states[street][1] )
-                    training_instance.append( asint )
-                except IndexError as ie :
-                    print ie
-                    print tbl.action_states
-                    assert False
 
-            yield training_instance
-            #yield {"action_states" : tbl.action_states, \
-                   #"buckets" : tbl.buckets, \
-                   #"game_id" : game_id}
-        else :
-            pass
+                asint = mapActionState2Int( tbl.action_states[street][0] )
+                training_instance.append( asint )
+                asint = mapActionState2Int( tbl.action_states[street][1] )
+                training_instance.append( asint )
+            except IndexError as ie :
+                print ie
+                print tbl.action_states
+                assert False
+
+        yield [(n_betting_rounds,has_showdown),training_instance]
+        #yield {"action_states" : tbl.action_states, \
+               #"buckets" : tbl.buckets, \
+               #"game_id" : game_id}
+        #else :
+            #pass
 
 
 if __name__ == '__main__' :
@@ -230,19 +262,35 @@ if __name__ == '__main__' :
     for t in actionState2int :
         print actionState2int[t], ' - ', t
 
-    p1 = "Rembrant"
-    p2 = "SartreNL"
+    #27202.pts-5.genomequery]
+    #p1 = "hugh"
+    #p2 = "Lucky7"
+
+    #17267.pts-0.genomequery - not going into nodes/, into main folder
+    #p1 = "Rembrant"
+    #p2 = "SartreNL"
+
+    #looked like everything was going to showdown, cancelled
+    #p1 = "POMPEIA"
+    #p2 = "SartreNL"
+
+    #27676.pts-7.genomequery
+    #p1 = "player_kappa_nl"
+    #p2 = "SartreNL"
+
+    #28271.pts-9.genomequery
+    p1 = "hugh"
+    p2 = "Hyperborean-2011-2p-nolimit-iro"
+
+
     perm = 1
     #does nothign right now
     leave_out_runs = range(90,100)
-    min_betting_rounds = 4
-    must_have_showdown = True
-    logs2Nodes( p1, p2, perm, leave_out_runs, \
-                min_betting_rounds, must_have_showdown )
+    #min_betting_rounds =3 
+    #must_have_showdown = False 
+    logs2Nodes( p1, p2, perm, leave_out_runs )
 
-    #for nodes in log2Nodes( filename, \
-                            #min_betting_rounds=0, \
-                            #must_have_showdown=True) :
+    #for nodes in log2Nodes( filename ) :
         #print nodes
 
 
