@@ -661,7 +661,11 @@ if __name__ == '__main__' :
     board = ['As','Tc','2d','8c','6d']
     boardp = ['2h','6h','8d','Td','Ac']
     pocket = ['4h','6s']
-    #pocket = ['4s','2h']
+
+    #s cannot go to any suit
+    board = ['7d','3c','Ad','Ah','Ac']
+    boardp = ['3h','7h','Ad','Ac','As']
+    pocket = ['7s','As']
 
     #print collapseBoard(['2h','3h','4h','9h','Kd'])
     #print collapseBoard(['2h','3h','4s','9h','Kh'])

@@ -366,8 +366,10 @@ class Table() :
                 try :
                     [[memberships]] = self.conn.query( q )
                 except Exception as ve :
-                    self.error_file.write( "%s\n\n" % q )
-                    assert False
+                    message = "cboard: %s\naboard: %s\npocket: %s\n\n" % (cboard,aboard,pocket)
+                    self.error_file.write( message )
+                    ve.message = message
+                    raise ve
 
                 #TODO
                 #eventually the beliefs should be a continuous node, 
