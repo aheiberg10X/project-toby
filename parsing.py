@@ -76,7 +76,8 @@ def logs2Nodes( p1, p2, perm, leave_out_runs ) :
             for showdown in [True,False] :
                 for test_train in ['training','test'] :
                     handles[rounds][showdown][test_train].write( \
-                          '\n'.join( buffers[rounds][showdown][test_train]) \
+                          '\n'.join( buffers[rounds][showdown][test_train]) +\
+                          '\n' \
                     )
 
     #TODO close handles
