@@ -679,3 +679,116 @@ very preliminary results of predicting the correct bucket are not great: .2828. 
 
 ==========================================================
 
+3/27/13
+
+Can parse 100 runs, only 2 symmComplement errors. They both are like this case:
+
+aboard: ['4h', '5h', '7d', '7c', '7s']
+pocket: ['4s', '7s']
+
+where mapping s to anything is illegal.
+
+Let's just move on though, fix when there is time
+
+We want parsing to output 4 x 2 x 2 files:
+Number of betting rounds x showdown reached x training/test
+
+A little wasteful on space, because we are going to duplicate 4 round games 4 times, in the 1,2,3 round files.  But practically simpler
+
+How do we encode the missing bucket data for MATLAB when the hand doesn't go to showdown?  Do a -1, then translate into empty [] when make into a cell array? Like so:
+
+Pretend we are working on flop data, ie only two rounds of betting
+
+data =
+
+     1     2     3     4
+     6     7     8     9
+     ...        [_______]
+                    |
+                 Actions from the flop round for the 2nd game
+
+[ncases,natt] = size(data);
+nrounds = natt/2;
+cases = cell( 2*natt, ncases );
+             for each pair of actions there are two buckets
+
+cases([3 4 7 8], :) = num2cell(data');*
+cases = 
+
+     []     []
+     []     []
+    [1]    [6]
+    [2]    [7]
+     []     []
+     []     []
+    [3]    [8]
+    [4]    [9]
+
+To get [3 4 7 8]
+to_fill = 1:nrounds*4;
+to_fill = reshape(to_fill,4,nrounds)';
+to_fill = to_fill(:,3:4);
+to_fill = reshape(to_fill',1,nrounds*2);
+
+And log2Nodes now only appends bucket data to nodes if must_have_showdown is true
+
+Started to modify logs2Nodes to multiplex output to appropriate file handles, but too sleepy.  Do in morning.
+
+============================================================
+
+3/28/31
+
+Parsing a 100 run into the 16 files.  taking a long time
+
+each run is 3000 hands * 100 = 300,000
+
+2494 @ 23:36
+838 @ 23:28    1300 hands in 2 min = 10 hands a second
+
+Can run 4 at a time w no apparent slowdown, though
+
+===================================================================
+
+4/1
+
+Started writing aaai submission
+
+===================================================================
+
+4/2
+
+When evaluating action prediction accuracy, we have equilvalence classes.  All we want to know is check,fold,or pip fraction, not whether we 'predict' in_position or is_aggressive.
+
+is pot odds and implied odds summed up by belief buckets?
+
+also, parsing seems not to have worked.  hugh_lucky7 2-round showdown node file look too long.
+Should have:
+b,b,a,a,b,b,a,a
+
+but we have many lists of length 16, ah, for all output files, it is smashing two lines together sometimes, probably between file boundaries.  should be fixed
+
+dealing with the issue of including edge between same street action nodes, or making more complicated graph structure:
+
+	Link the two nodes with an edge.
+	Remove 'in_position' state
+	Fix parsing.  We cant just send playerA to the left side now
+	If we have intra round action sequences that is longer than 2, eg. kr1r2c, create two training rows
+		..........b1, b2, summarize(k),        summarize(r)       ...............
+		..........b1, b2, summarize(k and r1), summarize(r2 and c)...............
+
+NO!!!!!!
+
+will do 4 rounds for the pending actions, summarized actions for the past ones.  See drawing and reasoning in AAAI write-up.  For training examples where there are only two action, just append a 'kk' to the end
+
+Changes to make:
+
+1) parse with directionality in mind.  Let's focus on our accuracy in predicting one player, say SartreNL.  Want to have a file with Sartre in position 1, opponent in postion 2 and also file with positions reversed.
+Let's also just focus on 4th round stuff, revealed and not revealed.
+
+2) State space has to change.  Let the summarized nodes be {discretized fraction the pot committed during the round} x {effective_stack_something} x {was_aggressor} x {other order dependent stuff that gets squashed??}, pretty much like they are, with in_position removed.  This is implicit due to the network structure now.  Maybe ignore effective stack for now.  The 4 active action nodes should simply state the pot fraction {also effective_stack, other stuff??}.  toby_net needs to change to reflect this
+
+	Side note: Shouldn't the fractions be computed with regard to the pot after the previous bet was added in?  How does this clustering look?  
+
+Have derivation showing meta-texture is a good thing.  Also, think I found the error in the previous attempt to compute transition probs.  See journal for both.
+
+Describe computation necessary for meta-texture?  We still doing the clustering?  yes i think
