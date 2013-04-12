@@ -1,7 +1,12 @@
 LOG_YEAR = 2011
 LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
 
-BET_RATIOS = [0,.2,.3,.4,.5,.75,1]
+BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
+
+def closestRatio( ratio ) :
+    return  min( BET_RATIOS, key = lambda bet : abs(ratio-bet) )
+
+
 #BUCKET_PERCENTILES = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
                       #'turn' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
                       #'river': [.45,.15,.14,.05,.05,.05,.05,.02,.02,.02] }

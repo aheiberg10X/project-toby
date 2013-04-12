@@ -650,6 +650,9 @@ if __name__ == '__main__' :
     #boardp= ['2h','4h','Td','Ad']
     #pocket = ['4h','Qh']
 
+    print symmetricComplement( ['4d','9d','7h'], ['7d','7s'], ['4h','9h','7d'] )
+    assert False
+
     board = ['7d', '2c', '4c', '4h', '3h']
     boardp = ['2h', '3h', '4d', '7d', '4c']
     pocket = ['4s', '4d']

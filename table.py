@@ -1,4 +1,4 @@
-from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX
+from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX, closestRatio
 from deck import makeHuman, canonicalize, collapseBoard, listify, symmetricComplement
 import rollout
 import globles
@@ -118,8 +118,10 @@ class Table() :
         #1st dim = street 0 - 3
         #2nd dim = player 0 - (self.num_players-1)
         #3rd dim = particular feature.  The last one is the EHS2 belief
-        self.action_states = []
+        self.past_actions = []
         self.buckets = []
+        #record the actions that comprise each betting round
+        self.active_actions = []
 
         self.features = { \
             #DONE (defacto)
@@ -128,7 +130,7 @@ class Table() :
             #done, though these aren't the actual features themselves
             #(they are ratios of passive v active on different streets
             "num_aggressive_actions" : [0]*4, \
-            "num_passive_actions" : [0]*4, \
+            "num_past_actions" : [0]*4, \
             "all_in_with_call" : False, \
             #TODO: done, but seems not useful.  The implied odds lower down
             #seem much more informative.  We have X to call.  Is that a lot?
@@ -225,11 +227,16 @@ class Table() :
 
     def registerAction( self, action, amt=0 ) : #fraction=False ) :
         player_ix = self.action_to
+        #holds the rounded action representation to be placed in 
+        #self.active_actions
+        action_rep = -1;
+        pot_frac = amt > 0
+
 
         #print self.players[self.action_to], action, amt
 
         if action == 'k' :
-            self.features["num_passive_actions"][self.street] += 1
+            self.features["num_past_actions"][self.street] += 1
         elif action == 'f' :
             self.folded[player_ix] = True
             #self.current_bets[player_ix] = -1
@@ -256,6 +263,7 @@ class Table() :
             if action == 'r' or action =='b' :
                 #raise_amt = fraction * self.pot
                 #self.updateStack( player_ix, oblig+raise_amt )
+                pot_frac = str(closestRatio( amt / float(self.pot) ))
                 self.updateStack( player_ix, amt, "aggressive" )
                 if not self.stacks[player_ix] >= -0.00001 :
                     print self.stacks[player_ix]
@@ -273,6 +281,9 @@ class Table() :
 
             else : #action == 'c'
                 self.updateStack( player_ix, oblig, "passive" )
+
+                #amt = min( oblig, self.stacks[player_ix] )
+                #pot_frac = str(closestRatio( amt / float(self.pot) ) )
 
                 #If player cannot call the required amount, put all in
                 #and credit the solvent players the difference
@@ -295,15 +306,24 @@ class Table() :
                     #TODO: form a side pot
 
                 #feature bookkeeping
-                self.features["num_passive_actions"][self.street] += 1
+                self.features["num_past_actions"][self.street] += 1
                 self.features["callers_since_last_raise"] += 1
 
             assert( self.stacks[player_ix] >= -0.00001 )
 
-        if self.logging :
-            self.history.update( self.street, (player_ix,action,amount) )
+        if pot_frac :
+            action_rep = (action, pot_frac)
         else :
-            self.history[self.street].append( action )
+            action_rep = (action)
+
+        if self.street >= 0 :
+            self.active_actions[self.street][player_ix].append( action_rep )
+
+        #LOL what was this even for
+        #if self.logging :
+            #self.history.update( self.street, (player_ix,action,amount) )
+        #else :
+            #self.history[self.street].append( action )
 
         self.acted[player_ix] = True
         self.action_to = self.nextUnfoldedPlayer( player_ix )
@@ -312,7 +332,7 @@ class Table() :
         #pix = self.players.index(player_name)
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
-        for street in range(len(self.action_states)) :
+        for street in range(len(self.past_actions)) :
             self.buckets.append( [] )
             for pix,pocket in enumerate(pockets) :
                 if street == 0 :
@@ -391,8 +411,8 @@ class Table() :
                     #self.buckets[street][pix] = bucket
                 #self.buckets[street][pix] = bucket
 
-                #self.action_states[street][pix].append( EHS2 )
-            #print self.action_states
+                #self.past_actions[street][pix].append( EHS2 )
+            #print self.past_actions
 
     #TODO: work in progress, not clear if going to be used
     def extractFeatures( self ) :
@@ -514,43 +534,52 @@ class Table() :
 
             #compute the features we want to emit
             #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
-            action_states = []
+            action_state = []
+            bet_ratio_added = False
             for p in acted_players :
-                action_state = []
-                if self.folded[p] :
-                    action_states.append( 'f' )
-                    continue
+                if not bet_ratio_added :
+                    pip_to_pot = self.current_bets[p] / float(self.pot)
+                    #print pip_to_pot
+                    #if self.current_bets[p] > 0 :
+                        #pip_to_stack = self.current_bets[p] / float(self.stacks[p] + self.current_bets[p])
+                        #print pip_to_stack
+                    closest_ratio = closestRatio( pip_to_pot )
+                    action_state.append( closest_ratio )
+                    bet_ratio_added = True
 
-                pip_to_pot = self.current_bets[p] / float(self.pot)
-                print pip_to_pot
-                closest_ratio = min( BET_RATIOS, \
-                                     key = lambda bet : abs(pip_to_pot-bet) )
-                action_state.append( closest_ratio )
+                #Inherent in network structure now
+                #the left side is always first to act
+                ##1 if in position, last to act
+                ##TODO: hardcoded for heads up
+                ##if advancing from preflop
+                #if self.street == 1 :
+                    #action_state.append( int(self.button != p ) )
+                #else :
+                    #action_state.append( int(self.button == p) )
 
-                #1 if in position, last to act
-                #TODO: hardcoded for heads up
-                #if advancing from preflop
-                if self.street == 1 :
-                    action_state.append( int(self.button != p ) )
-                else :
-                    action_state.append( int(self.button == p) )
+                did_re_raise = 0
+                for act in self.active_actions[self.street-1][p][1:] :
+                    if 'r' in act : did_re_raise = 1
+                action_state.append( did_re_raise )
 
                 #1 if aggressive PIP ratio
                 if not self.current_bets[p] == 0 :
-                    was_aggressive = int( (self.aggressive_pip[p] / \
-                                           float(self.current_bets[p])) > .1 )
+                    #ratio = self.aggressive_pip[p] / \
+                             #float(self.current_bets[p])
+                    #was_aggressive = int( ratio  > .1 )
+                    was_aggressive = int( self.aggressive_pip[p] > 0 )
                     action_state.append( was_aggressive )
-                    #t.append( self.passive_pip[p] / self.current_bets[p] )
                 else :
                     action_state.append(0)
-                    #t.append(0)
-                action_states.append(action_state)
 
-            #meaningless to register action_states where no one acts
+            #meaningless to register actions where no one acts
             #this can happend when an all-In is called
             #future streets are dealt but there are no actions to take
             if len(acted_players) > 0 : 
-                self.action_states.append( action_states )
+                self.past_actions.append( action_state )
+
+        #make space for the next street
+        self.active_actions.append([[],[]])
 
         #bookkeeping
         if cards :

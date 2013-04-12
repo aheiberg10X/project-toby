@@ -10,38 +10,60 @@ from deck import listify
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
+#concatenate
 def actionState2Str( action_state ) :
     return ','.join( [str(t) for t in action_state] )
 
-#coordinate with table.advanceStreet, which builds the action_states themselvesa
+#coordinate with table.advanceStreet, which builds the actions themselvesa
 #BET_RATIOS
 #1/0 last_to_act
 #1/0
-actionState2int = {}
+actionState2Int = {}
 #want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
 int_repr = 1;
+
+#past states
 for br in BET_RATIOS :
-    for last_to_act in [1,0] :
-        for aggressivePIP in [1,0] :
-            astate_str = actionState2Str( [br,last_to_act,aggressivePIP] )
-            actionState2int[ astate_str ] = int_repr
-            int_repr += 1
-#TODO unify all the possible states into a single iterator??...
-#special states
-actionState2int['f'] = int_repr
-int_repr += 1
+    for p1_did_re_raise in [1,0] :
+        for p1_was_aggressive in [1,0] :
+            for p2_did_re_raise in [1,0] :
+                for p2_was_aggressive in [1,0] :
+                    astate_str = actionState2Str( [\
+                       br, p1_did_re_raise, p1_was_aggressive,\
+                           p2_did_re_raise, p2_was_aggressive] )
+                    actionState2Int[ astate_str ] = int_repr
+                    int_repr += 1
 
+#active states
+#start the count over for the active nodes
+int_repr = 1
+for action in 'k','f','r','c','b' :
+    for br in BET_RATIOS :
+        if action in ['k','f','c'] :
+            astate_str = actionState2Str( [action] )
+        else :
+            astate_str = actionState2Str( [action,br] )
+        actionState2Int[ astate_str ]  = int_repr
+        int_repr += 1
 
-#take entry from table.action_states and map it to an in for MATLAB to crunch
+#print what is what
+sorted_astates = sorted( actionState2Int.keys(), key= lambda astate : actionState2Int[astate] )
+for sa in sorted_astates :
+    print sa, "\t", actionState2Int[sa]
+
+#take entry from table.actions and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state ) :
-    return actionState2int[ actionState2Str( action_state ) ]
+    return actionState2Int[ actionState2Str( action_state ) ]
 
-#TODO leave_out_runs does nothing
-def logs2Nodes( p1, p2, perm, leave_out_runs ) :
+#want to extract all hands where focus_player=SartreNL is first to act
+#ie not the dealer/button
+def logs2Nodes( p1, p2,  perm, leave_out_runs, \
+                focus_player="SartreNL", focus_position="first" ) :
     #out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
                    #(LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
                     #min_betting_rounds, must_have_showdown )
 
+    assert focus_player == p1 or focus_player == p2
     #TODO
     #take each node output and write it to the corrent file handle
     handles = {}
@@ -60,13 +82,15 @@ def logs2Nodes( p1, p2, perm, leave_out_runs ) :
                 handles[min_betting_rounds][must_have_showdown][learn_test] = fout
                 buffers[min_betting_rounds][must_have_showdown][learn_test] = []
 
-    for run in range(100) :
-        print "Run: %d" % run
+    for run in range(1) : #range(100)
+        #print "Run: %d" % run
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
-        for ((rounds,showdown),nodes) in log2Nodes( in_filename ) :
+        for ((game_id,rounds,showdown),nodes) in (log2Nodes( in_filename, \
+                                                    focus_player, \
+                                                    focus_position )) :
             nodes = ','.join([str(node) for node in nodes])
-            print nodes, "goto: " , rounds, showdown
+            print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
             if run in leave_out_runs :
                 buffers[rounds][showdown]['test'].append( nodes )
             else :
@@ -82,9 +106,7 @@ def logs2Nodes( p1, p2, perm, leave_out_runs ) :
 
     #TODO close handles
 
-def log2Nodes( filename ) :
-               #min_betting_rounds = 1, \
-               #must_have_showdown = False ) :
+def log2Nodes( filename, focus_player, focus_position ) :
 
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
@@ -93,10 +115,15 @@ def log2Nodes( filename ) :
     splt = filename.split('.')
     players = [ splt[1], splt[2] ]
     perm = int(splt[4][5:])
+    #if perm==1, button/dealer is the first player in the filename
     if perm == 1 :
         button = 0
     else :
         button = 1
+
+    focus_start_on_button = button == players.index(focus_player)
+    want_to_be_button = focus_position == "button"
+    use_evens = focus_start_on_button == want_to_be_button
 
     #stacks are always reset to 20000 at the start of every game 
     pockets = [['__','__'],['__','__']]
@@ -104,7 +131,9 @@ def log2Nodes( filename ) :
     tbl = table.Table( small_blind=50 )
     header = fin.readline()
     for i in range(3) : burn = fin.readline()
-    for line in fin.readlines() : 
+    for line_num, line in enumerate(fin.readlines()) : 
+        is_even = line_num % 2 == 0
+        if( is_even != use_evens ) : continue
 
         splt = line.strip().split(':')
         if splt[0] == "SCORE" :
@@ -112,7 +141,7 @@ def log2Nodes( filename ) :
             break
 
         game_id = int(splt[1])
-        print "GAME_ID:", game_id
+        #print "GAME_ID:", game_id
         #if game_id % 100 == 0 :
             #print "GAME_ID:", game_id
 
@@ -123,15 +152,17 @@ def log2Nodes( filename ) :
         button_player = player_order[1]
         button = players.index(button_player)
 
-        #has_showdown = 'f' not in action_strings[len(action_strings)-1]
-        #if must_have_showdown and not has_showdown or \
-           #not must_have_showdown and has_showdown :
-            #continue
+        #hack to make it go faster
+        #we are only interested in 4 round hands
+        has_showdown = 'f' not in action_strings[len(action_strings)-1]
+        if not has_showdown :
+            continue
 
         tbl.newHand(players, pockets, [20000,20000], button)
 
         #mark the round where an allin occurred
         allin_round = 42
+        prev_act = 'blinds'
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
             #print "Street,action_string,card_stringL ", street, action_string, card_string
             if street > 0 :
@@ -143,7 +174,6 @@ def log2Nodes( filename ) :
                 tbl.registerAction('c')
                 tbl.advanceStreet( ['down','cards'] )
 
-            prev_act = 'blinds'
             ix = 0
             while ix < len(action_string) :
                 act = action_string[ix]
@@ -189,70 +219,77 @@ def log2Nodes( filename ) :
                 prev_act = act
 
         #all done iterating through the action/card lists
-
         tbl.advanceStreet(False)
-        
-            #TODO
-        #Need to figure out if/when there is an all in action
-        #then the num betting rounds is only this long 
-        #(see spark 3/9/13 for rationale
+
         n_betting_rounds = min( [len(action_strings), allin_round+1] )
         has_showdown = 'f' not in action_strings[n_betting_rounds-1]
-        #print "nbetrounds: ", n_betting_rounds, " has_showdown: " , has_showdown
-
-
-        #register revealed
-        #TODO
-        #logic controlling whether or not we want to register...
-        #may want to emit the rest of the info about hands when a showdown
-        #didn't happen
-        #pocket_strings = card_strings[0].split('|')
-        #for player_name, pocket_string in zip(player_order,pocket_strings) :
-            #tbl.registerRevealedPocket( player_name, listify(pocket_string) )
         if has_showdown :
             pockets = [listify(p) for p in card_strings[0].split('|')]
-            #print "pockets: ", pockets
             try :
                 tbl.registerRevealedPockets( pockets )
             except Exception as e :
                 print "file: %s, game_id: %d, \n    message: %s\n\n" % (filename,game_id,e.message)
                 continue
 
-                #emit the {"action_state", "buckets", "gameid"} dict for the last hand
-        #if n_betting_rounds >= min_betting_rounds and \
-           #(    (not must_have_showdown and not has_showdown ) \
-             #or (must_have_showdown and has_showdown) ) :
+
+        #TODO
+        #now that the network structure has changed, we need to modify this
+        #to output expanded active nodes for each possible round
+        #the yield statement will go inside the for loop, as will the training
+        #instance list
+        #e.g a game going 4 rounds will output [past *3*2, 4 active on river],
+        # [past 2*2, 4 active on turn], [past *1*2, 4 active on flop], etc..
         training_instance = []
-        #if n_betting_rounds == min_betting_rounds and allin_round+1 < len(action_strings) :
-            #assert False
         for street in range(0,n_betting_rounds) :
+            #always want the player who is first to act to be on the left
+            #side of the network.
+            #since player list we pass to Table does not depend on position
+            #in the hand, but instead on position in the file name, we
+            #need to do some conversion
+            focus_player_ix = players.index(focus_player)
+            want_to_be_button = int(focus_position == 'button')
+            if focus_player_ix == want_to_be_button :
+                ordered_players = [0,1]
+            else :
+                ordered_players = [1,0]
 
-            #print "street: ", street
-            #print "    b1: ", tbl.buckets[street][0]
-            #print "    b2: " , tbl.buckets[street][1]
-            #print "    a1: ", tbl.action_states[street][0]
-            #print "    a2: ", tbl.action_states[street][1]
-            try :
-                #see toby_net.m for the node ordering
-                if has_showdown :
-                    training_instance.append( tbl.buckets[street][0] )
-                    training_instance.append( tbl.buckets[street][1] )
+            #see toby_net.m for the node ordering
+            if has_showdown :
+                for pix in ordered_players :
+                    training_instance.append( tbl.buckets[street][pix] )
+            else :
+                for pix in ordered_players :
+                    training_instance.append(-1)
 
-                asint = mapActionState2Int( tbl.action_states[street][0] )
+            #print "street", street
+            #print tbl.active_actions
+
+            
+            too_many_micro_rounds = False
+            if street == n_betting_rounds-1 :
+                for pix in ordered_players :
+                    n_micro_rounds = len(tbl.active_actions[street][pix])
+                    too_many_micro_rounds |= n_micro_rounds > 2
+                    #assert not too_many_micro_rounds
+                    for micro_round in [0,1] :
+                        #the network expects some number of micro rounds
+                        #in the final street
+                        if micro_round >= n_micro_rounds :
+                            aa = 'k'
+                        else :
+                            aa = tbl.active_actions[street][pix][micro_round]
+                        training_instance.append( mapActionState2Int(aa) )
+            else :
+                #for pix in ordered_players :
+                asint = mapActionState2Int( \
+                          tbl.past_actions[street] )
                 training_instance.append( asint )
-                asint = mapActionState2Int( tbl.action_states[street][1] )
-                training_instance.append( asint )
-            except IndexError as ie :
-                print ie
-                print tbl.action_states
-                assert False
 
-        yield [(n_betting_rounds,has_showdown),training_instance]
-        #yield {"action_states" : tbl.action_states, \
-               #"buckets" : tbl.buckets, \
-               #"game_id" : game_id}
-        #else :
-            #pass
+        if too_many_micro_rounds :
+            #print "too_many_micro_rounds"
+            #assert False
+            continue
+        yield [(game_id,n_betting_rounds,has_showdown),training_instance]
 
 
 if __name__ == '__main__' :
@@ -260,16 +297,16 @@ if __name__ == '__main__' :
     filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
     #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
 
-    for t in actionState2int :
-        print actionState2int[t], ' - ', t
+    #for t in actionState2Int :
+        #print actionState2Int[t], ' - ', t
 
     #27202.pts-5.genomequery]
     #p1 = "hugh"
     #p2 = "Lucky7"
 
     #17267.pts-0.genomequery - not going into nodes/, into main folder
-    #p1 = "Rembrant"
-    #p2 = "SartreNL"
+    p1 = "Rembrant"
+    p2 = "SartreNL"
 
     #looked like everything was going to showdown, cancelled
     #p1 = "POMPEIA"
@@ -375,7 +412,7 @@ def reGroupsToAmount( dollar_group, cent_group ) :
     else : cents = 0
     return dollars+cents
 
-#yield a dict {"action_states", "buckets", "gameid"}
+#yield a dict {"actions", "buckets", "gameid"}
 def iterateActionStates( filename ) :
     num_games, num_revealed = 0,0
 
@@ -394,14 +431,14 @@ def iterateActionStates( filename ) :
             num_games += 1
             if not isfirst :
                 y = {}
-                y["action_states"] = t.action_states
+                y["actions"] = t.actions
                 y["buckets"] = t.buckets
                 #TODO, don't we want the previous id?
                 y["game_id"] = new_game_match.groups(1)
                 yield y 
-                #for street in range(len(t.action_states)) :
+                #for street in range(len(t.actions)) :
                     #for player in range(num_players) :
-                        #tmp = [street] + t.action_states[street][player]
+                        #tmp = [street] + t.actions[street][player]
                         ##print tmp
                         #yield tmp
             
@@ -511,7 +548,7 @@ def iterateActionStates( filename ) :
                             t.advanceStreet(False)
                             num_revealed += 1
                             #propagate the revealed HS2 information back
-                            #through the table.action_states via 
+                            #through the table.actions via 
                             #registerRevealedPocket
                             player = show_match.group(1)
                             card1 = show_match.group(3)
@@ -535,7 +572,7 @@ def iterateActionStates( filename ) :
         
     #TODO
     #process the last hand
-    #yield t.action_states
+    #yield t.actions
 
     print "num_games: ", num_games, "num_showdowns: ", num_revealed/2
     fin.close()
