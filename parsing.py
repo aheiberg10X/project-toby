@@ -276,12 +276,12 @@ if __name__ == '__main__' :
     #p2 = "SartreNL"
 
     #27676.pts-7.genomequery
-    #p1 = "player_kappa_nl"
-    #p2 = "SartreNL"
+    p1 = "player_kappa_nl"
+    p2 = "SartreNL"
 
     #28271.pts-9.genomequery
-    p1 = "hugh"
-    p2 = "Hyperborean-2011-2p-nolimit-iro"
+    #p1 = "hugh"
+    #p2 = "Hyperborean-2011-2p-nolimit-iro"
 
 
     perm = 1

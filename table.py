@@ -522,6 +522,7 @@ class Table() :
                     continue
 
                 pip_to_pot = self.current_bets[p] / float(self.pot)
+                print pip_to_pot
                 closest_ratio = min( BET_RATIOS, \
                                      key = lambda bet : abs(pip_to_pot-bet) )
                 action_state.append( closest_ratio )
