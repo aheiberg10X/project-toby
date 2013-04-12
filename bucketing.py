@@ -360,6 +360,9 @@ def computeEHS2DistsLongways() :
 
     pool.close()
 
+#this was for merging a fix in with existing values
+#for cboards ending in _p_22f
+#Still need?
 def computeEHS2DistsLongways_special() :
     pool = Pool( processes = 8 )
     count = 0
@@ -693,8 +696,22 @@ def testSymmetric() :
         assert round(ehs2,4) == round(ehs2p,4)
         #ehs2p = 
 
+def iterateTransitions() :
+    transitions = {}
+    for i, board_prime in enumerate( combinations( range(52), 5 ) ):
+        if i % 10000 == 0 : 
+            print i, len(transitions)
+        board = board_prime[:-1]
+        cboard = collapseBoard(board)
+        cboard_prime = collapseBoard(board_prime)
+        comb = "%s_%s" % (cboard, cboard_prime)
+        if comb not in transitions :
+            transitions[comb] = True
+
+    print len(transitions)
 
 if __name__ == '__main__' :
+    iterateTransitions()
     #testSymmetric()
     #conn = db.Conn("localhost")
     #getTransitionProbs_DB( conn, \
@@ -707,7 +724,7 @@ if __name__ == '__main__' :
     ##bucket_percentiles = [.5,.3,.1,.05,.02,.02,.01]
     #bucketAllEHS2Dists_DB( globles.BUCKET_TABLE_PREFIX, \
                            #globles.BUCKET_PERCENTILES )
-    insertRepresentatives()
+    #insertRepresentatives()
     #computeEHS2DistsLongways_special()
     assert False
 
