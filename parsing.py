@@ -4,7 +4,7 @@ import os.path
 import json
 
 import table
-from globles import veryClose, BET_RATIOS, LOG_DIRECTORY, LOG_YEAR
+from globles import veryClose, PAST_BET_RATIOS, ACTIVE_BET_RATIOS, LOG_DIRECTORY, LOG_YEAR
 from deck import listify
 
 MIN_BET_THRESH = 1
@@ -18,47 +18,61 @@ def actionState2Str( action_state ) :
 #BET_RATIOS
 #1/0 last_to_act
 #1/0
-actionState2Int = {}
+pastActionState2Int = {}
+activeActionState2Int = {}
 #want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
 int_repr = 1;
 
 #past states
-for br in BET_RATIOS :
-    for p1_did_re_raise in [1,0] :
-        for p1_was_aggressive in [1,0] :
-            for p2_did_re_raise in [1,0] :
-                for p2_was_aggressive in [1,0] :
-                    astate_str = actionState2Str( [\
-                       br, p1_did_re_raise, p1_was_aggressive,\
-                           p2_did_re_raise, p2_was_aggressive] )
-                    actionState2Int[ astate_str ] = int_repr
-                    int_repr += 1
+for br in PAST_BET_RATIOS :
+    #for p1_did_re_raise in [1,0] :
+    for p1_was_aggressive in [1,0] :
+        #for p2_did_re_raise in [1,0] :
+        for p2_was_aggressive in [1,0] :
+            astate_str = actionState2Str( [\
+               br, p1_was_aggressive,\
+                   p2_was_aggressive] )
+            pastActionState2Int[ astate_str ] = int_repr
+            int_repr += 1
 
 #active states
 #start the count over for the active nodes
 int_repr = 1
-for action in 'k','f','r','c','b' :
-    for br in BET_RATIOS :
-        if action in ['k','f','c'] :
-            astate_str = actionState2Str( [action] )
-        else :
-            astate_str = actionState2Str( [action,br] )
-        actionState2Int[ astate_str ]  = int_repr
-        int_repr += 1
+for action in 'k','f','c' :
+    astate_str = actionState2Str( [action] )
+    activeActionState2Int[ astate_str ]  = int_repr
+    int_repr += 1
+
+#only care about the ratio, bet or raise part implicit in the network
+for br in ACTIVE_BET_RATIOS :
+    astate_str = actionState2Str( [br] )
+    activeActionState2Int[ astate_str ]  = int_repr
+    int_repr += 1
 
 #print what is what
-sorted_astates = sorted( actionState2Int.keys(), key= lambda astate : actionState2Int[astate] )
+sorted_astates = sorted( pastActionState2Int.keys(), key= lambda astate : pastActionState2Int[astate] )
 for sa in sorted_astates :
-    print sa, "\t", actionState2Int[sa]
+    print sa, "\t", pastActionState2Int[sa]
+
+sorted_astates = sorted( activeActionState2Int.keys(), key= lambda astate : activeActionState2Int[astate] )
+for sa in sorted_astates :
+    print sa, "\t", activeActionState2Int[sa]
+
+
+
 
 #take entry from table.actions and map it to an in for MATLAB to crunch
-def mapActionState2Int( action_state ) :
-    return actionState2Int[ actionState2Str( action_state ) ]
+def mapActionState2Int( action_state, switch ) :
+    if switch == 'past' :
+        return pastActionState2Int[ actionState2Str( action_state ) ]
+    elif switch == 'active' :
+        return activeActionState2Int[ actionState2Str( action_state ) ]
+    else : assert False
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
 def logs2Nodes( p1, p2,  perm, leave_out_runs, \
-                focus_player="SartreNL", focus_position="first" ) :
+                focus_player, focus_position ) :
     #out_filename = "%s/nodes-%d-%s-%s-perm%d-min%d-show%d.csv" % \
                    #(LOG_DIRECTORY, LOG_YEAR, p1, p2, perm, \
                     #min_betting_rounds, must_have_showdown )
@@ -82,7 +96,7 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
                 handles[min_betting_rounds][must_have_showdown][learn_test] = fout
                 buffers[min_betting_rounds][must_have_showdown][learn_test] = []
 
-    for run in range(1) : #range(100)
+    for run in range(100) : #range(100)
         #print "Run: %d" % run
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
@@ -108,6 +122,7 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
 
 def log2Nodes( filename, focus_player, focus_position ) :
 
+    print "paring: ", filename
     fin = open(filename)
     #TODO: glean small blind from, or always the same?
 
@@ -152,11 +167,11 @@ def log2Nodes( filename, focus_player, focus_position ) :
         button_player = player_order[1]
         button = players.index(button_player)
 
-        #hack to make it go faster
-        #we are only interested in 4 round hands
-        has_showdown = 'f' not in action_strings[len(action_strings)-1]
-        if not has_showdown :
-            continue
+        ##hack to make it go faster
+        ##we are only interested in 4 round hands
+        #has_showdown = 'f' not in action_strings[len(action_strings)-1]
+        #if not has_showdown :
+            #continue
 
         tbl.newHand(players, pockets, [20000,20000], button)
 
@@ -278,11 +293,11 @@ def log2Nodes( filename, focus_player, focus_position ) :
                             aa = 'k'
                         else :
                             aa = tbl.active_actions[street][pix][micro_round]
-                        training_instance.append( mapActionState2Int(aa) )
+                        training_instance.append( mapActionState2Int(aa,'active') )
             else :
                 #for pix in ordered_players :
                 asint = mapActionState2Int( \
-                          tbl.past_actions[street] )
+                          tbl.past_actions[street], 'past' )
                 training_instance.append( asint )
 
         if too_many_micro_rounds :
@@ -300,33 +315,37 @@ if __name__ == '__main__' :
     #for t in actionState2Int :
         #print actionState2Int[t], ' - ', t
 
-    #27202.pts-5.genomequery]
-    #p1 = "hugh"
-    #p2 = "Lucky7"
-
-    #17267.pts-0.genomequery - not going into nodes/, into main folder
-    p1 = "Rembrant"
-    p2 = "SartreNL"
-
-    #looked like everything was going to showdown, cancelled
-    #p1 = "POMPEIA"
+    #28271.pts-9.genomequery
+    #p1 = "Rembrant"
     #p2 = "SartreNL"
 
     #27676.pts-7.genomequery
-    p1 = "player_kappa_nl"
+    #p1 = "POMPEIA"
+    #p2 = "SartreNL"
+
+    #27202.pts-5.genomequery
+    #p1 = "player_kappa_nl"
+    #p2 = "SartreNL"
+
+    #17267.pts-0.genomequery
+    #p1 = "Hyperborean-2011-2p-nolimit-iro"
+    #p2 = "SartreNL"
+
+    #18272.pts-11.genomequery
+    #p1 = "Lucky7"
+    #p2 = "SartreNL"
+
+    #18458.pts-13.genomequery
+    p1 = "hugh"
     p2 = "SartreNL"
-
-    #28271.pts-9.genomequery
-    #p1 = "hugh"
-    #p2 = "Hyperborean-2011-2p-nolimit-iro"
-
 
     perm = 1
     #does nothign right now
     leave_out_runs = range(90,100)
     #min_betting_rounds =3 
     #must_have_showdown = False 
-    logs2Nodes( p1, p2, perm, leave_out_runs )
+    logs2Nodes( p1, p2, perm, leave_out_runs, \
+                focus_player="SartreNL", focus_position = "first" )
 
     #for nodes in log2Nodes( filename ) :
         #print nodes

@@ -1,10 +1,20 @@
 LOG_YEAR = 2011
 LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
 
-BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
+#old
+#BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
 
-def closestRatio( ratio ) :
-    return  min( BET_RATIOS, key = lambda bet : abs(ratio-bet) )
+PAST_BET_RATIOS = [0,.33,.5,.8]
+
+#individual bet ratios
+ACTIVE_BET_RATIOS = [.5,1,1.6,4]
+
+def closestRatio( ratio, switch ) :
+    if switch == 'past' :
+        return  min( PAST_BET_RATIOS, key = lambda bet : abs(ratio-bet) )
+    elif switch == 'active' :
+        return min( ACTIVE_BET_RATIOS, key = lambda bet : abs(ratio-bet) )
+    else : return False
 
 
 #BUCKET_PERCENTILES = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \

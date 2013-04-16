@@ -1,4 +1,4 @@
-from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BET_RATIOS, BUCKET_TABLE_PREFIX, closestRatio
+from globles import NA, STREET_NAMES, FOLDED, WILDCARD, POCKET_SIZE, veryClose, BUCKET_TABLE_PREFIX, closestRatio
 from deck import makeHuman, canonicalize, collapseBoard, listify, symmetricComplement
 import rollout
 import globles
@@ -233,8 +233,6 @@ class Table() :
         pot_frac = amt > 0
 
 
-        #print self.players[self.action_to], action, amt
-
         if action == 'k' :
             self.features["num_past_actions"][self.street] += 1
         elif action == 'f' :
@@ -255,7 +253,6 @@ class Table() :
 
             #TODO figure out if raise or call
             if action == 'a' :
-                print "registering all in action"
                 if amt > oblig : action = 'r'
                 else : action = 'c'
 
@@ -263,7 +260,12 @@ class Table() :
             if action == 'r' or action =='b' :
                 #raise_amt = fraction * self.pot
                 #self.updateStack( player_ix, oblig+raise_amt )
-                pot_frac = str(closestRatio( amt / float(self.pot) ))
+                frac = amt / float(self.pot)
+
+                ##when printing bet_ratios to find good abstraction
+                #self.error_file.write( "%f\n" % frac )
+
+                pot_frac = str(closestRatio( frac, 'active' ))
                 self.updateStack( player_ix, amt, "aggressive" )
                 if not self.stacks[player_ix] >= -0.00001 :
                     print self.stacks[player_ix]
@@ -312,9 +314,10 @@ class Table() :
             assert( self.stacks[player_ix] >= -0.00001 )
 
         if pot_frac :
-            action_rep = (action, pot_frac)
+            action_rep = [pot_frac]
+            
         else :
-            action_rep = (action)
+            action_rep = [action]
 
         if self.street >= 0 :
             self.active_actions[self.street][player_ix].append( action_rep )
@@ -539,11 +542,15 @@ class Table() :
             for p in acted_players :
                 if not bet_ratio_added :
                     pip_to_pot = self.current_bets[p] / float(self.pot)
+
+                    #when looking for appropriate bet ratios
+                    #self.error_file.write( "%f\n" % (pip_to_pot) )
+
                     #print pip_to_pot
                     #if self.current_bets[p] > 0 :
                         #pip_to_stack = self.current_bets[p] / float(self.stacks[p] + self.current_bets[p])
                         #print pip_to_stack
-                    closest_ratio = closestRatio( pip_to_pot )
+                    closest_ratio = closestRatio( pip_to_pot, 'past' )
                     action_state.append( closest_ratio )
                     bet_ratio_added = True
 
@@ -557,10 +564,10 @@ class Table() :
                 #else :
                     #action_state.append( int(self.button == p) )
 
-                did_re_raise = 0
-                for act in self.active_actions[self.street-1][p][1:] :
-                    if 'r' in act : did_re_raise = 1
-                action_state.append( did_re_raise )
+                #did_re_raise = 0
+                #for act in self.active_actions[self.street-1][p][1:] :
+                    #if 'r' in act : did_re_raise = 1
+                #action_state.append( did_re_raise )
 
                 #1 if aggressive PIP ratio
                 if not self.current_bets[p] == 0 :
