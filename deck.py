@@ -435,10 +435,34 @@ def isAssignmentLegal( pocket, board ) :
         if p in board : return False
     return True
 
+#stem is some board, to which we wnat to add some card such that the 
+#extended board collapses to cboard
+def completeStemToMakeCboard( stem, cboard ) :
+    stem_cards = sorted([getCardinality(c) for c in stem])
+    cboard_cards = [getCardinality(c) for c in cboard.split('_')[0]]
+    for cbc in cboard_cards :
+        try :
+            ix = stem_cards.index(cbc)
+            stem_cards[ix] = -1
+        except ValueError :
+            missing_card = cbc
+            break
+    machine_stem = makeMachine(stem)
+    print "machine_stem", machine_stem
+    for suit in ['h','c','d','s'] :
+        newcard = makeMachine(["%d%s" % (missing_card, suit)])[0]
+        if newcard in machine_stem :
+            continue
+        newboard = machine_stem+[newcard]
+        if collapseBoard(newboard) == cboard :
+            return makeHuman(newboard)
 
 #returns the pocketp that satisfies:
 #'pocketp' : 'boardp' :: 'pocket' : 'board' 
+#pocketp is canonicalized, input pocket is not
 def symmetricComplement( board, pocket, boardp ) :
+    if type(pocket) == str :
+        pocket = deCanonicalize(pocket)
     assert isAssignmentLegal( pocket, board ) 
     cboard = collapseBoard(board)
 
@@ -650,7 +674,11 @@ if __name__ == '__main__' :
     #boardp= ['2h','4h','Td','Ad']
     #pocket = ['4h','Qh']
 
-    print symmetricComplement( ['4d','9d','7h'], ['7d','7s'], ['4h','9h','7d'] )
+    #print symmetricComplement( ['4d','9d','7h'], ['7d','7s'], ['4h','9h','7d'] )
+    #print collapseBoard(['2d','Td','8d','8h','8c'])
+    #print completeStemToMakeCboard( ['2h','4d','6d','Tc'], '2468T_h_3foxxxo' )
+    #print completeStemToMakeCboard( ['2d','Td','8h','8c'], '2888T_t_3foxxxo' )
+    print completeStemToMakeCboard( ['2h','3h','4h','3d'], '22334_2p_3fxoxox' )
     assert False
 
     board = ['7d', '2c', '4c', '4h', '3h']

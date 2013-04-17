@@ -172,33 +172,4 @@ learn_params = 1
 engine_built = 1
 
 
-%assuming test.csv has been loaded
-engine = jtree_inf_engine(bnet2);
-
-%compute the probability the second player's true bucket would have 
-%been randomly sampled given the evidence, for each game
-%average these probabilities
-running_sum = 0;
-%which node are we trying to predict?
-predict_node = 13;
-novel_count = 0;
-for i=1:size(test,1)
-    evidence = num2cell(test(i,1:N))
-    evidence{predict_node} = [];
-    %evidence{end+1} = []
-    [engine2, ll] = enter_evidence(engine, evidence);
-    marg = marginal_nodes(engine2, predict_node);
-    marginal = marg.T
-    if (sum(marginal) > .99 && sum(marginal) < 1.01)
-        prob_correct = marg.T(test(i,predict_node));
-        running_sum = running_sum + prob_correct;
-    %if this instance wasn't in training, use a uniform prior
-    %otherwise everything is set to 0 and that's not right
-    else
-        novel_count = novel_count + 1;
-    end
-end
-
-avg_chance_of_correct_prediction = running_sum / size(test,1)
-novel_count
 

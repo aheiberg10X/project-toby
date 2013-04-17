@@ -1,5 +1,5 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement
+from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement, completeStemToMakeCboard
 from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
@@ -33,6 +33,120 @@ def visualizeEVDist( filepath, buckets=40 ) :
     print "saving to: ", filename
     plt.savefig( filename )
     plt.clf()
+
+#input is DB connection, collapseBoard( board[:-1] ), collapseBoard( board )
+#output is P(k',k | cboard_prime, cboard )
+def computeBucketTransitions( conn, cboard, cboard_prime ) :
+    #get the aboards, for which the EHS2 and buckets have been computed
+    q = "select aboard from REPRESENTATIVES where cboard = '%s'"
+    aboard = conn.queryScalar( q % cboard, listify )
+    aboard_prime = conn.queryScalar( q % cboard_prime, listify )
+
+    no_map_necessary = aboard == aboard_prime[:-1]
+    if no_map_necessary :
+        return
+
+    #street names and bucket sizes
+    if len(aboard_prime) == 5 :
+        street_prime = 'river'
+        street = 'turn'
+    elif len(aboard_prime) == 4 :
+        street_prime = 'turn'
+        street = 'flop'
+    else : assert False
+    nbuckets = len(globles.BUCKET_PERCENTILES[street])
+    nbuckets_prime = len(globles.BUCKET_PERCENTILES[street_prime])
+
+    #setup the output P[bucket] = {bucket_prime : prob, ...}
+    P = {}
+    for bucket in range( nbuckets ) :
+        P[bucket] = {}
+
+    #the memberships against cboard_prime
+    pocket_prime_membs = {}
+    legal_pockets = []
+    q = """select pocket, memberships
+           from %s%s
+           where cboard = '%s'""" % \
+           (globles.BUCKET_TABLE_PREFIX, \
+            street_prime.upper(), \
+            cboard_prime)
+    for p_prime,membs in conn.query(q) :
+        legal_pockets.append(p_prime)
+        pocket_prime_membs[p_prime] = [float(m) for m in membs.split(':')]
+    print "p_prime memberships built"
+
+    #the memberships against cboard
+    pocket_membs = {}
+    q = """select pocket, memberships
+           from %s%s
+           where cboard = '%s'""" % \
+           (globles.BUCKET_TABLE_PREFIX, \
+            street.upper(), \
+            cboard)
+    for p,membs in conn.query(q) :
+        pocket_membs[p] = [float(m) for m in membs.split(':')]
+    print "p memberships built"
+
+    #determine the pocket map between prime and aboard
+    pocket_map = {}
+    if no_map_necessary :
+        for pocket in legal_pockets :
+            pocket_map[pocket] = pocket
+    else :
+        #print aboard, aboard_prime
+        print aboard_prime, cboard_prime
+
+        #figure out which card, when added to aboard, gives cboard_prime
+        #call this aboard_prime_wish
+        aboard_prime_wish = completeStemToMakeCboard( aboard, cboard_prime )
+
+        #new set of legal_pockets
+        legal_pockets = []
+        dek = Deck()
+        dek.shuffle()
+        dek.remove(aboard_prime_wish)
+        for p in combinations( dek.cards, 2) :
+            legal_pockets.append(canonicalize(list(p)))
+
+        print "wish", aboard_prime_wish, collapseBoard(aboard_prime_wish)
+        #find mapping between aboard_prime and wish
+        for pocket in legal_pockets :
+            print pocket
+            symm_pocket = symmetricComplement( aboard_prime_wish, \
+                                               pocket, \
+                                               aboard_prime )
+            pocket_map[pocket] = symm_pocket
+
+    #main computation
+    C = 1 / float(len(legal_pockets))
+    for k in range(nbuckets) :
+        for k_prime in range(nbuckets_prime) :
+            s = 0
+            for p in legal_pockets :
+                p_prime = pocket_map[p]
+                A = pocket_prime_membs[p_prime][k_prime]
+                B = pocket_membs[p][k]
+                s += A*B*C
+            P[k][k_prime] = s
+
+    marginals = []
+    for k in range(nbuckets) :
+        print "\nbucket:", k
+        marg = 0
+        conditionals = []
+        for k_prime in range(nbuckets_prime) :
+            print "    ",k_prime,P[k][k_prime]
+            conditionals.append(P[k][k_prime])
+            marg += P[k][k_prime]
+        print "    P[%d] = %f" % (k,marg)
+        if marg > 0 :
+            print "    sum of P(k'|k) = ", sum([c / marg for c in conditionals])
+        else :
+            print "    marginal for %d is 0" % k
+        marginals.append(marg)
+
+    print "please be 1 : ", sum(marginals)
 
 # input  : [sorted_pockets, sorted_ehs2s, bucket_percentiles ] = data
 # output : {pocket:{bucket:%membership}}
@@ -129,189 +243,6 @@ def computeBucket( data  ) :
             count += 1
 
     return membership_probs
-
-# P( b' | b, board, board' )
-#for all b,b' pairs 
-#{b : {b' : prob, ...}, ...}
-def getTransitionProbs( board, n_buckets, \
-                        board_prime, n_buckets_prime ) :
-    #P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
-    #                                             [A]
-    #P( p | board,b ) = P( b|p,board) * P(p|F) / P(b|board)
-    #                      [B]            [C]      [D]
-
-    #print board
-    #print "\n\n"
-    #print board_prime
-
-    #store (A*B,B) accumulators for every bucket x bucket_prime pair
-    acc = {}
-    for b in range(n_buckets) :
-        acc[b] = {}
-        for bprime in range(n_buckets_prime) :
-            acc[b][bprime] = [0,0]
-
-    for pocket in combinations(range(52),globles.POCKET_SIZE) :
-        for b in range(n_buckets) :
-            for bprime in range(n_buckets_prime) :
-                pocket_str = canonicalize(list(pocket))
-                A = 0
-                try :
-                    if pocket_str in board_prime and \
-                       bprime in board_prime[pocket_str] :
-                        A = board_prime[pocket_str][bprime]
-                except Exception as e :
-                    print e
-                    print pocket_str
-                    print board_prime
-                    assert False
-
-                B = 0
-                if pocket_str in board and \
-                   b in board[pocket_str] :
-                    B = board[pocket_str][b]
-
-                acc[b][bprime][0] += A * B 
-                acc[b][bprime][1] += B
-
-    for b in range(n_buckets) :
-        for bprime in range(n_buckets_prime) :
-            if acc[b][bprime][1] == 0 :
-                assert acc[b][bprime][0] == 0
-                acc[b][bprime] = 0
-                print b, bprime
-                assert "oh so very unlikely" == "asdf"
-            else :
-                #f 0 prob, remove the bprime key from the dict, sparse
-                v = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
-                if v > 0.0 :
-                    acc[b][bprime] = v
-                else :
-                    del acc[b][bprime]
-
-    return acc
-
-# P( b' | b, board, board' )
-#for all b,b' pairs 
-#{b : {b' : prob, ...}, ...}
-def getTransitionProbs_DB( conn, \
-                           board, street_name, \
-                           board_prime, street_name_prime ) :
-    #board = makeMachine(board)
-    #board_prime = makeMachine(board_prime)
-
-    n_buckets = len(globles.BUCKET_PERCENTILES[street_name])
-    n_buckets_prime = len(globles.BUCKET_PERCENTILES[street_name_prime])
-
-    cboard = collapseBoard( board )
-    cboard_prime = collapseBoard( board_prime )
-
-    q = """select aboard
-           from REPRESENTATIVES
-           where cboard = '%s'""" % (cboard_prime)
-    [[aboard_prime]] = conn.query(q)
-    aboard_prime = listify(aboard_prime)
-
-    q = """select pocket, memberships
-           from %s%s
-           where cboard = '%s'""" % (globles.BUCKET_TABLE_PREFIX, \
-                                     street_name.upper(),\
-                                     cboard)
-    d_pocket_bucket = {}
-    for pocket, memberships in conn.query(q) :
-        d_pocket_bucket[pocket] = {}
-        for i,memb in enumerate(memberships.split(":")) :
-            #print memb
-            d_pocket_bucket[pocket][i] = float(memb)
-    
-    q = """select pocket, memberships
-           from %s%s
-           where cboard = '%s'""" % (globles.BUCKET_TABLE_PREFIX, \
-                                     street_name_prime.upper(),\
-                                     cboard_prime)
-    d_pocket_bucket_prime = {}
-    for pocket, memberships in conn.query(q) :
-        d_pocket_bucket_prime[pocket] = {}
-        for i,memb in enumerate(memberships.split(":")) :
-            d_pocket_bucket_prime[pocket][i] = float(memb)
-
-    d_pocket_bucket = {'2h2c':{0:1}, \
-                       '2h2s':{1:1}, \
-                       '2h2d':{0:1}, }
-
-            
-
-    print board, cboard
-    print board_prime, cboard_prime
-    print aboard_prime
-    #store (A*B,B) accumulators for every bucket x bucket_prime pair
-    acc = {}
-    for b in range(n_buckets) :
-        acc[b] = {'count':0}
-        for bprime in range(n_buckets_prime) :
-            acc[b][bprime] = [0,0]
-
-    for pocket in combinations(range(52),globles.POCKET_SIZE) :
-        pocket = list(pocket)
-        #print makeHuman(pocket)
-
-        print pocket
-        pocket_prime_str = symmetricComplement( board_prime, \
-                                                pocket, \
-                                                aboard_prime )
-        print "pps", pocket_prime_str
-        pocket_str = canonicalize(pocket)
-
-        #print pocket_prime_str
-        for b in range(n_buckets) :
-            B = 0
-            if pocket_str in d_pocket_bucket and \
-               b in d_pocket_bucket[pocket_str] :
-                B = d_pocket_bucket[pocket_str][b]
-
-            for bprime in range(n_buckets_prime) :
-                A = 0
-                if pocket_prime_str in d_pocket_bucket_prime and \
-                   bprime in d_pocket_bucket_prime[pocket_prime_str] :
-                    A = d_pocket_bucket_prime[pocket_prime_str][bprime]
-
-                #B = 0
-                #if pocket_str in d_pocket_bucket and \
-                   #b in d_pocket_bucket[pocket_str] :
-                    #B = d_pocket_bucket[pocket_str][b]
-
-                acc[b][bprime][0] += A * B 
-                #acc[b][bprime][1] += B
-            acc[b]['count'] += B
-
-    for b in range(n_buckets) :
-        for bprime in range(n_buckets_prime) :
-            #if acc[b][bprime][1] == 0 :
-                #assert acc[b][bprime][0] == 0
-                #acc[b][bprime] = 0
-                #print b, bprime
-                #assert "oh so very unlikely" == "asdf"
-            #else :
-            #f 0 prob, remove the bprime key from the dict, sparse
-            #v = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
-            v = round( acc[b][bprime][0] / float(acc[b]["count"]), 4 )
-            if v > 0.0 :
-                acc[b][bprime] = v
-            else :
-                del acc[b][bprime]
-
-    for b in range(n_buckets) :
-        print "b:", b
-        s = 0
-        for bp in range(n_buckets_prime) :
-            if b in acc and bp in acc[b] :
-                prob = acc[b][bp]
-            else :
-                prob = 0
-            s += prob 
-            print "    bp: ", bp, prob
-        print "sum: ", s
-    return acc
 
 def computeEHS2DistsLongways() :
     pool = Pool( processes = 8 )
@@ -414,6 +345,7 @@ def bucketAllEHS2Dists_DB( bucket_table, bucket_percentiles ) :
     street_name = 'turn'
     conn = db.Conn("localhost")
     conn2 = db.Conn("localhost", dry_run=False)
+    assert "fix"=="query"
     q = """select cboard,pocket,ehs2
            from EHS2_%s
            where cboard like '____\_p\_22f'
@@ -698,19 +630,26 @@ def testSymmetric() :
 
 def iterateTransitions() :
     transitions = {}
+    comb = "asdf"
+    conn = db.Conn("localhost")
+
     for i, board_prime in enumerate( combinations( range(52), 5 ) ):
         if i % 10000 == 0 : 
             print i, len(transitions)
+            print comb
         board = board_prime[:-1]
         cboard = collapseBoard(board)
         cboard_prime = collapseBoard(board_prime)
         comb = "%s_%s" % (cboard, cboard_prime)
         if comb not in transitions :
             transitions[comb] = True
+            computeBucketTransitions( conn, cboard, cboard_prime )
 
     print len(transitions)
+        
 
 if __name__ == '__main__' :
+
     iterateTransitions()
     #testSymmetric()
     #conn = db.Conn("localhost")
@@ -797,6 +736,190 @@ if __name__ == '__main__' :
     #print pocketEVs['9d,5c']
     #break
 
+
+#DEPRECATED BECAUSE IT DIDN"T WORK
+## P( b' | b, board, board' )
+##for all b,b' pairs 
+##{b : {b' : prob, ...}, ...}
+#def getTransitionProbs( board, n_buckets, \
+                        #board_prime, n_buckets_prime ) :
+    ##P( b' | b,board,board' ) = sum_pockets P( b' | p,board') * P(p | board,b)
+    ##                                             [A]
+    ##P( p | board,b ) = P( b|p,board) * P(p|F) / P(b|board)
+    ##                      [B]            [C]      [D]
+#
+    ##print board
+    ##print "\n\n"
+    ##print board_prime
+#
+    ##store (A*B,B) accumulators for every bucket x bucket_prime pair
+    #acc = {}
+    #for b in range(n_buckets) :
+        #acc[b] = {}
+        #for bprime in range(n_buckets_prime) :
+            #acc[b][bprime] = [0,0]
+#
+    #for pocket in combinations(range(52),globles.POCKET_SIZE) :
+        #for b in range(n_buckets) :
+            #for bprime in range(n_buckets_prime) :
+                #pocket_str = canonicalize(list(pocket))
+                #A = 0
+                #try :
+                    #if pocket_str in board_prime and \
+                       #bprime in board_prime[pocket_str] :
+                        #A = board_prime[pocket_str][bprime]
+                #except Exception as e :
+                    #print e
+                    #print pocket_str
+                    #print board_prime
+                    #assert False
+#
+                #B = 0
+                #if pocket_str in board and \
+                   #b in board[pocket_str] :
+                    #B = board[pocket_str][b]
+#
+                #acc[b][bprime][0] += A * B 
+                #acc[b][bprime][1] += B
+#
+    #for b in range(n_buckets) :
+        #for bprime in range(n_buckets_prime) :
+            #if acc[b][bprime][1] == 0 :
+                #assert acc[b][bprime][0] == 0
+                #acc[b][bprime] = 0
+                #print b, bprime
+                #assert "oh so very unlikely" == "asdf"
+            #else :
+                ##f 0 prob, remove the bprime key from the dict, sparse
+                #v = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
+                #if v > 0.0 :
+                    #acc[b][bprime] = v
+                #else :
+                    #del acc[b][bprime]
+#
+    #return acc
+
+## P( b' | b, board, board' )
+##for all b,b' pairs 
+##{b : {b' : prob, ...}, ...}
+#def getTransitionProbs_DB( conn, \
+                           #board, street_name, \
+                           #board_prime, street_name_prime ) :
+    ##board = makeMachine(board)
+    ##board_prime = makeMachine(board_prime)
+#
+    #n_buckets = len(globles.BUCKET_PERCENTILES[street_name])
+    #n_buckets_prime = len(globles.BUCKET_PERCENTILES[street_name_prime])
+#
+    #cboard = collapseBoard( board )
+    #cboard_prime = collapseBoard( board_prime )
+#
+    #q = """select aboard
+           #from REPRESENTATIVES
+           #where cboard = '%s'""" % (cboard_prime)
+    #[[aboard_prime]] = conn.query(q)
+    #aboard_prime = listify(aboard_prime)
+#
+    #q = """select pocket, memberships
+           #from %s%s
+           #where cboard = '%s'""" % (globles.BUCKET_TABLE_PREFIX, \
+                                     #street_name.upper(),\
+                                     #cboard)
+    #d_pocket_bucket = {}
+    ##for pocket, memberships in conn.query(q) :
+        #d_pocket_bucket[pocket] = {}
+        #for i,memb in enumerate(memberships.split(":")) :
+            ##print memb
+            ##d_pocket_bucket[pocket][i] = float(memb)
+   # 
+    #q = """select pocket, memberships
+           #from %s%s
+           #where cboard = '%s'""" % (globles.BUCKET_TABLE_PREFIX, \
+                                     #street_name_prime.upper(),\
+                                     #cboard_prime)
+    #d_pocket_bucket_prime = {}
+    #for pocket, memberships in conn.query(q) :
+        #d_pocket_bucket_prime[pocket] = {}
+        #for i,memb in enumerate(memberships.split(":")) :
+            #d_pocket_bucket_prime[pocket][i] = float(memb)
+#
+    ##d_pocket_bucket = {'2h2c':{0:1}, \
+                       #'2h2s':{1:1}, \
+                       #'2h2d':{0:1}, }
+#
+           ## 
+#
+    #print board, cboard
+    #print board_prime, cboard_prime
+    #print aboard_prime
+    ##store (A*B,B) accumulators for every bucket x bucket_prime pair
+    #acc = {}
+    #for b in range(n_buckets) :
+        #acc[b] = {'count':0}
+        #for bprime in range(n_buckets_prime) :
+            #acc[b][bprime] = [0,0]
+#
+    #for pocket in combinations(range(52),globles.POCKET_SIZE) :
+        #pocket = list(pocket)
+        ##print makeHuman(pocket)
+#
+        #print pocket
+        #pocket_prime_str = symmetricComplement( board_prime, \
+                                                #pocket, \
+                                                #aboard_prime )
+        #print "pps", pocket_prime_str
+        #pocket_str = canonicalize(pocket)
+#
+        ##print pocket_prime_str
+        #for b in range(n_buckets) :
+            #B = 0
+            #if pocket_str in d_pocket_bucket and \
+               #b in d_pocket_bucket[pocket_str] :
+                #B = d_pocket_bucket[pocket_str][b]
+#
+            #for bprime in range(n_buckets_prime) :
+                #A = 0
+                #if pocket_prime_str in d_pocket_bucket_prime and \
+                   #bprime in d_pocket_bucket_prime[pocket_prime_str] :
+                    #A = d_pocket_bucket_prime[pocket_prime_str][bprime]
+#
+                ##B = 0
+                ##if pocket_str in d_pocket_bucket and \
+                   ##b in d_pocket_bucket[pocket_str] :
+                    ##B = d_pocket_bucket[pocket_str][b]
+#
+                #acc[b][bprime][0] += A * B 
+                ##acc[b][bprime][1] += B
+            #acc[b]['count'] += B
+#
+    #for b in range(n_buckets) :
+        #for bprime in range(n_buckets_prime) :
+            ##if acc[b][bprime][1] == 0 :
+                ##assert acc[b][bprime][0] == 0
+                ##acc[b][bprime] = 0
+                ##print b, bprime
+                ##assert "oh so very unlikely" == "asdf"
+            ##else :
+            ##f 0 prob, remove the bprime key from the dict, sparse
+            ##v = round( acc[b][bprime][0] / float(acc[b][bprime][1]), 4 )
+            #v = round( acc[b][bprime][0] / float(acc[b]["count"]), 4 )
+            #if v > 0.0 :
+                #acc[b][bprime] = v
+            #else :
+                #del acc[b][bprime]
+#
+    #for b in range(n_buckets) :
+        #print "b:", b
+        #s = 0
+        #for bp in range(n_buckets_prime) :
+            #if b in acc and bp in acc[b] :
+                #prob = acc[b][bp]
+            #else :
+                #prob = 0
+            #s += prob 
+            #print "    bp: ", bp, prob
+        #print "sum: ", s
+    #return acc
 
 
 

@@ -134,6 +134,18 @@ def computePreflopEV() :
 ########################################################################
 
 if __name__ == "__main__" :
+    dek = Deck()    
+    dek.shuffle()
+    #dek.remove( ['2h','2c','2d'] )
+    #dek.remove( ['2h','Ad','Td'] )
+    #dek.remove( ['2h','3h','4h'] )
+    remaining_cards = dek.cards
+    possible_pockets = combinations( remaining_cards, globles.POCKET_SIZE )
+    count = 0
+    for pp in possible_pockets :
+        count += 1
+    print count
+    assert False
     #computePreflopEV()
 
     #print computeHS2( ([['Ah','5c'],['__','__']], ['2h','8h','Kh','2d','8d'], 'HS') )
