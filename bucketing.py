@@ -37,14 +37,12 @@ def visualizeEVDist( filepath, buckets=40 ) :
 #input is DB connection, collapseBoard( board[:-1] ), collapseBoard( board )
 #output is P(k',k | cboard_prime, cboard )
 def computeBucketTransitions( conn, cboard, cboard_prime ) :
+    print cboard, cboard_prime
     #get the aboards, for which the EHS2 and buckets have been computed
     q = "select aboard from REPRESENTATIVES where cboard = '%s'"
     aboard = conn.queryScalar( q % cboard, listify )
     aboard_prime = conn.queryScalar( q % cboard_prime, listify )
 
-    no_map_necessary = aboard == aboard_prime[:-1]
-    if no_map_necessary :
-        return
 
     #street names and bucket sizes
     if len(aboard_prime) == 5 :
@@ -74,7 +72,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
     for p_prime,membs in conn.query(q) :
         legal_pockets.append(p_prime)
         pocket_prime_membs[p_prime] = [float(m) for m in membs.split(':')]
-    print "p_prime memberships built"
+    #print "p_prime memberships built"
 
     #the memberships against cboard
     pocket_membs = {}
@@ -86,16 +84,18 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
             cboard)
     for p,membs in conn.query(q) :
         pocket_membs[p] = [float(m) for m in membs.split(':')]
-    print "p memberships built"
+    #print "p memberships built"
 
     #determine the pocket map between prime and aboard
     pocket_map = {}
+
+    no_map_necessary = aboard == aboard_prime[:-1]
     if no_map_necessary :
         for pocket in legal_pockets :
             pocket_map[pocket] = pocket
     else :
         #print aboard, aboard_prime
-        print aboard_prime, cboard_prime
+        #print aboard_prime, cboard_prime
 
         #figure out which card, when added to aboard, gives cboard_prime
         #call this aboard_prime_wish
@@ -109,7 +109,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
         for p in combinations( dek.cards, 2) :
             legal_pockets.append(canonicalize(list(p)))
 
-        print "wish", aboard_prime_wish, collapseBoard(aboard_prime_wish)
+        #print "wish", aboard_prime_wish, collapseBoard(aboard_prime_wish)
         #find mapping between aboard_prime and wish
         for pocket in legal_pockets :
             print pocket
@@ -130,23 +130,28 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
                 s += A*B*C
             P[k][k_prime] = s
 
+    dist = []
     marginals = []
+    total_sum = 0
     for k in range(nbuckets) :
-        print "\nbucket:", k
-        marg = 0
         conditionals = []
         for k_prime in range(nbuckets_prime) :
-            print "    ",k_prime,P[k][k_prime]
-            conditionals.append(P[k][k_prime])
-            marg += P[k][k_prime]
-        print "    P[%d] = %f" % (k,marg)
+            conditionals.append( round(P[k][k_prime],6) )
+        marg = sum(conditionals)
+        total_sum += marg
         if marg > 0 :
-            print "    sum of P(k'|k) = ", sum([c / marg for c in conditionals])
-        else :
-            print "    marginal for %d is 0" % k
-        marginals.append(marg)
+            cond_sum = sum([c / marg for c in conditionals])
+            assert .99 < cond_sum < 1.01
+        dist.append( ",".join( [str(c) for c in conditionals] ) )
 
-    print "please be 1 : ", sum(marginals)
+    assert .99 < total_sum < 1.01
+
+    dist = ';'.join(dist)
+    conn.insert( 'TRANSITIONS', ["%s|%s" % (cboard, cboard_prime),dist], \
+                 skip_dupes=True)
+    print "inserted"
+
+
 
 # input  : [sorted_pockets, sorted_ehs2s, bucket_percentiles ] = data
 # output : {pocket:{bucket:%membership}}
@@ -630,13 +635,10 @@ def testSymmetric() :
 
 def iterateTransitions() :
     transitions = {}
-    comb = "asdf"
     conn = db.Conn("localhost")
 
     for i, board_prime in enumerate( combinations( range(52), 5 ) ):
-        if i % 10000 == 0 : 
-            print i, len(transitions)
-            print comb
+        print i
         board = board_prime[:-1]
         cboard = collapseBoard(board)
         cboard_prime = collapseBoard(board_prime)
