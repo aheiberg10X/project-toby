@@ -269,12 +269,13 @@ def log2Nodes( filename, focus_player, focus_position ) :
                 ordered_players = [1,0]
 
             #see toby_net.m for the node ordering
-            if has_showdown :
-                for pix in ordered_players :
-                    training_instance.append( tbl.buckets[street][pix] )
-            else :
-                for pix in ordered_players :
-                    training_instance.append(-1)
+            #want to print all the node values, will mask later
+            #if has_showdown :
+            for pix in ordered_players :
+                training_instance.append( tbl.buckets[street][pix] )
+            #else :
+                #for pix in ordered_players :
+                    #training_instance.append(-1)
 
             #print "street", street
             #print tbl.active_actions

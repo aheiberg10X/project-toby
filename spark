@@ -899,3 +899,98 @@ The problem where enter_evidence gives a 'index OOB' exception is easy: The acti
 Also, set up bash script to copy toby_net.m, training.csv and test.csv to cadenza:/~/bnt
 
 =============================================================================================
+
+During a hand of Texas Hold'em, two cards are dealt to each player.  These hole cards are kept private.  Before any public cards are revealed, a round of betting takes place.  When betting, a player can: check (pass), bet some amount of his remaining chips, call someone else's bet, raise someone else's bet or raise, or fold, forfeiting the chips previously placed in the pot.  Once betting concludes (all players have an equal stake in the pot) and assuming >1 player remains un-folded, the 3 cards are pl
+
+==============================================================================================
+
+4/15/13
+On evidence :
+
+[7]    [4]    [10]    [6]    [1]    [4]    [4]    [1]    [4]    []    [1]    [1]    [1]    [1]    [1]
+or
+[5]    [7]    [9]    [16]    [5]    [6]    [11]    [3]    [6]    []    [3]   [1]    [3]    [4]    [1]
+
+the distributino over buckets is:
+
+ans =
+
+     0
+     0
+     0
+     0
+     0
+     0
+     0
+     0
+     0
+     0
+
+why? Is it because that particular evidence was not in the training?  That should revert to prior though.  Test this hypothesis on toy example...  yes this is indeed the problem.  set to uniform random when this happens.  Turns out that when a few more runs are collected, the number of unseen test examples has dropped to 0.  Large state space may not be a problem
+
+We are still left with the problem of the state space being much larger than the number of data examples.  The last active_node has the largest state space but the smallest data set.  Another approach is needed for these nodes
+	We could just take out the connections from the past action nodes, and have their effect be exclusively indirect via the belief edges.  This actually sounds good
+Largest size would then be: 10*7^4 = 24,010!  Much better.   (worst will be 20*7^4 for flop, but more examples here)
+
+Trying learn_params_em to see if this suffers the same problem.  Takes much longer, obvs.  It suffers same problem
+
+How can we capture the notion of closeness for belief buckets?  If we get it wrong, are we close?
+
+==========================================================================================
+
+4/16/13
+
+On Rembrant v Sartre, perm1, Sartre in first position ( 3,658,201 train, 40,549 test)
+Testing took >10min
+
+avg_chance_of_correct_prediction =
+
+    0.2920
+
+
+novel_count =
+
+   442
+
+442/40519 = 1.1%, but how much money was exchanged during these hands?
+
+--------
+Very interesting.  If I take away the effect of past nodes, it actually improves slightly...
+
+avg_chance_of_correct_prediction =
+
+    0.2942
+
+
+novel_count =
+
+   359
+
+--------
+For predicting the 1st button action on the fourth round, accuarcy is:
+avg_chance_of_correct_prediction =
+
+    0.9946
+
+
+novel_count =
+
+   370
+
+Is this just a matter of there being so many KK actions on the fourth round?  Probably.  Write a sed/awk script to parse out the ith column and do a value break down.  Probably more meaningful is to ask how often it gets it right when the true action is not K.
+
+------------------------------------------------
+
+Boom! Got computeBucketTransitions working.  P(k',k|b,b').  All marginals sum to 1, as does the total.
+
+Running processes to fill up turn->river transitions
+
+Encountered problem with symmComp.  Sometimes a suit has no legal map.  This should only happen on rainbows, in which case we can change the suit of the pocket (still being consistent with board), and see if that gives some legal mapping.  If not, try another suit, rinse repeat
+
+========================================================================================
+
+4/18/13
+
+Why does _test files have ~90 empty lines at the beginning.  Must be from parsing.py??  Have removed manually for the time being
+
+========================================================================

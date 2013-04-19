@@ -36,7 +36,8 @@ def visualizeEVDist( filepath, buckets=40 ) :
 
 #input is DB connection, collapseBoard( board[:-1] ), collapseBoard( board )
 #output is P(k',k | cboard_prime, cboard )
-def computeBucketTransitions( conn, cboard, cboard_prime ) :
+def computeBucketTransitions( conn, cboard, cboard_prime, \
+                              pocket_membs=False, pocket_prime_membs=False) :
     print cboard, cboard_prime
     #get the aboards, for which the EHS2 and buckets have been computed
     q = "select aboard from REPRESENTATIVES where cboard = '%s'"
@@ -59,30 +60,37 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
     for bucket in range( nbuckets ) :
         P[bucket] = {}
 
-    #the memberships against cboard_prime
-    pocket_prime_membs = {}
     legal_pockets = []
-    q = """select pocket, memberships
-           from %s%s
-           where cboard = '%s'""" % \
-           (globles.BUCKET_TABLE_PREFIX, \
-            street_prime.upper(), \
-            cboard_prime)
-    for p_prime,membs in conn.query(q) :
-        legal_pockets.append(p_prime)
-        pocket_prime_membs[p_prime] = [float(m) for m in membs.split(':')]
+
+    #the memberships against cboard_prime
+    if not pocket_prime_membs :
+        pocket_prime_membs = {}
+        q = """select pocket, memberships
+               from %s%s
+               where cboard = '%s'""" % \
+               (globles.BUCKET_TABLE_PREFIX, \
+                street_prime.upper(), \
+                cboard_prime)
+        for p_prime,membs in conn.query(q) :
+            legal_pockets.append(p_prime)
+            pocket_prime_membs[p_prime] = [float(m) for m in membs.split(':')]
+    else :
+        pass
     #print "p_prime memberships built"
 
     #the memberships against cboard
     pocket_membs = {}
-    q = """select pocket, memberships
-           from %s%s
-           where cboard = '%s'""" % \
-           (globles.BUCKET_TABLE_PREFIX, \
-            street.upper(), \
-            cboard)
-    for p,membs in conn.query(q) :
-        pocket_membs[p] = [float(m) for m in membs.split(':')]
+    if not pocket_membs :
+        q = """select pocket, memberships
+               from %s%s
+               where cboard = '%s'""" % \
+               (globles.BUCKET_TABLE_PREFIX, \
+                street.upper(), \
+                cboard)
+        for p,membs in conn.query(q) :
+            pocket_membs[p] = [float(m) for m in membs.split(':')]
+    else :
+        pass
     #print "p memberships built"
 
     #determine the pocket map between prime and aboard
@@ -634,17 +642,19 @@ def testSymmetric() :
 def iterateTransitions() :
     transitions = {}
     conn = db.Conn("localhost")
+    street = 'turn'
+    street_prime = 'river'
 
     for i, board_prime in enumerate( combinations( range(52), 5 ) ):
         #19148.pts-5.genomequery
-        #if i < 59600 or i >= 500000: continue
+        if i < 59601 or i >= 500000: continue
 
         #2529.pts-4.genomequery
         #if i < 535098 or i >= 1000000: continue
 
         #3567.pts-4.genomequery
         #if i < 1000056 or i >= 1500000: continue  #finished
-        if i < 2300000 : continue
+        #if i < 2300000 : continue
 
         #3601.pts-4.genomequery
         #if i < 1507912 or i >= 2000000: continue
@@ -653,21 +663,57 @@ def iterateTransitions() :
         #if i < 2000007 : continue
 
         print i
-        board = board_prime[:-1]
-        cboard = collapseBoard(board)
-        cboard_prime = collapseBoard(board_prime)
+        chunk_size = 100
+        cboards_chunk = []
+                
+        if i % chunk_size == 0 :
+            cboard_where = []
+            cboard_prime_where = []
+            for cboards in cboards_chunk :
+                cboard, cboard_prime = cboards.split('|')
+                cboard_where.append("cboard = '%s'" % cboard )
+                cboard_prime_where.append( "cboards = '%s'" % cboard_prime )
+            cboard_where = ' or '.join( cboard_where )
+            cboard_prime_where = ' or '.join( cboard_prime_where )
 
-        comb = "%s_%s" % (cboard, cboard_prime)
-        if comb not in transitions :
-            transitions[comb] = True
+            #query
+            q_prime = """select pocket, memberships
+                   from %s%s
+                   where %s""" % \
+                   (globles.BUCKET_TABLE_PREFIX, \
+                    street_prime.upper(), \
+                    cboard_prime_where)
+            q = """select pocket, memberships
+                   from %s%s
+                   where %s""" % \
+                   (globles.BUCKET_TABLE_PREFIX, \
+                    street.upper(), \
+                    cboard_where)
 
+            print q_prime
+
+            for pocket, memb in conn.query( q_prime ) :
+                pass
+            for pocket, memb in conn.query( q ) :
+                pass
+            for cboards in cboards_chunk :
+                #build select dictionary
+                #computeBucketTransitions( conn, cboard, cboard_prime )
+                pass
+
+            cboards_chunk = []
+        else :
+            board = board_prime[:-1]
+            cboard = collapseBoard(board)
+            cboard_prime = collapseBoard(board_prime)
             cboards =  "%s|%s" % (cboard, cboard_prime)
             q = "select count(*) from TRANSITIONS where cboards = '%s'" % cboards
+            print q
             count = conn.queryScalar(q, int)
-            if count == 0 :
-                computeBucketTransitions( conn, cboard, cboard_prime )
+            if count > 0 :
+                cboards_chunk.append( cboards )
             else :
-                print "skipping:", cboards
+                print "skipping", cboards
 
     print len(transitions)
         

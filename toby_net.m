@@ -1,3 +1,6 @@
+training = csvread('show_4-round_small.csv');
+data_inputted = 1
+
 seed = 42;
 rand('state',seed);
 randn('state',seed);
