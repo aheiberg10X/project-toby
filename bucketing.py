@@ -43,7 +43,6 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
     aboard = conn.queryScalar( q % cboard, listify )
     aboard_prime = conn.queryScalar( q % cboard_prime, listify )
 
-
     #street names and bucket sizes
     if len(aboard_prime) == 5 :
         street_prime = 'river'
@@ -100,6 +99,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
         #figure out which card, when added to aboard, gives cboard_prime
         #call this aboard_prime_wish
         aboard_prime_wish = completeStemToMakeCboard( aboard, cboard_prime )
+        print aboard_prime_wish
 
         #new set of legal_pockets
         legal_pockets = []
@@ -112,7 +112,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
         #print "wish", aboard_prime_wish, collapseBoard(aboard_prime_wish)
         #find mapping between aboard_prime and wish
         for pocket in legal_pockets :
-            print pocket
+            #print pocket
             symm_pocket = symmetricComplement( aboard_prime_wish, \
                                                pocket, \
                                                aboard_prime )
@@ -150,8 +150,6 @@ def computeBucketTransitions( conn, cboard, cboard_prime ) :
     conn.insert( 'TRANSITIONS', ["%s|%s" % (cboard, cboard_prime),dist], \
                  skip_dupes=True)
     print "inserted"
-
-
 
 # input  : [sorted_pockets, sorted_ehs2s, bucket_percentiles ] = data
 # output : {pocket:{bucket:%membership}}
@@ -638,23 +636,47 @@ def iterateTransitions() :
     conn = db.Conn("localhost")
 
     for i, board_prime in enumerate( combinations( range(52), 5 ) ):
+        #19148.pts-5.genomequery
+        #if i < 59600 or i >= 500000: continue
+
+        #2529.pts-4.genomequery
+        #if i < 535098 or i >= 1000000: continue
+
+        #3567.pts-4.genomequery
+        #if i < 1000056 or i >= 1500000: continue  #finished
+        if i < 2300000 : continue
+
+        #3601.pts-4.genomequery
+        #if i < 1507912 or i >= 2000000: continue
+
+        #3718.pts-4.genomequery
+        #if i < 2000007 : continue
+
         print i
         board = board_prime[:-1]
         cboard = collapseBoard(board)
         cboard_prime = collapseBoard(board_prime)
+
         comb = "%s_%s" % (cboard, cboard_prime)
         if comb not in transitions :
             transitions[comb] = True
-            computeBucketTransitions( conn, cboard, cboard_prime )
+
+            cboards =  "%s|%s" % (cboard, cboard_prime)
+            q = "select count(*) from TRANSITIONS where cboards = '%s'" % cboards
+            count = conn.queryScalar(q, int)
+            if count == 0 :
+                computeBucketTransitions( conn, cboard, cboard_prime )
+            else :
+                print "skipping:", cboards
 
     print len(transitions)
         
 
 if __name__ == '__main__' :
-
+    #conn = db.Conn("localhost")
+    #computeBucketTransitions( conn, 'JQAA_p_2foxx', 'JQAAA_t_r')
     iterateTransitions()
     #testSymmetric()
-    #conn = db.Conn("localhost")
     #getTransitionProbs_DB( conn, \
                            #['2h','2c','2d','2s'], 'turn', \
                            #['2h','2c','2d','2s','As'], 'river' )

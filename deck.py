@@ -448,9 +448,10 @@ def completeStemToMakeCboard( stem, cboard ) :
             missing_card = cbc
             break
     machine_stem = makeMachine(stem)
-    print "machine_stem", machine_stem
+    #print "machine_stem", machine_stem
     for suit in ['h','c','d','s'] :
-        newcard = makeMachine(["%d%s" % (missing_card, suit)])[0]
+        newcard = "%s%s" % (stringifyCardinality(missing_card), suit)
+        newcard = makeMachine([newcard])[0]
         if newcard in machine_stem :
             continue
         newboard = machine_stem+[newcard]
@@ -465,6 +466,28 @@ def symmetricComplement( board, pocket, boardp ) :
         pocket = deCanonicalize(pocket)
     assert isAssignmentLegal( pocket, board ) 
     cboard = collapseBoard(board)
+
+    #if the board is a rainbow, it doesn't matter what the mapping is
+    #it only matters that pocketp has the right cardinalities, and that
+    #the cards do not conflict with boardp
+    is_rainbow = cboard[-1] == 'r'
+    if is_rainbow :
+        #pick two cards of correct cardinality that don't conflict with boardp
+        pocketp = [-1,-1]
+        for pix in range(len(pocket)) :
+            p = pocket[pix]
+            card,suit = p[0],p[1]
+            suits = [suit,'h','d','c','s']
+            found = False
+            for s in suits :
+                new_p = card+s
+                if new_p not in boardp and \
+                   new_p not in pocketp :
+                    pocketp[pix] = card+s
+                    found = True
+                    break
+            assert found
+        return canonicalize(pocketp)
 
     #idea is to match determine the functionally important suits in board
     #and match them to those in boardp (i.e suit count >= 2 )
@@ -524,13 +547,23 @@ def symmetricComplement( board, pocket, boardp ) :
                     illegal_map[ps][bs] = True
                 else :
                     illegal_map[ps] = {bs:True}
+    #it can be the case that some suit has no legal option
+    #this will be a rainbow, and we can arbitrarily change one of the suits of
+    #the pockets, rebuild illegal map and try again
     #print "illegal_map:", illegal_map
 
-    #We want to rank the suits in each board by decreasing count
-    #This way we can map the the 3 count suits together, the 2 count, etc
-    #Also, we want to map the suits with illegal mappings as soon as possible
+    #check if suit has no legal mapping
+    for suit in illegal_map :
+        if len(illegal_map[suit]) == 4 :
+            assert False
 
-    #suit_count*10+int(has_illegal_mapping)
+    ##if so, assert that this is a river rainbow
+    #if suit_with_no_legal_mapping :
+        #assert len(board) == 5 and board_max_suit_count == 2
+
+    #take a pocket card, and try other suits (that are consistent with board)
+
+    #10*int(has_illegal_mapping) + suit_count
     def sortKeyClosure( suit_counts ) :
         def sortKey( s ) :
             if s in illegal_map :
@@ -674,11 +707,11 @@ if __name__ == '__main__' :
     #boardp= ['2h','4h','Td','Ad']
     #pocket = ['4h','Qh']
 
-    #print symmetricComplement( ['4d','9d','7h'], ['7d','7s'], ['4h','9h','7d'] )
-    #print collapseBoard(['2d','Td','8d','8h','8c'])
+    #print symmetricComplement( ['Jh', 'Qd', 'Ad', 'Ac', 'Ah'], ['Js','As'], ['Jh','Qh','Ad','Ac','As'] )
+    print collapseBoard(['2h','3h','4h','Kd'])
     #print completeStemToMakeCboard( ['2h','4d','6d','Tc'], '2468T_h_3foxxxo' )
     #print completeStemToMakeCboard( ['2d','Td','8h','8c'], '2888T_t_3foxxxo' )
-    print completeStemToMakeCboard( ['2h','3h','4h','3d'], '22334_2p_3fxoxox' )
+    #print completeStemToMakeCboard( ['2h','3h','4h','3d'], '22334_2p_3fxoxox' )
     assert False
 
     board = ['7d', '2c', '4c', '4h', '3h']
