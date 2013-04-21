@@ -994,3 +994,16 @@ Encountered problem with symmComp.  Sometimes a suit has no legal map.  This sho
 Why does _test files have ~90 empty lines at the beginning.  Must be from parsing.py??  Have removed manually for the time being
 
 ========================================================================
+
+4/19/13
+
+Failed at speeding up trans computations by chunking.  Would have to do things in DB order, not enumeration order.  Leaving for the moment because other things to do
+
+Have toby_text able to eval avg_bucket_distance, and can exclude games that meet some criteria from contribution.  So can exclude all 1,1,1,1 action sequences.  Right now we do straight bucket difference, should we weight it?  It is less important to miss 10 v 9, but a bigger deal to guess 2 instead of 3.  Also, want avg and st.  Perhaps we need to weight each differnce by the amount of money?
+
+In general, it would be good to have amt of money changing hands each round included as the last 'node' (can chop of in matlab) .  That way we can weight, and hopefully learn things, more appropriately.  How does this weighting work, just duplicate expensive hands in the training data?
+
+
+NOT DOING BETTER THAN baseline, figure out why!!
+
+=====================================================================================

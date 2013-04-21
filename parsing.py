@@ -49,6 +49,13 @@ for br in ACTIVE_BET_RATIOS :
     activeActionState2Int[ astate_str ]  = int_repr
     int_repr += 1
 
+#when the betting has ended but we have extra node values to fill up
+#use the DUMMY_ACTION.  If this value is larger than the state-space
+#specified in toby_net, it will get disregarded in ML computation
+DUMMY_ACTION = 'd'
+activeActionState2Int[ DUMMY_ACTION ] = int_repr
+int_repr += 1
+
 #print what is what
 sorted_astates = sorted( pastActionState2Int.keys(), key= lambda astate : pastActionState2Int[astate] )
 for sa in sorted_astates :
@@ -58,8 +65,7 @@ sorted_astates = sorted( activeActionState2Int.keys(), key= lambda astate : acti
 for sa in sorted_astates :
     print sa, "\t", activeActionState2Int[sa]
 
-
-
+assert False
 
 #take entry from table.actions and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state, switch ) :
@@ -100,9 +106,9 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
         #print "Run: %d" % run
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
-        for ((game_id,rounds,showdown),nodes) in (log2Nodes( in_filename, \
-                                                    focus_player, \
-                                                    focus_position )) :
+        for ((game_id,rounds,showdown),nodes,amt_exchanged) in \
+            (log2Nodes( in_filename, focus_player, focus_position )) :
+            nodes.append( amt_exchanged )
             nodes = ','.join([str(node) for node in nodes])
             print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
             if run in leave_out_runs :
@@ -136,6 +142,12 @@ def log2Nodes( filename, focus_player, focus_position ) :
     else :
         button = 1
 
+    #if street has too many rounds of betting, throw it out
+    MAX_MICRO = 2
+    n_thrown_out = 0
+    #sum of BBs the thrown out hands involved
+    amt_thrown_out = 0
+
     focus_start_on_button = button == players.index(focus_player)
     want_to_be_button = focus_position == "button"
     use_evens = focus_start_on_button == want_to_be_button
@@ -143,7 +155,8 @@ def log2Nodes( filename, focus_player, focus_position ) :
     #stacks are always reset to 20000 at the start of every game 
     pockets = [['__','__'],['__','__']]
 
-    tbl = table.Table( small_blind=50 )
+    sb = 50
+    tbl = table.Table( small_blind=sb )
     header = fin.readline()
     for i in range(3) : burn = fin.readline()
     for line_num, line in enumerate(fin.readlines()) : 
@@ -162,7 +175,8 @@ def log2Nodes( filename, focus_player, focus_position ) :
 
         action_strings = splt[2].strip('/').split('/')
         card_strings = splt[3].strip('/').split('/')
-        win_lose = splt[4]
+        #amount won/lost, as multiple of BB
+        amt_exchanged = round( abs(int(splt[4].split('|')[0])) / float(sb*2) )
         player_order = splt[5].split("|")
         button_player = player_order[1]
         button = players.index(button_player)
@@ -285,13 +299,13 @@ def log2Nodes( filename, focus_player, focus_position ) :
             if street == n_betting_rounds-1 :
                 for pix in ordered_players :
                     n_micro_rounds = len(tbl.active_actions[street][pix])
-                    too_many_micro_rounds |= n_micro_rounds > 2
+                    too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
                     #assert not too_many_micro_rounds
                     for micro_round in [0,1] :
                         #the network expects some number of micro rounds
                         #in the final street
                         if micro_round >= n_micro_rounds :
-                            aa = 'k'
+                            aa = DUMMY_ACTION 
                         else :
                             aa = tbl.active_actions[street][pix][micro_round]
                         training_instance.append( mapActionState2Int(aa,'active') )
@@ -304,9 +318,14 @@ def log2Nodes( filename, focus_player, focus_position ) :
         if too_many_micro_rounds :
             #print "too_many_micro_rounds"
             #assert False
+            n_thrown_out += 1
+            amt_thrown_out = amt_exchanged
             continue
-        yield [(game_id,n_betting_rounds,has_showdown),training_instance]
-
+        yield [(game_id,n_betting_rounds,has_showdown),\
+               training_instance, \
+               amt_exchanged]
+    print "n_thrown_out: " , n_thrown_out
+    print "amt_thrown_out: ", amt_thrown_out
 
 if __name__ == '__main__' :
 
@@ -317,8 +336,8 @@ if __name__ == '__main__' :
         #print actionState2Int[t], ' - ', t
 
     #28271.pts-9.genomequery
-    #p1 = "Rembrant"
-    #p2 = "SartreNL"
+    p1 = "Rembrant"
+    p2 = "SartreNL"
 
     #27676.pts-7.genomequery
     #p1 = "POMPEIA"
@@ -337,8 +356,8 @@ if __name__ == '__main__' :
     #p2 = "SartreNL"
 
     #18458.pts-13.genomequery
-    p1 = "hugh"
-    p2 = "SartreNL"
+    #p1 = "hugh"
+    #p2 = "SartreNL"
 
     perm = 1
     #does nothign right now

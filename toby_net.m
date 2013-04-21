@@ -1,24 +1,23 @@
-training = csvread('show_4-round_small.csv');
+training = csvread('../../project-toby/nodes/show_4-round_small.csv');
 data_inputted = 1
 
 seed = 42;
 rand('state',seed);
 randn('state',seed);
-%1 = baseline.  Streets not connected
-%2 = action 2 action : past actions connected to each active
-%3 = past 2 belief : past actions connect to current belief
-%4 = connected by belief transitions
 dag_switch = 1;
 N = 15;
 %encode the graph
 dag = zeros(N,N);
 
+%1 = baseline.  Streets not connected
 if( dag_switch == 1 )
     dag(10,[12 14]) = 1;
     dag(11,[13,15]) = 1;
     dag(12,[13 14 15]) = 1;
     dag(13,[14 15]) = 1;
     dag(14,15) = 1;
+%2 = action 2 action : past actions connected to each active
+%runs out of memory on laptop
 elseif( dag_switch == 2 )
     dag([6 9],[12 13 14 15]) = 1;
     dag(10,[12 14]) = 1;
@@ -26,6 +25,7 @@ elseif( dag_switch == 2 )
     dag(12,[13 14 15]) = 1;
     dag(13,[14 15]) = 1;
     dag(14,15) = 1;
+%3 = past 2 belief : past actions connect to current belief
 elseif( dag_switch == 3 )
     dag([6 9],[10 11]) = 1;
     dag(10,[12 14]) = 1;
@@ -33,6 +33,7 @@ elseif( dag_switch == 3 )
     dag(12,[13 14 15]) = 1;
     dag(13,[14 15]) = 1;
     dag(14,15) = 1;
+%4 = connected by belief transitions
 else
     dag([1 2],3) = 1;
     dag(1,4) = 1;
@@ -107,18 +108,21 @@ bnet_made = 1
 % If p >> 1, the entries will all be near 1/k, k is arity of node
 p = 1
 for i=1:N
-    k = node_sizes(i);
-    ps = parents(dag, i);
-    psz = prod(node_sizes(ps));
+    %k = node_sizes(i);
+    %ps = parents(dag, i);
+    %psz = prod(node_sizes(ps));
 
-    CPT = sample_dirichlet(p*ones(1,k), psz);
-    bnet.CPD{i} = tabular_CPD(bnet, i, 'CPT', CPT);
-    %bnet.CPD{i} = tabular_CPD(bnet, i);
+    %CPT = sample_dirichlet(p*ones(1,k), psz);
+    %bnet.CPD{i} = tabular_CPD(bnet, i, 'CPT', CPT);
+    bnet.CPD{i} = tabular_CPD(bnet, i);
 end
 dirichlet_done = 1
 
+%s=struct(bnet.CPD{10});  % violate object privacy
+%s.CPT
+
 %assuming training.csv has been loaded
-bnet2 = learn_params(bnet, training');
+bnet_learned = learn_params(bnet, training');
 learn_params = 1
 
 %engine2 = jtree_inf_engine(bnet);
