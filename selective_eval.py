@@ -1,5 +1,6 @@
 #data file
-test_filename = "nodes/show_test_small.csv"
+train_filename = "nodes/training_4-rounds_showdown.csv"
+test_filename = "nodes/test_4-rounds_showdown.csv"
 #dist file
 dist_filename = "nodes/node_10_distribution.csv"
 #label file
@@ -11,7 +12,7 @@ node_is_belief = True
 #examine some particular subset of nodes, and return a dictionary of:
 #values_nodes_take_on : frequency in file
 def computeTypeFrequencies( focus_cols, given_cols, given_conditions ) :
-    fin_test = open(test_filename)
+    fin_test = open(train_filename)
     value_counts = {}
     n_not_excluded = 0
     for line_num,line in enumerate(fin_test.readlines()) :
@@ -21,7 +22,6 @@ def computeTypeFrequencies( focus_cols, given_cols, given_conditions ) :
             continue
 
         n_not_excluded += 1
-        print splt
         try :
             value = ','.join( [splt[i] for i in focus_cols] )
 
@@ -49,11 +49,21 @@ def returnMasker( focus_nodes, ignore_set ) :
 
     
 if __name__ == '__main__' :
-    given_cols = [9]
-    given_conditions = ['9']
-    type_freqs =  computeTypeFrequencies( [11], given_cols, given_conditions )
-    svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
-    for v in svalues :
-        print v, "\t" , type_freqs[v]
-    #for tipe in type_freqs :
-        #print tipe, type_freqs[tipe]
+    given_cols = []#[11,12,13,14]
+    given_conditions = ['']#['1,6,5,3']
+    type_freqs =  computeTypeFrequencies( [15], given_cols, given_conditions )
+    
+    #find the scaling factor, such that the new example file is about the
+    #same size as before
+    amts = type_freqs.keys()
+    percs = type_freqs.values()
+
+    for i in range(2,5) :
+        scaled_amts = [float(amt)/i for amt in amts]
+        print i
+        scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
+        print "i:",i, sum(scaled_percs)
+    
+    #svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
+    #for v in svalues :
+        #print v, "\t" , type_freqs[v]
