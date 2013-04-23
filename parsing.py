@@ -65,7 +65,7 @@ sorted_astates = sorted( activeActionState2Int.keys(), key= lambda astate : acti
 for sa in sorted_astates :
     print sa, "\t", activeActionState2Int[sa]
 
-assert False
+#assert False
 
 #take entry from table.actions and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state, switch ) :
@@ -176,7 +176,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
         action_strings = splt[2].strip('/').split('/')
         card_strings = splt[3].strip('/').split('/')
         #amount won/lost, as multiple of BB
-        amt_exchanged = round( abs(int(splt[4].split('|')[0])) / float(sb*2) )
+        amt_exchanged = int( round( abs(int(splt[4].split('|')[0])) / float(sb*2) ) )
         player_order = splt[5].split("|")
         button_player = player_order[1]
         button = players.index(button_player)
@@ -252,13 +252,13 @@ def log2Nodes( filename, focus_player, focus_position ) :
 
         n_betting_rounds = min( [len(action_strings), allin_round+1] )
         has_showdown = 'f' not in action_strings[n_betting_rounds-1]
-        if has_showdown :
-            pockets = [listify(p) for p in card_strings[0].split('|')]
-            try :
-                tbl.registerRevealedPockets( pockets )
-            except Exception as e :
-                print "file: %s, game_id: %d, \n    message: %s\n\n" % (filename,game_id,e.message)
-                continue
+        #if has_showdown :
+        pockets = [listify(p) for p in card_strings[0].split('|')]
+        try :
+            tbl.registerRevealedPockets( pockets )
+        except Exception as e :
+            print "file: %s, game_id: %d, \n    message: %s\n\n" % (filename,game_id,e.message)
+            continue
 
 
         #TODO

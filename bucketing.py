@@ -642,81 +642,44 @@ def testSymmetric() :
 def iterateTransitions() :
     transitions = {}
     conn = db.Conn("localhost")
-    street = 'turn'
-    street_prime = 'river'
 
     for i, board_prime in enumerate( combinations( range(52), 5 ) ):
         #19148.pts-5.genomequery
-        if i < 59601 or i >= 500000: continue
+        #if i < 323144 or i >= 500000: continue
 
         #2529.pts-4.genomequery
-        #if i < 535098 or i >= 1000000: continue
+        #done
+        #if i < 792245 or i >= 1000000: continue
+        if i < 2550000 : continue
 
         #3567.pts-4.genomequery
         #if i < 1000056 or i >= 1500000: continue  #finished
-        #if i < 2300000 : continue
+        #if i < 2507742 or i > 2550000: continue
 
         #3601.pts-4.genomequery
-        #if i < 1507912 or i >= 2000000: continue
+        #if i < 1852230 or i >= 2000000: continue
 
         #3718.pts-4.genomequery
-        #if i < 2000007 : continue
+        #if i < 2048688 : continue
 
         print i
-        chunk_size = 100
-        cboards_chunk = []
-                
-        if i % chunk_size == 0 :
-            cboard_where = []
-            cboard_prime_where = []
-            for cboards in cboards_chunk :
-                cboard, cboard_prime = cboards.split('|')
-                cboard_where.append("cboard = '%s'" % cboard )
-                cboard_prime_where.append( "cboards = '%s'" % cboard_prime )
-            cboard_where = ' or '.join( cboard_where )
-            cboard_prime_where = ' or '.join( cboard_prime_where )
+        board = board_prime[:-1]
+        cboard = collapseBoard(board)
+        cboard_prime = collapseBoard(board_prime)
 
-            #query
-            q_prime = """select pocket, memberships
-                   from %s%s
-                   where %s""" % \
-                   (globles.BUCKET_TABLE_PREFIX, \
-                    street_prime.upper(), \
-                    cboard_prime_where)
-            q = """select pocket, memberships
-                   from %s%s
-                   where %s""" % \
-                   (globles.BUCKET_TABLE_PREFIX, \
-                    street.upper(), \
-                    cboard_where)
+        comb = "%s_%s" % (cboard, cboard_prime)
+        if comb not in transitions :
+            transitions[comb] = True
 
-            print q_prime
-
-            for pocket, memb in conn.query( q_prime ) :
-                pass
-            for pocket, memb in conn.query( q ) :
-                pass
-            for cboards in cboards_chunk :
-                #build select dictionary
-                #computeBucketTransitions( conn, cboard, cboard_prime )
-                pass
-
-            cboards_chunk = []
-        else :
-            board = board_prime[:-1]
-            cboard = collapseBoard(board)
-            cboard_prime = collapseBoard(board_prime)
             cboards =  "%s|%s" % (cboard, cboard_prime)
             q = "select count(*) from TRANSITIONS where cboards = '%s'" % cboards
-            print q
             count = conn.queryScalar(q, int)
-            if count > 0 :
-                cboards_chunk.append( cboards )
+            if count == 0 :
+                computeBucketTransitions( conn, cboard, cboard_prime )
             else :
-                print "skipping", cboards
+                print "skipping:", cboards
 
-    print len(transitions)
-        
+    print len(transitions)       
 
 if __name__ == '__main__' :
     #conn = db.Conn("localhost")
@@ -1141,3 +1104,84 @@ def computeEHS2Dists() :
         #fout.write( ';'.join( [str(t) for t in sorted(HS2s)] )+"\n" )
         fout.close()
 
+#chunked version that is not any faster, you dolt
+#def iterateTransitions() :
+    #transitions = {}
+    #conn = db.Conn("localhost")
+    #street = 'turn'
+    #street_prime = 'river'
+#
+    #chunk_size = 100
+    #cboards_chunk = []
+    #for i, board_prime in enumerate( combinations( range(52), 5 ) ):
+        ##19148.pts-5.genomequery
+        ##if i < 59601 or i >= 500000: continue
+#
+        ##2529.pts-4.genomequery
+        ##if i < 535098 or i >= 1000000: continue
+        #if i < 600000 : continue
+#
+        ##3567.pts-4.genomequery
+        ##if i < 1000056 or i >= 1500000: continue  #finished
+        #if i < 2300000 : continue
+
+        #3601.pts-4.genomequery
+        #if i < 1507912 or i >= 2000000: continue
+
+        #3718.pts-4.genomequery
+        #if i < 2000007 : continue
+
+        print i
+                
+        if len(cboards_chunk) == chunk_size :
+            cboard_where = []
+            cboard_prime_where = []
+            for cboards in cboards_chunk :
+                cboard, cboard_prime = cboards.split('|')
+                cboard_where.append("cboard = '%s'" % cboard )
+                cboard_prime_where.append( "cboard = '%s'" % cboard_prime )
+            cboard_where = ' or '.join( cboard_where )
+            cboard_prime_where = ' or '.join( cboard_prime_where )
+
+            #query
+            q_prime = """select pocket, memberships
+                   from %s%s
+                   where %s""" % \
+                   (globles.BUCKET_TABLE_PREFIX, \
+                    street_prime.upper(), \
+                    cboard_prime_where)
+            q = """select pocket, memberships
+                   from %s%s
+                   where %s""" % \
+                   (globles.BUCKET_TABLE_PREFIX, \
+                    street.upper(), \
+                    cboard_where)
+
+            print q_prime
+
+            for pocket, memb in conn.query( q_prime ) :
+                pass
+            for pocket, memb in conn.query( q ) :
+                pass
+            for cboards in cboards_chunk :
+                #build select dictionary
+                #computeBucketTransitions( conn, cboard, cboard_prime )
+                pass
+
+            cboards_chunk = []
+            a = raw_input()
+
+
+        board = board_prime[:-1]
+        cboard = collapseBoard(board)
+        cboard_prime = collapseBoard(board_prime)
+        cboards =  "%s|%s" % (cboard, cboard_prime)
+        q = "select count(*) from TRANSITIONS where cboards = '%s'" % cboards
+        count = conn.queryScalar(q, int)
+        if count > 0 :
+            cboards_chunk.append( cboards )
+        else :
+            print "skipping", cboards
+
+    print len(transitions)
+ 
