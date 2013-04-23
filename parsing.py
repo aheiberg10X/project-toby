@@ -2,6 +2,7 @@ import re
 import os
 import os.path
 import json
+from random import random
 
 import table
 from globles import veryClose, PAST_BET_RATIOS, ACTIVE_BET_RATIOS, LOG_DIRECTORY, LOG_YEAR
@@ -108,8 +109,11 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
         for ((game_id,rounds,showdown),nodes,amt_exchanged) in \
             (log2Nodes( in_filename, focus_player, focus_position )) :
+
             nodes.append( amt_exchanged )
+            nodes.append( game_id )
             nodes = ','.join([str(node) for node in nodes])
+
             print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
             if run in leave_out_runs :
                 buffers[rounds][showdown]['test'].append( nodes )
@@ -327,13 +331,52 @@ def log2Nodes( filename, focus_player, focus_position ) :
     print "n_thrown_out: " , n_thrown_out
     print "amt_thrown_out: ", amt_thrown_out
 
+#every game has money exchanged
+#the amount (as multiples of big blind) is the second to last column (15)
+#we want to duplicate the big money hands, once for each BB in amt
+#to not blow up the file size, we pick a factor to define which amt gets 
+#included only once.  Those with amt < factor only get included with
+#prob amt/factor, and discarded otherwise.
+#Everything is written out to the _scaled.csv file, the BB amt and game_id 
+#suffixes are dropped
+def scaleNodes( nodefilename, factor = 3 ) :
+    fin = open( "%s.csv" % nodefilename )
+    fout = open( "%s_scaled.csv" % nodefilename, 'w' )
+    line_buffer = []
+
+    #TODO?: add +1 to BB_amt, because the way amts were recorded
+    # called blinds and all checks = BB_amt == 0, not 1
+
+    BB_amt_ix = 15
+    nadded = 0
+    for line in fin.readlines() :
+        splt = line.strip().split(',')
+        new_line = ','.join( splt[:BB_amt_ix] )
+        nBB = int(splt[BB_amt_ix])
+        include_prob = nBB / float(factor)
+        if include_prob >= 1 :
+            n_dupes = int(include_prob)
+            for i in range(n_dupes) :
+                nadded += 1
+                line_buffer.append( new_line )
+            nadded -= 1
+        else :
+            if random() < include_prob :
+                line_buffer.append( new_line )
+            else :
+                nadded -= 1
+
+    fout.write( '\n'.join(line_buffer) + '\n' )
+    fout.close()
+    fin.close()
+    print "line num change: ", nadded
+
+
 if __name__ == '__main__' :
 
-    filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Rembrant.SartreNL.run-9.perm-1.log"
-    #filename = "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Rembrant.SartreNL.test.perm-1.log"
-
-    #for t in actionState2Int :
-        #print actionState2Int[t], ' - ', t
+    
+    scaleNodes("nodes/training_4-rounds_showdown")
+    assert False
 
     #28271.pts-9.genomequery
     p1 = "Rembrant"

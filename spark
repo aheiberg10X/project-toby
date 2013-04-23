@@ -1007,3 +1007,15 @@ In general, it would be good to have amt of money changing hands each round incl
 NOT DOING BETTER THAN baseline, figure out why!!
 
 =====================================================================================
+
+4/19/13
+
+Ok.  I thikn a big reason weren't doing better than baseline was because of the 'k,k' that were getting added as dummies.  They were polluting the ML estimates. See notebook.
+
+I though marking the dummy node with a value +1 of the size of the node would work, but it really just excludes the entire example.  Cant mark it with a [], things break and/or it gets added all to the node's max state.  
+
+So it seems like I need to mark all DUMMY's as [], and do EM.  On toy this was getting the right estimates.  The downside is that this takes much longer...
+
+So, need to take parsing and scale it by dollar amt.  Pick an amt A with that is prob 1, any number higher gets duplicated that many time.  All lower get omitted with prob amt/A.
+
+But try training without scaling first

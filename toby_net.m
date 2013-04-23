@@ -1,11 +1,14 @@
-training = csvread('../../project-toby/nodes/show_4-round_small.csv');
+%training = csvread('../../project-toby/nodes/show_4-round_small.csv');
+training = csvread('../../project-toby/nodes/training_4-rounds_showdown_scaled.csv');
 data_inputted = 1
 
 seed = 42;
 rand('state',seed);
 randn('state',seed);
-dag_switch = 1;
+dag_switch = 3;
 N = 15;
+training = training(:,1:N);
+[nexps, natts] = size(training);
 %encode the graph
 dag = zeros(N,N);
 
@@ -60,7 +63,7 @@ end
 
 num_bet_ratios = 4 
 past_action_state_size = num_bet_ratios*2*2*2*2;
-active_action_state_size = num_bet_ratios + 3 ; %+3 for k,f,c
+active_action_state_size = num_bet_ratios + 3 + 1; %+3 for k,f,c + dummy
 preflop_buckets = 10;
 flop_buckets = 20;
 turn_buckets = 15;
@@ -75,7 +78,7 @@ node_sizes = [preflop_buckets,        preflop_buckets, ...
               river_buckets,          river_buckets, ...
               active_action_state_size, active_action_state_size, ...
               active_action_state_size, active_action_state_size];
-names = {'b11','b12','a1','b21','b22','a2','b31','b32','a3','b41','b42','a411','a412','a421','a422'};
+names = {'b11','b21','a1','b12','b22','a2','b13','b23','a3','b14','b24','a141','a142','a241','a242'};
 
 %{
 node_sizes = [preflop_buckets,        preflop_buckets, ...
@@ -95,9 +98,11 @@ names = {'b11','b12','a11','a12','b21','b22','a21','a22','b31','b32','a31','a32'
 %NOTE
 %This will change for each street
 %To start we are doing fully observed for four rounds
-observed_nodes = 1:N;
+%TODO, we know everything except 14,15 is always observed
+%does giving this hint speed things up?
+%observed_nodes = 1:N;
 
-bnet = mk_bnet( dag, node_sizes, 'names', names, 'observed', observed_nodes );
+bnet = mk_bnet( dag, node_sizes, 'names', names ); % 'observed', observed_nodes );
 bnet_made = 1
 
 %hard code belief transistions across street.  Will eventually derive these
@@ -121,8 +126,19 @@ dirichlet_done = 1
 %s=struct(bnet.CPD{10});  % violate object privacy
 %s.CPT
 
+%training_cells = num2cell(training');
+%for i=1:nexps
+%    for c=find(training(i,[12 13 14 15]) == 8)
+%        training_cells{11+c,i} = [];
+%    end
+%end
+%masking_dummy_moves = 1
+
 %assuming training.csv has been loaded
 bnet_learned = learn_params(bnet, training');
+
+%engine = jtree_inf_engine(bnet);
+%[bnet_learned LL]= learn_params_em( engine, training_cells, 10 );
 learn_params = 1
 
 %engine2 = jtree_inf_engine(bnet);
