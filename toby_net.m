@@ -1,5 +1,6 @@
 %training = csvread('../../project-toby/nodes/show_4-round_small.csv');
-training = csvread('../../project-toby/nodes/training_4-rounds_showdown_scaled.csv');
+%training = csvread('../../project-toby/nodes/training_4-rounds_showdown_scaled.csv');
+training = csvread('../../project-toby/nodes/training_4-rounds_showdown.csv');
 data_inputted = 1
 
 seed = 42;

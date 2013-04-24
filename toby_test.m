@@ -3,6 +3,7 @@
 %test = csvread('../../project-toby/nodes/show_test_small.csv');
 test = csvread('../../project-toby/nodes/test_4-rounds_showdown.csv');
 test = test(1:10000,1:N);
+%amts = test(1:10000,N+1);
 [ncases,natt] = size(test);
 
 %shit, we printed all -1, but we want the true label for testing
@@ -90,20 +91,20 @@ for i=1:n_test_rows
         %get the distribution over the outcomes of predict_node
         [engine2, ll] = enter_evidence(engine, evidence);
         marg = marginal_nodes(engine2, predict_node);
-        evidence;
-        marginal = marg.T;
-        meen = mean(marginal .* 1:n_river_buckets);
-        sigma = std(marginal .* 1:n_river_buckets);
-        samples = round(normrnd(meen,sigma,1,n_samples));
+        evidence
+        marginal = marg.T
+       % meen = mean(marginal .* 1:n_river_buckets);
+       % sigma = std(marginal .* 1:n_river_buckets);
+       % samples = round(normrnd(meen,sigma,1,n_samples));
         %bound
-        predicted_buckets = samples(samples >= 1 & samples <= n_river_buckets);
-        %predicted_buckets = discretesample( marginal, n_samples );
+        %predicted_buckets = samples(samples >= 1 & samples <= n_river_buckets);
+        predicted_buckets = discretesample( marginal, n_samples );
 
         %test to factor out priors.  helped a little on hands not 1818
     %    marginal = marginal ./ prior10;
     %    marginal = marginal / sum(marginal);
 
-        true_label;
+        true_label
         %test(i,:)
     end
 
@@ -134,7 +135,7 @@ for i=1:n_test_rows
         diff_sum = diff_sum + diff;
     end
     avg_diff = diff_sum / n_samples;
-    avg_diff_sum = avg_diff_sum + avg_diff;
+    avg_diff_sum = avg_diff_sum + avg_diff; %*amts(i);
 
 end
 %fclose(fout_dist);
