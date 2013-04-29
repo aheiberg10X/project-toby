@@ -4,10 +4,10 @@ LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
 #old
 #BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
 
-PAST_BET_RATIOS = [0,.33,.5,.8]
+PAST_BET_RATIOS = [0,.2,.33,.45,.5,.6,.75,.9] #[0,.33,.5,.8]
 
 #individual bet ratios
-ACTIVE_BET_RATIOS = [.5,1,1.6,4]
+ACTIVE_BET_RATIOS = [.5,1,1.66,2.33,3,3.66,4.33,7] #[.5,1,1.6,4]
 
 def closestRatio( ratio, switch ) :
     if switch == 'past' :

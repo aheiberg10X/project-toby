@@ -155,7 +155,8 @@ def computeBucketTransitions( conn, cboard, cboard_prime, \
     assert .99 < total_sum < 1.01
 
     dist = ';'.join(dist)
-    conn.insert( 'TRANSITIONS', ["%s|%s" % (cboard, cboard_prime),dist], \
+    conn.insert( 'TRANSITIONS_%s' % street_prime.upper(), \
+                 ["%s|%s" % (cboard, cboard_prime),dist], \
                  skip_dupes=True)
     print "inserted"
 
@@ -642,37 +643,34 @@ def testSymmetric() :
 def iterateTransitions() :
     transitions = {}
     conn = db.Conn("localhost")
-
-    for i, board_prime in enumerate( combinations( range(52), 5 ) ):
+    street = 'turn'
+    for i, board_prime in enumerate( combinations( range(52), 4 ) ):
         #19148.pts-5.genomequery
-        #if i < 323144 or i >= 500000: continue
+        #if i < 0 or i >= 50000: continue
 
         #2529.pts-4.genomequery
-        #done
-        #if i < 792245 or i >= 1000000: continue
-        if i < 2550000 : continue
+        #if i < 50000 or i >= 100000: continue
 
         #3567.pts-4.genomequery
-        #if i < 1000056 or i >= 1500000: continue  #finished
-        #if i < 2507742 or i > 2550000: continue
+        #if i < 100000 or i >= 150000: continue  #finished
 
         #3601.pts-4.genomequery
-        #if i < 1852230 or i >= 2000000: continue
+        #if i < 150000 or i >= 200000: continue
 
         #3718.pts-4.genomequery
-        #if i < 2048688 : continue
+        if i < 200000 : continue
 
         print i
         board = board_prime[:-1]
         cboard = collapseBoard(board)
         cboard_prime = collapseBoard(board_prime)
 
-        comb = "%s_%s" % (cboard, cboard_prime)
-        if comb not in transitions :
-            transitions[comb] = True
+        cboards =  "%s|%s" % (cboard, cboard_prime)
+        if cboards not in transitions :
+            transitions[cboards] = True
 
-            cboards =  "%s|%s" % (cboard, cboard_prime)
-            q = "select count(*) from TRANSITIONS where cboards = '%s'" % cboards
+            q = "select count(*) from TRANSITIONS_%s where cboards = '%s'" % \
+                 (street.upper(),cboards)
             count = conn.queryScalar(q, int)
             if count == 0 :
                 computeBucketTransitions( conn, cboard, cboard_prime )
