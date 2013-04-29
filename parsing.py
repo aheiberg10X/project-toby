@@ -375,7 +375,7 @@ def scaleNodes( nodefilename, factor = 3 ) :
 if __name__ == '__main__' :
 
     
-    scaleNodes("nodes/training_4-rounds_showdown")
+    scaleNodes("nodes/show_4-round_perm0_train_merged")
     assert False
 
     #28271.pts-9.genomequery

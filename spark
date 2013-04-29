@@ -1019,3 +1019,18 @@ So it seems like I need to mark all DUMMY's as [], and do EM.  On toy this was g
 So, need to take parsing and scale it by dollar amt.  Pick an amt A with that is prob 1, any number higher gets duplicated that many time.  All lower get omitted with prob amt/A.
 
 But try training without scaling first
+
+==================================================
+
+4/26
+
+Lots has happend, see journal thing
+
+Immediate TODOs
+
+have to reparse again, but if turn of registerRevealed will be much faster
+so parse out bucket values from current parsing (they won't change), then just splice them in
+
+seriously, any other past state info to include?  Could do reraise amount, or BB multiple?
+
+

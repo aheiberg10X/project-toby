@@ -1,12 +1,23 @@
-%training = csvread('../../project-toby/nodes/show_4-round_small.csv');
-%training = csvread('../../project-toby/nodes/training_4-rounds_showdown_scaled.csv');
-training = csvread('../../project-toby/nodes/training_4-rounds_showdown.csv');
+scaling = 1 
+if scaling == 1
+    training = csvread('../../project-toby/nodes/show_4-round_perm0_train_merged_scaled.csv');
+elseif scaling == 0
+    training = csvread('../../project-toby/nodes/show_4-round_perm0_train_merged.csv');
+else
+    training = [1 1 1 1 1 1 1 1 1 2 1 5 3 3 3;
+                1 1 1 1 1 1 1 1 1 2 1 3 3 3 3;
+                1 1 1 1 1 1 1 1 1 2 1 3 3 3 3;
+                1 1 1 1 1 1 1 1 1 4 1 3 3 3 3;
+                1 1 1 1 1 1 1 1 1 4 1 3 3 3 3;
+                1 1 1 1 1 1 1 1 1 2 1 3 3 3 3 ]
+end
+%training = csvread('../../project-toby/nodes/training_4-rounds_showdown.csv');
 data_inputted = 1
 
 seed = 42;
 rand('state',seed);
 randn('state',seed);
-dag_switch = 3;
+dag_switch = 4;
 N = 15;
 training = training(:,1:N);
 [nexps, natts] = size(training);
@@ -15,11 +26,11 @@ dag = zeros(N,N);
 
 %1 = baseline.  Streets not connected
 if( dag_switch == 1 )
-    dag(10,[12 14]) = 1;
-    dag(11,[13,15]) = 1;
+    dag(10,[12 13]) = 1;
+    dag(11,[14 15]) = 1;
     dag(12,[13 14 15]) = 1;
-    dag(13,[14 15]) = 1;
-    dag(14,15) = 1;
+    dag(13, 15) = 1;
+    dag(14,[13 15]) = 1;
 %2 = action 2 action : past actions connected to each active
 %runs out of memory on laptop
 elseif( dag_switch == 2 )
@@ -32,11 +43,19 @@ elseif( dag_switch == 2 )
 %3 = past 2 belief : past actions connect to current belief
 elseif( dag_switch == 3 )
     dag([6 9],[10 11]) = 1;
-    dag(10,[12 14]) = 1;
-    dag(11,[13,15]) = 1;
+    dag(10,[12 13]) = 1;
+    dag(11,[14 15]) = 1;
     dag(12,[13 14 15]) = 1;
-    dag(13,[14 15]) = 1;
-    dag(14,15) = 1;
+    dag(13,15) = 1;
+    dag(14,[13 15]) = 1;
+elseif( dag_switch == 4 );
+    dag([6 9],[10 11]) = 1;
+    dag(12,[13 14 15]) = 1;
+    dag(13,15) = 1;
+    dag(14,[13 15]) = 1;
+    dag([12 13],10 ) = 1;
+    dag([14 15],11 ) = 1;
+
 %4 = connected by belief transitions
 else
     dag([1 2],3) = 1;
@@ -62,9 +81,10 @@ else
 end
 
 
-num_bet_ratios = 4 
-past_action_state_size = num_bet_ratios*2*2*2*2;
-active_action_state_size = num_bet_ratios + 3 + 1; %+3 for k,f,c + dummy
+num_past_bet_ratios = 8; 
+num_act_bet_ratios = 8;
+past_action_state_size = 56; %num_past_bet_ratios*2*2*2*2;
+active_action_state_size = num_act_bet_ratios + 3 + 1; %+3 for k,f,c + dummy
 preflop_buckets = 10;
 flop_buckets = 20;
 turn_buckets = 15;
@@ -136,6 +156,7 @@ dirichlet_done = 1
 %masking_dummy_moves = 1
 
 %assuming training.csv has been loaded
+
 bnet_learned = learn_params(bnet, training');
 
 %engine = jtree_inf_engine(bnet);
