@@ -22,7 +22,7 @@ class Table() :
 
         self.small_blind = small_blind
         self.logging = logging
-        self.error_file = open("table_errors.txt",'w')
+        self.error_file = open("table_errors.txt",'a')
 
         if self.logging :
             self.history = History()
@@ -122,6 +122,7 @@ class Table() :
         self.buckets = []
         #record the actions that comprise each betting round
         self.active_actions = []
+        self.re_raises = []
 
         self.features = { \
             #DONE (defacto)
@@ -232,7 +233,6 @@ class Table() :
         action_rep = -1;
         pot_frac = amt > 0
 
-
         if action == 'k' :
             self.features["num_past_actions"][self.street] += 1
         elif action == 'f' :
@@ -257,7 +257,20 @@ class Table() :
                 else : action = 'c'
 
             #make the raise  
-            if action == 'r' or action =='b' :
+            if action == 'r' or action == 'rt' or action =='b' :
+                if action == 'rt' :
+                    #print "total amt:", amt
+                    #print "comittted:", self.committed[player_ix]
+                    amt = amt - self.committed[player_ix]
+                    if oblig == 0 :
+                        action = 'b'
+                    else :
+                        action = 'r'
+                    #print "amt:", amt
+
+                if self.last_action == 'r' or self.last_action == 'b' :
+                    self.re_raises[self.street][player_ix] = True
+
                 #raise_amt = fraction * self.pot
                 #self.updateStack( player_ix, oblig+raise_amt )
                 frac = amt / float(self.pot)
@@ -313,9 +326,10 @@ class Table() :
 
             assert( self.stacks[player_ix] >= -0.00001 )
 
+        self.last_action = action
+
         if pot_frac :
             action_rep = [pot_frac]
-            
         else :
             action_rep = [action]
 
@@ -506,8 +520,10 @@ class Table() :
         for ix in ixs :
             is_folded = self.folded[ix]
             if not is_folded :
-                diff = self.current_bets[ix] - \
-                       self.current_bets[player_ix]
+                #print "ix current_bet, committed:", self.current_bets[ix], self.committed[ix]
+                #print "pix current_bet, committed:", self.current_bets[player_ix], self.committed[player_ix]
+                diff = (self.current_bets[ix])- \
+                       (self.current_bets[player_ix])
                 if not diff >= 0 :
                     print "action_to", self.action_to
                     print "ix: ", ix, self.current_bets[ix]
@@ -538,21 +554,20 @@ class Table() :
             #compute the features we want to emit
             #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
             action_state = []
-            bet_ratio_added = False
+            #bet_ratio_added = False
             for p in acted_players :
-                if not bet_ratio_added :
-                    pip_to_pot = self.current_bets[p] / float(self.pot)
+                player_state = []
+                pip_to_pot = self.current_bets[p] / float(self.pot)
 
-                    #when looking for appropriate bet ratios
-                    #self.error_file.write( "%f\n" % (pip_to_pot) )
-
-                    #print pip_to_pot
-                    #if self.current_bets[p] > 0 :
-                        #pip_to_stack = self.current_bets[p] / float(self.stacks[p] + self.current_bets[p])
-                        #print pip_to_stack
-                    closest_ratio = closestRatio( pip_to_pot, 'past' )
-                    action_state.append( closest_ratio )
-                    bet_ratio_added = True
+                #when looking for appropriate bet ratios
+                #self.error_file.write( "%f\n" % (pip_to_pot) )
+                #print pip_to_pot
+                #if self.current_bets[p] > 0 :
+                    #pip_to_stack = self.current_bets[p] / float(self.stacks[p] + self.current_bets[p])
+                    #print pip_to_stack
+                closest_ratio = closestRatio( pip_to_pot, 'past' )
+                player_state.append( closest_ratio )
+                #bet_ratio_added = True
 
                 #Inherent in network structure now
                 #the left side is always first to act
@@ -564,20 +579,20 @@ class Table() :
                 #else :
                     #action_state.append( int(self.button == p) )
 
-                #did_re_raise = 0
-                #for act in self.active_actions[self.street-1][p][1:] :
-                    #if 'r' in act : did_re_raise = 1
-                #action_state.append( did_re_raise )
 
                 #1 if aggressive PIP ratio
-                if not self.current_bets[p] == 0 :
-                    #ratio = self.aggressive_pip[p] / \
-                             #float(self.current_bets[p])
-                    #was_aggressive = int( ratio  > .1 )
-                    was_aggressive = int( self.aggressive_pip[p] > 0 )
-                    action_state.append( was_aggressive )
-                else :
-                    action_state.append(0)
+                was_agg = int(self.aggressive_pip[p] > 0) 
+                player_state.append( was_agg )
+                
+                #did_re_raise = 0
+                #for act in self.active_actions[self.street-1][p][1:] :
+                    #if 'rt' in act or 'r' in act : did_re_raise = 1
+                #player_state.append( did_re_raise )
+                #print self.re_raises
+                #print self.re_raises[-1][p]
+                player_state.append( int(self.re_raises[-1][p]) )
+
+                action_state.append( player_state )
 
             #meaningless to register actions where no one acts
             #this can happend when an all-In is called
@@ -586,7 +601,9 @@ class Table() :
                 self.past_actions.append( action_state )
 
         #make space for the next street
+        #TODO hardcoded for 2p
         self.active_actions.append([[],[]])
+        self.re_raises.append([False,False])
 
         #bookkeeping
         if cards :

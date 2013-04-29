@@ -1,5 +1,6 @@
 #data file
-train_filename = "nodes/training_4-rounds_showdown.csv"
+#train_filename = "nodes/Rembrant_SartreNL_perm-1/training_4-rounds_showdown.csv"
+train_filename = "nodes/show_4-round.csv"
 test_filename = "nodes/test_4-rounds_showdown.csv"
 #dist file
 dist_filename = "nodes/node_10_distribution.csv"
@@ -21,6 +22,7 @@ def computeTypeFrequencies( focus_cols, given_cols, given_conditions ) :
         if not given_values in given_conditions :
             continue
 
+        #print line
         n_not_excluded += 1
         try :
             value = ','.join( [splt[i] for i in focus_cols] )
@@ -49,21 +51,23 @@ def returnMasker( focus_nodes, ignore_set ) :
 
     
 if __name__ == '__main__' :
-    given_cols = []#[11,12,13,14]
-    given_conditions = ['']#['1,6,5,3']
-    type_freqs =  computeTypeFrequencies( [15], given_cols, given_conditions )
+    #given_cols = [14]#[11,12,13,14]
+    #given_conditions = ['1','2','3','4','5','6','7']#['1,6,5,3']
+    given_cols = [2, 5, 11, 12, 13 14]
+    given_conditions = ['20 20 1 3 4 8']
+    type_freqs =  computeTypeFrequencies( [9], given_cols, given_conditions )
     
-    #find the scaling factor, such that the new example file is about the
-    #same size as before
-    amts = type_freqs.keys()
-    percs = type_freqs.values()
+    ##find the scaling factor, such that the new example file is about the
+    ##same size as before
+    #amts = type_freqs.keys()
+    #percs = type_freqs.values()
 
-    for i in range(2,5) :
-        scaled_amts = [float(amt)/i for amt in amts]
-        print i
-        scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
-        print "i:",i, sum(scaled_percs)
+    #for i in range(2,5) :
+        #scaled_amts = [float(amt)/i for amt in amts]
+        #print i
+        #scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
+        #print "i:",i, sum(scaled_percs)
     
-    #svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
-    #for v in svalues :
-        #print v, "\t" , type_freqs[v]
+    svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
+    for v in svalues :
+        print v, "\t" , type_freqs[v]

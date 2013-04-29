@@ -11,6 +11,8 @@ from deck import listify
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
+register_pockets = False
+
 #concatenate
 def actionState2Str( action_state ) :
     return ','.join( [str(t) for t in action_state] )
@@ -26,15 +28,24 @@ int_repr = 1;
 
 #past states
 for br in PAST_BET_RATIOS :
-    #for p1_did_re_raise in [1,0] :
     for p1_was_aggressive in [1,0] :
-        #for p2_did_re_raise in [1,0] :
         for p2_was_aggressive in [1,0] :
-            astate_str = actionState2Str( [\
-               br, p1_was_aggressive,\
-                   p2_was_aggressive] )
-            pastActionState2Int[ astate_str ] = int_repr
-            int_repr += 1
+            if p1_was_aggressive and p2_was_aggressive :
+                assert p1_was_aggressive == 1 and  p2_was_aggressive == 1
+                for p1_did_re_raise in [1,0] :
+                    for p2_did_re_raise in [1,0] :
+                        astate_str = actionState2Str( [\
+                           br, p1_was_aggressive, p2_was_aggressive, \
+                               p1_did_re_raise, p2_did_re_raise] )
+                        pastActionState2Int[ astate_str ] = int_repr
+                        int_repr += 1
+            else :
+                astate_str = actionState2Str([\
+                                   br, p1_was_aggressive, p2_was_aggressive \
+                                             ])
+
+                pastActionState2Int[ astate_str ] = int_repr
+                int_repr += 1
 
 #active states
 #start the count over for the active nodes
@@ -61,10 +72,12 @@ int_repr += 1
 sorted_astates = sorted( pastActionState2Int.keys(), key= lambda astate : pastActionState2Int[astate] )
 for sa in sorted_astates :
     print sa, "\t", pastActionState2Int[sa]
+print "numpast actions:", len(sorted_astates)
 
 sorted_astates = sorted( activeActionState2Int.keys(), key= lambda astate : activeActionState2Int[astate] )
 for sa in sorted_astates :
     print sa, "\t", activeActionState2Int[sa]
+print "num active actions:", len(sorted_astates)
 
 #assert False
 
@@ -85,48 +98,60 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
                     #min_betting_rounds, must_have_showdown )
 
     assert focus_player == p1 or focus_player == p2
+    printing = True 
     #TODO
     #take each node output and write it to the corrent file handle
     handles = {}
     buffers = {}
-    for min_betting_rounds in [1,2,3,4] :
-        handles[min_betting_rounds] = {}
-        buffers[min_betting_rounds] = {}
-        for must_have_showdown in [True,False] :
-            handles[min_betting_rounds][must_have_showdown] = {}
-            buffers[min_betting_rounds][must_have_showdown] = {}
-            ss = "no-showdown"
-            if must_have_showdown : ss = "showdown"
-            for learn_test in ['training','test'] :
-                fout = open("nodes/%s_%s_perm-%d/%s_%d-rounds_%s.csv" % \
-                               (p1,p2,perm,learn_test,min_betting_rounds,ss),'w')
-                handles[min_betting_rounds][must_have_showdown][learn_test] = fout
-                buffers[min_betting_rounds][must_have_showdown][learn_test] = []
+    if printing :
+        for min_betting_rounds in [1,2,3,4] :
+            handles[min_betting_rounds] = {}
+            buffers[min_betting_rounds] = {}
+            for must_have_showdown in [True,False] :
+                handles[min_betting_rounds][must_have_showdown] = {}
+                buffers[min_betting_rounds][must_have_showdown] = {}
+                ss = "no-showdown"
+                if must_have_showdown : ss = "showdown"
+                for learn_test in ['training','test'] :
+                    fout = open("nodes/%s_%s/perm%d/%s_%d-rounds_%s.csv" % \
+                                   (p1,p2,perm,learn_test,min_betting_rounds,ss),'w')
+                    handles[min_betting_rounds][must_have_showdown][learn_test] = fout
+                    buffers[min_betting_rounds][must_have_showdown][learn_test] = []
 
     for run in range(100) : #range(100)
         #print "Run: %d" % run
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
+        count = 0
         for ((game_id,rounds,showdown),nodes,amt_exchanged) in \
-            (log2Nodes( in_filename, focus_player, focus_position )) :
-
+            log2Nodes( in_filename, focus_player, focus_position ) :
             nodes.append( amt_exchanged )
             nodes.append( game_id )
             nodes = ','.join([str(node) for node in nodes])
 
-            print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
-            if run in leave_out_runs :
-                buffers[rounds][showdown]['test'].append( nodes )
-            else :
-                buffers[rounds][showdown]['training'].append(nodes)
+            #print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
+            if printing :
+                if run in leave_out_runs :
+                    buffers[rounds][showdown]['test'].append( nodes )
+                else :
+                    buffers[rounds][showdown]['training'].append(nodes)
 
-        for rounds in [1,2,3,4] :
-            for showdown in [True,False] :
-                for test_train in ['training','test'] :
-                    handles[rounds][showdown][test_train].write( \
-                          '\n'.join( buffers[rounds][showdown][test_train]) +\
-                          '\n' \
-                    )
+        if printing :
+            total_games_in_run = 0
+            for rounds in [1,2,3,4] :
+                for showdown in [True,False] :
+                    for test_train in ['training','test'] :
+                        lines = buffers[rounds][showdown][test_train]
+                        l = len(lines)
+                        print rounds, showdown, test_train, l
+                        total_games_in_run += l
+                        if l > 0 :
+                            handles[rounds][showdown][test_train].write( \
+                              '\n'.join( lines ) +\
+                              '\n' \
+                            )
+                        buffers[rounds][showdown][test_train] = []
+            print total_games_in_run
 
     #TODO close handles
 
@@ -159,7 +184,8 @@ def log2Nodes( filename, focus_player, focus_position ) :
     #stacks are always reset to 20000 at the start of every game 
     pockets = [['__','__'],['__','__']]
 
-    sb = 50
+    #when someone folds, +/-100 is exchanged
+    sb = 50 
     tbl = table.Table( small_blind=sb )
     header = fin.readline()
     for i in range(3) : burn = fin.readline()
@@ -179,8 +205,12 @@ def log2Nodes( filename, focus_player, focus_position ) :
 
         action_strings = splt[2].strip('/').split('/')
         card_strings = splt[3].strip('/').split('/')
+
         #amount won/lost, as multiple of BB
-        amt_exchanged = int( round( abs(int(splt[4].split('|')[0])) / float(sb*2) ) )
+        #using pot size instead
+        amt = abs(int(splt[4].split('|')[0]))
+        amt_exchanged = int( round ( amt / float(sb*2) ) )
+
         player_order = splt[5].split("|")
         button_player = player_order[1]
         button = players.index(button_player)
@@ -227,19 +257,19 @@ def log2Nodes( filename, focus_player, focus_position ) :
                         ix += 1
                     bet_amount = int(''.join(ints))
 
-                    #correct overbets
-                    stack_amount = tbl.stacks[tbl.action_to]
-                    if bet_amount > stack_amount :
-                        bet_amount = stack_amount
-                        act = 'a'
-                        allin_round = street
+                    ##correct overbets
+                    #stack_amount = tbl.stacks[tbl.action_to]
+                    #if bet_amount > stack_amount :
+                        #bet_amount = stack_amount
+                        #act = 'a'
+                        #allin_round = street
 
-                    if prev_act == 'b' or prev_act == 'r' :
-                        act = 'r'
-                    else :
-                        act = 'b'
+                    #if prev_act == 'b' or prev_act == 'r' :
+                        #raises are really 'raise the pot to' amts
+                    tbl.registerAction( 'rt' , bet_amount )
+                    #else :
+                        #tbl.registerAction( 'b', bet_amount )
 
-                    tbl.registerAction( act, bet_amount )
 
                 #true call or fold
                 elif act == 'c' or act == 'f' :
@@ -258,76 +288,88 @@ def log2Nodes( filename, focus_player, focus_position ) :
         has_showdown = 'f' not in action_strings[n_betting_rounds-1]
         #if has_showdown :
         pockets = [listify(p) for p in card_strings[0].split('|')]
-        try :
+        if register_pockets : 
             tbl.registerRevealedPockets( pockets )
-        except Exception as e :
-            print "file: %s, game_id: %d, \n    message: %s\n\n" % (filename,game_id,e.message)
-            continue
+        else:
+            for i in range(n_betting_rounds) :
+                tbl.buckets.append([-1,-1])
 
 
-        #TODO
-        #now that the network structure has changed, we need to modify this
-        #to output expanded active nodes for each possible round
-        #the yield statement will go inside the for loop, as will the training
-        #instance list
-        #e.g a game going 4 rounds will output [past *3*2, 4 active on river],
-        # [past 2*2, 4 active on turn], [past *1*2, 4 active on flop], etc..
-        training_instance = []
-        for street in range(0,n_betting_rounds) :
-            #always want the player who is first to act to be on the left
-            #side of the network.
-            #since player list we pass to Table does not depend on position
-            #in the hand, but instead on position in the file name, we
-            #need to do some conversion
-            focus_player_ix = players.index(focus_player)
-            want_to_be_button = int(focus_position == 'button')
-            if focus_player_ix == want_to_be_button :
-                ordered_players = [0,1]
-            else :
-                ordered_players = [1,0]
 
-            #see toby_net.m for the node ordering
-            #want to print all the node values, will mask later
-            #if has_showdown :
-            for pix in ordered_players :
-                training_instance.append( tbl.buckets[street][pix] )
-            #else :
-                #for pix in ordered_players :
-                    #training_instance.append(-1)
+        #if has_showdown :
+            #assert tbl.pot/2 == amt
+        #else :
+            #pass
 
-            #print "street", street
-            #print tbl.active_actions
+        #emit a training instance for each possible network, given
+        #the number of rounds in this hand
+        #if n_betting_rounds==3, we can emit nodes for pre,flop,and turn
+        for final_street in range(0,n_betting_rounds) :
+            training_instance = []
+            n_network_betting_rounds = final_street+1
+            for street in range(0,n_network_betting_rounds) :
+                #always want the player who is first to act to be on the left
+                #side of the network.
+                #since player list we pass to Table does not depend on position
+                #in the hand, but instead on position in the file name, we
+                #need to do some conversion
+                focus_player_ix = players.index(focus_player)
+                want_to_be_button = int(focus_position == 'button')
+                if focus_player_ix == want_to_be_button :
+                    ordered_players = [0,1]
+                else :
+                    ordered_players = [1,0]
 
-            
-            too_many_micro_rounds = False
-            if street == n_betting_rounds-1 :
+                #see toby_net.m for the node ordering
+                #want to print all the node values, will mask later
                 for pix in ordered_players :
-                    n_micro_rounds = len(tbl.active_actions[street][pix])
-                    too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
-                    #assert not too_many_micro_rounds
-                    for micro_round in [0,1] :
-                        #the network expects some number of micro rounds
-                        #in the final street
-                        if micro_round >= n_micro_rounds :
-                            aa = DUMMY_ACTION 
-                        else :
-                            aa = tbl.active_actions[street][pix][micro_round]
-                        training_instance.append( mapActionState2Int(aa,'active') )
-            else :
-                #for pix in ordered_players :
-                asint = mapActionState2Int( \
-                          tbl.past_actions[street], 'past' )
-                training_instance.append( asint )
+                    training_instance.append( tbl.buckets[street][pix] )
 
-        if too_many_micro_rounds :
-            #print "too_many_micro_rounds"
-            #assert False
-            n_thrown_out += 1
-            amt_thrown_out = amt_exchanged
-            continue
-        yield [(game_id,n_betting_rounds,has_showdown),\
-               training_instance, \
-               amt_exchanged]
+                #print "street", street
+                #print tbl.active_actions
+
+                too_many_micro_rounds = False
+                if street == final_street :
+                    for pix in ordered_players :
+                        n_micro_rounds = len(tbl.active_actions[street][pix])
+                        too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
+                        #assert not too_many_micro_rounds
+                        for micro_round in [0,1] :
+                            #the network expects some number of micro rounds
+                            #in the final street
+                            if micro_round >= n_micro_rounds :
+                                aa = DUMMY_ACTION 
+                            else :
+                                aa = tbl.active_actions[street][pix][micro_round]
+                            training_instance.append( mapActionState2Int(aa,'active') )
+                else :
+                    past_action = [-1]
+                    agg_players = []
+                    #print tbl.past_actions[street]
+                    for pix in ordered_players :
+                        (ratio,agg,reraise) = tbl.past_actions[street][pix]
+                        agg_players.append( agg )
+                        past_action[0] = ratio
+                        past_action.append(agg)
+
+                    if sum(agg_players) >= 2 :
+                        for pix in ordered_players :
+                            past_action.append(tbl.past_actions[street][pix][2])
+
+                    asint = mapActionState2Int( past_action, 'past' )
+                    training_instance.append( asint )
+
+            if too_many_micro_rounds :
+                #print "too_many_micro_rounds"
+                #assert False
+                n_thrown_out += 1
+                amt_thrown_out = amt_exchanged
+                continue
+
+            #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
+            yield [(game_id,n_network_betting_rounds,has_showdown),\
+                   training_instance, \
+                   amt_exchanged]
     print "n_thrown_out: " , n_thrown_out
     print "amt_thrown_out: ", amt_thrown_out
 
@@ -344,8 +386,17 @@ def scaleNodes( nodefilename, factor = 3 ) :
     fout = open( "%s_scaled.csv" % nodefilename, 'w' )
     line_buffer = []
 
-    #TODO?: add +1 to BB_amt, because the way amts were recorded
-    # called blinds and all checks = BB_amt == 0, not 1
+    #TODO: when the BB is 0, does not mean an unimportant hand
+    #it means the pot was split.  Pot still could have been big,
+    #with lots of interesting betting
+    #Rather than use their amt, then, can use Table's internal pot size
+    #for showdown hands, it gets it right
+    #but for noshow hands, it is including the last bet in the pot
+    #debatable whether to include this bet or not makes sense
+    #I think it does, I am after 'interesting' features
+    #but, if I am evaling accuracy by this amount, then could be hacked 
+    #by spamming all-ins.  Don't think this is a threat given the data, though
+
 
     BB_amt_ix = 15
     nadded = 0
@@ -375,40 +426,59 @@ def scaleNodes( nodefilename, factor = 3 ) :
 if __name__ == '__main__' :
 
     
-    scaleNodes("nodes/training_4-rounds_showdown")
-    assert False
-
-    #28271.pts-9.genomequery
+    #scaleNodes("nodes/training_4-rounds_showdown")
+    #assert False
+    
+    p1s = []
+    p2s = []
+    #3601.pts-4.genomequery
     p1 = "Rembrant"
     p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #27676.pts-7.genomequery
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
-    #27202.pts-5.genomequery
-    #p1 = "player_kappa_nl"
-    #p2 = "SartreNL"
+    #3567.pts-4.genomequery
+    p1 = "player_kappa_nl"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #17267.pts-0.genomequery
-    #p1 = "Hyperborean-2011-2p-nolimit-iro"
-    #p2 = "SartreNL"
+    #18968.pts-4.genomequery
+    p1 = "Hyperborean-2011-2p-nolimit-iro"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #18272.pts-11.genomequery
-    #p1 = "Lucky7"
-    #p2 = "SartreNL"
+    #3718.pts-4.genomequery
+    p1 = "Hyperborean-2011-2p-nolimit-tbr"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #18458.pts-13.genomequery
-    #p1 = "hugh"
-    #p2 = "SartreNL"
+    #2529.pts-4.genomequery
+    p1 = "Lucky7"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    perm = 1
+    #19148.pts-5.genomequery
+    p1 = "hugh"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
+
+
+    perm = 0
     #does nothign right now
     leave_out_runs = range(90,100)
     #min_betting_rounds =3 
     #must_have_showdown = False 
-    logs2Nodes( p1, p2, perm, leave_out_runs, \
-                focus_player="SartreNL", focus_position = "first" )
+    for p1,p2 in zip(p1s,p2s) :
+        logs2Nodes( p1, p2, perm, leave_out_runs, \
+                    focus_player="SartreNL", focus_position = "first" )
 
     #for nodes in log2Nodes( filename ) :
         #print nodes
