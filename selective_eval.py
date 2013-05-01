@@ -1,10 +1,10 @@
+scaling =0 
 #data file
-<<<<<<< HEAD
-train_filename = "nodes/show_4-round_perm0_train.csv"
-=======
-#train_filename = "nodes/Rembrant_SartreNL_perm-1/training_4-rounds_showdown.csv"
-train_filename = "nodes/show_4-round.csv"
->>>>>>> dd62cc506d822a02f8f71968c3ef26f6e9d24dcc
+if scaling :
+    train_filename = "nodes/show_4-round_perm0_train_merged_scaled.csv"
+else :
+    train_filename = "nodes/show_4-round_perm0_train_merged.csv"
+
 test_filename = "nodes/test_4-rounds_showdown.csv"
 #dist file
 dist_filename = "nodes/node_10_distribution.csv"
@@ -56,8 +56,8 @@ def returnMasker( focus_nodes, ignore_set ) :
 
     
 if __name__ == '__main__' :
-    given_cols = [2, 5, 11, 12, 13 14]
-    given_conditions = ['20,20,1,3,4,8']
+    given_cols = []
+    given_conditions = ['']
     type_freqs =  computeTypeFrequencies( [9], given_cols, given_conditions )
     
     ##find the scaling factor, such that the new example file is about the

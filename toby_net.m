@@ -1,4 +1,6 @@
-scaling = 1 
+scaling = 1
+dag_switch = 11
+
 if scaling == 1
     training = csvread('../../project-toby/nodes/show_4-round_perm0_train_merged_scaled.csv');
 elseif scaling == 0
@@ -17,30 +19,27 @@ data_inputted = 1
 seed = 42;
 rand('state',seed);
 randn('state',seed);
-dag_switch = 4;
 N = 15;
 training = training(:,1:N);
 [nexps, natts] = size(training);
 %encode the graph
 dag = zeros(N,N);
 
-%1 = baseline.  Streets not connected
+%1 = baseline. Beliefs influence actions.  Streets not connected
 if( dag_switch == 1 )
     dag(10,[12 13]) = 1;
     dag(11,[14 15]) = 1;
     dag(12,[13 14 15]) = 1;
     dag(13, 15) = 1;
     dag(14,[13 15]) = 1;
-%2 = action 2 action : past actions connected to each active
-%runs out of memory on laptop
+%2 = baseline.  Actions influence beliefs.  Streets not connected
 elseif( dag_switch == 2 )
-    dag([6 9],[12 13 14 15]) = 1;
-    dag(10,[12 14]) = 1;
-    dag(11,[13,15]) = 1;
+    dag([12 13], 10) = 1;
+    dag([14 15], 11) = 1;
     dag(12,[13 14 15]) = 1;
-    dag(13,[14 15]) = 1;
-    dag(14,15) = 1;
-%3 = past 2 belief : past actions connect to current belief
+    dag(13, 15) = 1;
+    dag(14,[13 15]) = 1;
+%3 = past -> belief -> active
 elseif( dag_switch == 3 )
     dag([6 9],[10 11]) = 1;
     dag(10,[12 13]) = 1;
@@ -48,15 +47,28 @@ elseif( dag_switch == 3 )
     dag(12,[13 14 15]) = 1;
     dag(13,15) = 1;
     dag(14,[13 15]) = 1;
+%4 = past -> belief, active -> belief
 elseif( dag_switch == 4 );
     dag([6 9],[10 11]) = 1;
+    dag([12 13], 10) = 1;
+    dag([14 15], 11) = 1;
     dag(12,[13 14 15]) = 1;
     dag(13,15) = 1;
     dag(14,[13 15]) = 1;
-    dag([12 13],10 ) = 1;
-    dag([14 15],11 ) = 1;
+%streets not connected, no inter-action, beliefs influence every action
+elseif( dag_switch == 10 )
+    dag( [10 11], [12 13 14 15] ) = 1;
+%streets not conn, no inter-action, actions influence beliefs
+elseif( dag_switch == 11 )
+    dag( [12 13 14 15], [10 11] ) = 1;
+%streets not connected, inter-action, beliefs influence every a
+elseif( dag_switch == 12 )
+    dag( [10 11], [12 13 14 15] ) = 1;
+    dag(12,[13 14 15]) = 1;
+    dag(13,15) = 1;
+    dag(14,[13 15]) = 1;
 
-%4 = connected by belief transitions
+%5 = connected by belief transitions
 else
     dag([1 2],3) = 1;
     dag(1,4) = 1;
