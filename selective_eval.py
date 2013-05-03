@@ -48,19 +48,36 @@ def returnMasker( focus_nodes, ignore_set ) :
 if __name__ == '__main__' :
     given_cols = []
     given_conditions = ['']
-    type_freqs =  computeTypeFrequencies( [2,3,4,5], given_cols, given_conditions )
-    
-    ##find the scaling factor, such that the new example file is about the
-    ##same size as before
-    #amts = type_freqs.keys()
-    #percs = type_freqs.values()
+    priors = []
+    for node in range(24) :
+        if node in [2,3,4,5,8,9,10,11,14,15,16,17,20,21,22,23] :
+            type_freqs =  computeTypeFrequencies( [node], given_cols, given_conditions )
+            
+            ##find the scaling factor, such that the new example file is about the
+            ##same size as before
+            #amts = type_freqs.keys()
+            #percs = type_freqs.values()
 
-    #for i in range(2,5) :
-        #scaled_amts = [float(amt)/i for amt in amts]
-        #print i
-        #scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
-        #print "i:",i, sum(scaled_percs)
+            #for i in range(2,5) :
+                #scaled_amts = [float(amt)/i for amt in amts]
+                #print i
+                #scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
+                #print "i:",i, sum(scaled_percs)
+
+            pprobs = []
+            for a in range(1,13) :
+                a = str(a)
+                if a in type_freqs :
+                    p = str(type_freqs[a])
+                else :
+                    p = '0'
+                pprobs.append(p)
+            priors.append( '['+','.join( pprobs )+']' )
+        else :
+            priors.append( '[42,42,42,42,42,42,42,42,42,42,42,42]' )
+
+    print '['+';'.join(priors)+']'
     
-    svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
-    for v in svalues :
-        print v, "\t" , type_freqs[v]
+    #svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
+    #for v in svalues :
+        #print v, "\t" , type_freqs[v]
