@@ -8,9 +8,9 @@ uniform = 0
 
 %for testing river belief buckets ONLY
 if test_show == 1
-    test_all = csvread('../../project-toby/nodes/show_4-round_perm0_test_merged.csv');
+    test_all = csvread('nodes/show_4-round_perm0_test_merged.csv');
 else
-    test_all = csvread('../../project-toby/nodes/noshow_4-round_perm0_test_merged.csv');
+    test_all = csvread('nodes/noshow_4-round_perm0_test_merged.csv');
 end
 
 test = test_all(1:n_test_rows,1:N);

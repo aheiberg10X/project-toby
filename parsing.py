@@ -79,7 +79,7 @@ for sa in sorted_astates :
     print sa, "\t", activeActionState2Int[sa]
 print "num active actions:", len(sorted_astates)
 
-#assert False
+assert False
 
 #take entry from table.actions and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state, switch ) :
