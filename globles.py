@@ -35,7 +35,7 @@ def streetname2Int( name ) :
     elif name == 'river' : return 3
     else : assert False
 
-def int2Streetname( i ) :
+def int2streetname( i ) :
     if i == 0 : return 'preflop'
     elif i == 1 : return 'flop'
     elif i == 2 : return 'turn'

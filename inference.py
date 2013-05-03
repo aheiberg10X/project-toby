@@ -3,6 +3,7 @@ import operator
 import selective_eval
 from math import factorial
 import globles
+import db
 
 def nCr(n, r):
     r = min(r, n-r)
@@ -13,6 +14,8 @@ def nCr(n, r):
 
 nbuckets = [10,20,15,10]
 
+conn = db.Conn('localhost')
+
 def loadLookups() :#load lookup information...
     #P( Ai )
     PA = []
@@ -20,28 +23,38 @@ def loadLookups() :#load lookup information...
     PA.append( selective_eval.computeTypeFrequencies( [8,9,10,11] ) )
     PA.append( selective_eval.computeTypeFrequencies( [14,15,16,17] ) )
     PA.append( selective_eval.computeTypeFrequencies( [20,21,22,23] ) )
+
     def lookupActionProb( street, action_str ) :
         return PA[street][action_str]
 
     print lookupActionProb( 3, '1,12,1,12' )
 
-    #P(k)
-    def lookupBucketProb( street, bucket ) :
-        sname = globles.int2Streetname( street )
-        return globles.BUCKET_PERCENTILES[sname][bucket]
+#P(k)
+def lookupBucketProb( street, bucket ) :
+    sname = globles.int2streetname( street )
+    return globles.BUCKET_PERCENTILES[sname][bucket]
 
-    print lookupBucketProb( 2, 5 )
+print lookupBucketProb( 2, 5 )
 
-    #P(b)
-    def lookupBoardProb( board ) :
-        l = len(board)
-        if l == 0 : return 1
-        elif l >= 3 and l <= 5:
-            n_boards = nCr( (52-(2*globles.POCKET_SIZE)), l )
-            return 1 / float( n_boards )
-        else : assert False
+#P(b)
+def lookupBoardProb( board ) :
+    l = len(board)
+    if l == 0 : return 1
+    elif l >= 3 and l <= 5:
+        n_boards = nCr( (52-(2*globles.POCKET_SIZE)), l )
+        return 1 / float( n_boards )
+    else : assert False
 
-    print lookupBoardProb( [1,2,3] )
+print lookupBoardProb( [1,2,3] )
+
+def lookupTransitionProb( street, kp, k, cboards ) :
+    street_name = globles.int2streetname( street )
+    query = """select dist from TRANSITIONS_%s where cboards = '%s'""" % \
+            (street_name.upper(), cboards)
+    dist = conn.queryScalar( query, str )
+    return float(dist.split(';')[k].split(',')[kp])
+
+
 
 #(1)
 #compute P( k_i=k_i* | board, Actions )
@@ -106,18 +119,72 @@ def probKi( player_ix, street, evidence ) :
     Z = sum(zs)
     return [z/Z for z in zs]
 
-def computeProductTerm( player_ix, \
-                        street, \
-                        bucket_value, \
-                        prev_street_bucket_value, \
-                        evidence ) :
+
+#estimate P(k_{final_street}=? | [board,actions] )
+
+def pf_P_ki_G_evdnc( final_street, evidence, m=100 ) :
+    #the m assignments we arrived at after each street
+    particles = [[]]
+    for street in range(final_street+1) :
+        #form an extended set of assignments, built on existing particles
+        #will compute prob for each assignment, and take the m highest prob
+        #as our new particles
+        assignments = [t[0]+[t[1]] for t in \
+                       product( particles, range(nbuckets[street]) )]
+        
+        assignment_probs = {}
+        for assgmnt in assignments : 
+            p = P_assgmnt_G_evdnc( assgmnt, evidence )
+            assignment_probs[assgmnt] = p
+
+        if street < final_street :
+            sassignments = sorted( assignment_probs.keys(), \
+                                   key = lambda k: assignment_probs[k], \
+                                   reverse = True )
+            particles = []
+            for i in range(m) :
+                particles.append( sassignments[i] )
+    
+    #when done, assignment_probs left with all {assgmnt : prob} pairs for all
+    #bucket values of the final_street X the m particles
+    #1 - sum all probabilities.  This is our normalizing factor
+    #2 - sum up all probs where k = some value
+    #3 - normalize
+
+    pass
+
+#compute P( [ki=ai,...,k0=a0] | [board,actions] )
+#an assignment is [(k10,k20),..,(k1i,k2i)]
+def P_assgmnt_G_evdnc( assignment, evidence ) :
+    n_streets = len(assignment)
+    assert n_streets >= 1
+    product = 1
+    for i in range(n_streets) :
+        if i == 0 :
+            p = P_ki_G_kimo_evdnc( street = i, \
+                                   street_bucket_values = assignment[i], \
+                                   evidence = evidence )
+        else :
+            p = P_ki_G_kimo_evdnc( street = i, \
+                                   street_bucket_values = assignment[i], \
+                                   prev_street_bucket_values=assignment[i-1], \
+                                   evidence = evidence )
+
+        product *= p
+    return p
+
+
+#P( ki | k_{i-1}, [board, actions] ) 
+def P_ki_G_kimo_evdnc( street=42, \
+                       street_bucket_values=[42,42], \
+                       prev_street_bucket_values=[42,42], \
+                       evidence=[[42,42,42],['42,42,42,42','42,42,42,42']] ) :
     if street == 0 :
         board = []
     else :
         board = evidence[0][:street+2]
     actions = evidence[1][street]
 
-    #need P( ki | k_{i-1}, board, actions ) 
     # = ((A * B * C) / Z
 
     #A = P( ki=bkt_val | k_{i-1}=prev_bkt_val, B=board )
@@ -131,7 +198,6 @@ def computeProductTerm( player_ix, \
     #   learned from EM
 
     if prev_street_bucket_value :
-
         pass
 
     #just need P(k0|A0)
@@ -141,8 +207,10 @@ def computeProductTerm( player_ix, \
     return 1
 
 if __name__ == '__main__' :
-    board = ['2c','4c','7h','7c','Td'],
-    actions = ['1,12,1,12']*4
-    evidence = [board, actions]
-    print evidence
-    probKi( 1, 2, 10, evidence )
+    #board = ['2c','4c','7h','7c','Td'],
+    #actions = ['1,12,1,12']*4
+    #evidence = [board, actions]
+    #print evidence
+    #probKi( 1, 2, 10, evidence )
+
+    print lookupTransitionProb( 3, 0, 0, "2345_s_4f|23456_s_5f" )
