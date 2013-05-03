@@ -1,6 +1,9 @@
 LOG_YEAR = 2011
 LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
 
+TRAIN_FILENAME = "nodes/show_4-round_perm0_train_merged.csv"
+
+
 #old
 #BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
 
@@ -24,6 +27,20 @@ def closestRatio( ratio, switch ) :
 BUCKET_PERCENTILES_SMALL = {'flop' : [.4,.2,.15,.10,.08,.07], \
                             'turn' : [.4,.3,.2,.1], \
                             'river' : [.5,.5] }
+
+def streetname2Int( name ) :
+    if name == 'preflop' : return 0
+    elif name == 'flop' : return 1
+    elif name == 'turn' : return 2
+    elif name == 'river' : return 3
+    else : assert False
+
+def int2Streetname( i ) :
+    if i == 0 : return 'preflop'
+    elif i == 1 : return 'flop'
+    elif i == 2 : return 'turn'
+    elif i == 3 : return 'river'
+    else : assert False
 
 #see exponential.py
 BUCKET_PERCENTILES_EXPO = {'preflop' : [0.40003900044927887, 0.24004940056908658, 0.14407297417398401, 0.08651600755861058, 0.05202997629219996, 0.03141860537037599, 0.019185529213985624, 0.012068594181324752, 0.008169950930350486, 0.006449961260803015], \

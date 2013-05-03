@@ -1,23 +1,13 @@
-scaling =0 
-#data file
-if scaling :
-    train_filename = "nodes/show_4-round_perm0_train_merged_scaled.csv"
-else :
-    train_filename = "nodes/show_4-round_perm0_train_merged.csv"
+import globles
 
-test_filename = "nodes/test_4-rounds_showdown.csv"
-#dist file
-dist_filename = "nodes/node_10_distribution.csv"
-#label file
-label_filename = "nodes/node_10_labels.csv"
-node_is_belief = True
+scaling =0 
 
 #fin = open("noshow_4-round.csv")
 
 #examine some particular subset of nodes, and return a dictionary of:
 #values_nodes_take_on : frequency in file
-def computeTypeFrequencies( focus_cols, given_cols, given_conditions ) :
-    fin_test = open(train_filename)
+def computeTypeFrequencies( focus_cols, given_cols=[], given_conditions=[''] ) :
+    fin_test = open(globles.TRAIN_FILENAME)
     value_counts = {}
     n_not_excluded = 0
     for line_num,line in enumerate(fin_test.readlines()) :
@@ -44,7 +34,7 @@ def computeTypeFrequencies( focus_cols, given_cols, given_conditions ) :
     for value in value_counts :
         value_counts[value] = value_counts[value] / float(n_not_excluded)
 
-    print 'n_not_excluded', n_not_excluded
+    #print 'n_not_excluded', n_not_excluded
     return value_counts
 
 
@@ -58,7 +48,7 @@ def returnMasker( focus_nodes, ignore_set ) :
 if __name__ == '__main__' :
     given_cols = []
     given_conditions = ['']
-    type_freqs =  computeTypeFrequencies( [9], given_cols, given_conditions )
+    type_freqs =  computeTypeFrequencies( [2,3,4,5], given_cols, given_conditions )
     
     ##find the scaling factor, such that the new example file is about the
     ##same size as before

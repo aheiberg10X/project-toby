@@ -11,7 +11,8 @@ from deck import listify
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
-register_pockets = False
+register_pockets = True
+printing = True
 
 #concatenate
 def actionState2Str( action_state ) :
@@ -98,7 +99,6 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
                     #min_betting_rounds, must_have_showdown )
 
     assert focus_player == p1 or focus_player == p2
-    printing = True 
     #TODO
     #take each node output and write it to the corrent file handle
     handles = {}
@@ -172,7 +172,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
         button = 1
 
     #if street has too many rounds of betting, throw it out
-    MAX_MICRO = 2
+    MAX_MICRO = 3 
     n_thrown_out = 0
     #sum of BBs the thrown out hands involved
     amt_thrown_out = 0
@@ -329,35 +329,35 @@ def log2Nodes( filename, focus_player, focus_position ) :
                 #print tbl.active_actions
 
                 too_many_micro_rounds = False
-                if street == final_street :
-                    for pix in ordered_players :
-                        n_micro_rounds = len(tbl.active_actions[street][pix])
-                        too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
-                        #assert not too_many_micro_rounds
-                        for micro_round in [0,1] :
-                            #the network expects some number of micro rounds
-                            #in the final street
-                            if micro_round >= n_micro_rounds :
-                                aa = DUMMY_ACTION 
-                            else :
-                                aa = tbl.active_actions[street][pix][micro_round]
-                            training_instance.append( mapActionState2Int(aa,'active') )
-                else :
-                    past_action = [-1]
-                    agg_players = []
-                    #print tbl.past_actions[street]
-                    for pix in ordered_players :
-                        (ratio,agg,reraise) = tbl.past_actions[street][pix]
-                        agg_players.append( agg )
-                        past_action[0] = ratio
-                        past_action.append(agg)
-
-                    if sum(agg_players) >= 2 :
-                        for pix in ordered_players :
-                            past_action.append(tbl.past_actions[street][pix][2])
-
-                    asint = mapActionState2Int( past_action, 'past' )
-                    training_instance.append( asint )
+                #if street == final_street :
+                for pix in ordered_players :
+                    n_micro_rounds = len(tbl.active_actions[street][pix])
+                    too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
+                    #assert not too_many_micro_rounds
+                    for micro_round in [0,1] :
+                        #the network expects some number of micro rounds
+                        #in the final street
+                        if micro_round >= n_micro_rounds :
+                            aa = DUMMY_ACTION 
+                        else :
+                            aa = tbl.active_actions[street][pix][micro_round]
+                        training_instance.append( mapActionState2Int(aa,'active') )
+                #else :
+                    #past_action = [-1]
+                    #agg_players = []
+                    ##print tbl.past_actions[street]
+                    #for pix in ordered_players :
+                        #(ratio,agg,reraise) = tbl.past_actions[street][pix]
+                        #agg_players.append( agg )
+                        #past_action[0] = ratio
+                        #past_action.append(agg)
+#
+                    #if sum(agg_players) >= 2 :
+                        #for pix in ordered_players :
+                            #past_action.append(tbl.past_actions[street][pix][2])
+#
+                    #asint = mapActionState2Int( past_action, 'past' )
+                    #training_instance.append( asint )
 
             if too_many_micro_rounds :
                 #print "too_many_micro_rounds"
@@ -426,43 +426,43 @@ def scaleNodes( nodefilename, factor = 3 ) :
 if __name__ == '__main__' :
 
     
-    scaleNodes("nodes/show_4-round_perm0_train_merged")
-    assert False
+    #scaleNodes("nodes/noshow_4-round_perm0_train_merged")
+    #assert False
     
     p1s = []
     p2s = []
-    #3601.pts-4.genomequery
-    p1 = "Rembrant"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    ##3601.pts-4.genomequery
+    #p1 = "Rembrant"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
-    #3567.pts-4.genomequery
-    p1 = "player_kappa_nl"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    ##3567.pts-4.genomequery
+    #p1 = "player_kappa_nl"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    #18968.pts-4.genomequery
-    p1 = "Hyperborean-2011-2p-nolimit-iro"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    ##18968.pts-4.genomequery
+    #p1 = "Hyperborean-2011-2p-nolimit-iro"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    #3718.pts-4.genomequery
-    p1 = "Hyperborean-2011-2p-nolimit-tbr"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    ##3718.pts-4.genomequery
+    #p1 = "Hyperborean-2011-2p-nolimit-tbr"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    #2529.pts-4.genomequery
-    p1 = "Lucky7"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    ##2529.pts-4.genomequery
+    #p1 = "Lucky7"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     #19148.pts-5.genomequery
     p1 = "hugh"
@@ -470,25 +470,14 @@ if __name__ == '__main__' :
     p1s.append(p1)
     p2s.append(p2)
 
-
-    perm = 0
-    #does nothign right now
+    perm = 1
     leave_out_runs = range(90,100)
-    #min_betting_rounds =3 
-    #must_have_showdown = False 
     for p1,p2 in zip(p1s,p2s) :
         logs2Nodes( p1, p2, perm, leave_out_runs, \
                     focus_player="SartreNL", focus_position = "first" )
 
-    #for nodes in log2Nodes( filename ) :
-        #print nodes
 
 
-
-    filename1 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/histories.txt"
-
-    filename2 = "histories/knufelbrujk_hotmail_com_PTY_NLH100_2-2plrs_x10k_f8534/training_data.txt"
- 
 #############################################################################
 ##### Party Poker Stuff
 #############################################################################
