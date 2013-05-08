@@ -4,6 +4,7 @@ import selective_eval
 from math import factorial
 import globles
 import db
+import deck
 
 def nCr(n, r):
     r = min(r, n-r)
@@ -34,27 +35,52 @@ def lookupBucketProb( street, bucket ) :
     sname = globles.int2streetname( street )
     return globles.BUCKET_PERCENTILES[sname][bucket]
 
-print lookupBucketProb( 2, 5 )
+#print lookupBucketProb( 2, 5 )
 
 #P(b)
-def lookupBoardProb( board ) :
-    l = len(board)
-    if l == 0 : return 1
-    elif l >= 3 and l <= 5:
+def lookupBoardProb( street ) :
+    if street == 0 : return 1
+    elif 1 <= street <= 3 :
+        l = street + 2
         n_boards = nCr( (52-(2*globles.POCKET_SIZE)), l )
         return 1 / float( n_boards )
     else : assert False
 
-print lookupBoardProb( [1,2,3] )
+#print lookupBoardProb( [1,2,3] )
 
-def lookupTransitionProb( street, kp, k, cboards ) :
-    street_name = globles.int2streetname( street )
-    query = """select dist from TRANSITIONS_%s where cboards = '%s'""" % \
-            (street_name.upper(), cboards)
-    dist = conn.queryScalar( query, str )
-    return float(dist.split(';')[k].split(',')[kp])
+def lookupTransitionProbs( final_street, final_board ) :
+    if final_street == 0 :
+        print "preflop, no transitions to return"
+        return False
 
+    trans_lookup = {"01" : -1, \
+                    "12" : -1, \
+                    "23" : -1 }
+    #TODO: compute TRANSITIONS_FLOP
+    for street in range(1,final_street+1) :
+        board = final_board[:street+2]
+        #if turn or river
+        if street > 1 :
+            cboardp = deck.collapseBoard( board )
+            cboard = deck.collapseBoard( board[:-1] )
+            cboards = "%s|%s" % (cboard,cboardp)
+        elif street == 1 :
+            cboards = deck.collapseBoard( board )
 
+        street_name = globles.int2streetname( street )
+        query = """select dist
+                   from TRANSITIONS_%s
+                   where cboards = '%s'""" % \
+                   (street_name.upper(), cboards)
+        #print query
+        dist = conn.queryScalar( query, str )
+        dist = [[float(p) for p in line.split(',')] \
+                for line in dist.split(';')]
+        lookup_name = "%d%d" % (street-1, street)
+        trans_lookup[lookup_name] = dist
+    return trans_lookup
+
+#return float(dist.split(';')[k].split(',')[kp])
 
 #(1)
 #compute P( k_i=k_i* | board, Actions )
@@ -123,6 +149,13 @@ def probKi( player_ix, street, evidence ) :
 #estimate P(k_{final_street}=? | [board,actions] )
 
 def pf_P_ki_G_evdnc( final_street, evidence, m=100 ) :
+    #cache some stuff for lookups
+    board = evidence[0]
+
+    #{'s0s1' : prob[k][kp]}
+    prob_trans = lookupTransitionProbs( final_street, board )
+    evidence.append(prob_trans)
+
     #the m assignments we arrived at after each street
     particles = [[]]
     for street in range(final_street+1) :
@@ -131,12 +164,14 @@ def pf_P_ki_G_evdnc( final_street, evidence, m=100 ) :
         #as our new particles
         assignments = [t[0]+[t[1]] for t in \
                        product( particles, range(nbuckets[street]) )]
-        
+
+        #compute prob of each assignmnt
         assignment_probs = {}
         for assgmnt in assignments : 
             p = P_assgmnt_G_evdnc( assgmnt, evidence )
             assignment_probs[assgmnt] = p
 
+        #particle filter step
         if street < final_street :
             sassignments = sorted( assignment_probs.keys(), \
                                    key = lambda k: assignment_probs[k], \
@@ -144,7 +179,7 @@ def pf_P_ki_G_evdnc( final_street, evidence, m=100 ) :
             particles = []
             for i in range(m) :
                 particles.append( sassignments[i] )
-    
+
     #when done, assignment_probs left with all {assgmnt : prob} pairs for all
     #bucket values of the final_street X the m particles
     #1 - sum all probabilities.  This is our normalizing factor
@@ -178,31 +213,38 @@ def P_assgmnt_G_evdnc( assignment, evidence ) :
 def P_ki_G_kimo_evdnc( street=42, \
                        street_bucket_values=[42,42], \
                        prev_street_bucket_values=[42,42], \
-                       evidence=[[42,42,42],['42,42,42,42','42,42,42,42']] ) :
+                       evidence=[ ['b','o','a','r','d'],\
+                                  ['4actions','etc'], \
+                                  "{'s1s2' : prob[k][kp]}" ] ) :
+
     if street == 0 :
-        board = []
-    else :
-        board = evidence[0][:street+2]
-    actions = evidence[1][street]
-
-    # = ((A * B * C) / Z
-
-    #A = P( ki=bkt_val | k_{i-1}=prev_bkt_val, B=board )
-    #   transition lookup
-
-    #B = P( ki=bkt_val, B=board ) = P( ki = bkt_val | B=board )P( B = board )
-    #   each term a constant, one def by percentiles, the other by nCr 
-
-
-    #C = P( A=actions | ki )
-    #   learned from EM
-
-    if prev_street_bucket_value :
         pass
-
-    #just need P(k0|A0)
     else :
-        pass
+        
+        prob_trans = evidence[2]
+        # = ((BT1 * BT2 * K1 * K2 * B * AK) / Z
+
+        k1,kp1 = prev_street_bucket_values[0], street_bucket_values[0]
+        k2,kp2 = prev_street_bucket_values[1], street_bucket_values[1]
+
+        #BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
+        key = "%d%d" % (street-1, street)
+        BT1 = prob_trans[key][k1][kp1]
+        BT2 = prob_trans[key][k2][kp2]
+
+        #K1,K2
+        K1 = lookupBucketProb(street,kp1)
+        K2 = lookupBucketProb(street,kp2)
+
+        #B = P( B=board ) 
+        B = lookupBoardProb(street)
+
+        #   each term a constant, one def by percentiles, the other by nCr 
+        AK = 1 #TODO lookup from loaded EM computed weights
+
+
+        #C = P( A=actions | ki )
+        #   learned from EM
 
     return 1
 
@@ -213,4 +255,6 @@ if __name__ == '__main__' :
     #print evidence
     #probKi( 1, 2, 10, evidence )
 
-    print lookupTransitionProb( 3, 0, 0, "2345_s_4f|23456_s_5f" )
+    print pf_P_ki_G_evdnc( 3, [['2h','3h','4h','5h','6h'],['actions!']] )
+    #print lookupTransitionProbs( 3, ['2h','3h','4h','5h','6h'] ) 
+    #"2345_s_4f|23456_s_5f" )

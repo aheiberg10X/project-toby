@@ -48,8 +48,41 @@ BUCKET_PERCENTILES_EXPO = {'preflop' : [0.40003900044927887, 0.24004940056908658
                            'turn' : [0.3000164218894933, 0.21001853327528525, 0.14702302751075672, 0.10293048242618265, 0.07207185651068919, 0.05047961214657008, 0.035377603629867124, 0.02482414415128994, 0.017462360349307173, 0.012345737163663904, 0.00881642304192028, 0.006420649025566406, 0.004850387026785357, 0.003903746217162425, 0.0034590156354603763], 
                            'river' : [0.3501610588099545, 0.22769141220106134, 0.14813283943006045, 0.09649160947472483, 0.0630353366896258, 0.041458800434494715, 0.027695653492018392, 0.019152072015345536, 0.014217919495410875, 0.011963297957303649] }
 
+
 BUCKET_TABLE_PREFIX = "BUCKET_EXPO_"
 BUCKET_PERCENTILES = BUCKET_PERCENTILES_EXPO
+
+#consequtive, CD[0] is dist between 0,1, CD[1] between 1,2, etc
+CENTROID_DISTANCES = {}
+for street in BUCKET_PERCENTILES :
+    percentiles = BUCKET_PERCENTILES[street]
+    distances = []
+    last_midpoint = 0
+    for ix in range(len(percentiles)-1) :
+        hp1 = percentiles[ix] / 2
+        hp2 = percentiles[ix+1] / 2
+        distances.append( hp1+hp2 )
+    CENTROID_DISTANCES[street] = distances
+
+#print CENTROID_DISTANCES["river"]
+def bucketCentroidDistance(street,a,b) :
+    distances = CENTROID_DISTANCES[street]
+    if a == b :
+        dst = 0
+    elif b > a :
+        dst = sum(distances[a:b])
+    else :
+        dst = sum(distances[b:a])
+
+    return float(dst) #float(1) 
+
+#def mysum(l) :
+    #s = 0
+    #for t in l :
+        #s += t
+        #print s
+    #print "yes?",s
+    #return s
 
 
 EVALUATOR = "pokereval"

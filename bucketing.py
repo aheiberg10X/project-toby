@@ -13,6 +13,7 @@ import globles
 from multiprocessing import Process, Queue, Pool
 from random import sample
 import db
+import myemd
 
 num_buckets = 20
 
@@ -38,10 +39,14 @@ def visualizeEVDist( filepath, buckets=40 ) :
 #output is P(k',k | cboard_prime, cboard )
 def computeBucketTransitions( conn, cboard, cboard_prime, \
                               pocket_membs=False, pocket_prime_membs=False) :
+    #if cboard is blank, that means it is preflop.  "dummy" was inserted as
+    #cboard value in BUCKET_EXPO_PREFLOP
+    if cboard == "" : cboard = "dummy"
     print cboard, cboard_prime
     #get the aboards, for which the EHS2 and buckets have been computed
     q = "select aboard from REPRESENTATIVES where cboard = '%s'"
-    aboard = conn.queryScalar( q % cboard, listify )
+    if cboard != "dummy" :
+        aboard = conn.queryScalar( q % cboard, listify )
     aboard_prime = conn.queryScalar( q % cboard_prime, listify )
 
     #street names and bucket sizes
@@ -51,7 +56,11 @@ def computeBucketTransitions( conn, cboard, cboard_prime, \
     elif len(aboard_prime) == 4 :
         street_prime = 'turn'
         street = 'flop'
+    elif len(aboard_prime) == 3 :
+        street_prime = 'flop'
+        street = 'preflop'
     else : assert False
+
     nbuckets = len(globles.BUCKET_PERCENTILES[street])
     nbuckets_prime = len(globles.BUCKET_PERCENTILES[street_prime])
 
@@ -96,7 +105,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime, \
     #determine the pocket map between prime and aboard
     pocket_map = {}
 
-    no_map_necessary = aboard == aboard_prime[:-1]
+    no_map_necessary = (cboard == "dummy") or (aboard == aboard_prime[:-1])
     if no_map_necessary :
         for pocket in legal_pockets :
             pocket_map[pocket] = pocket
@@ -125,6 +134,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime, \
                                                pocket, \
                                                aboard_prime )
             pocket_map[pocket] = symm_pocket
+
 
     #main computation
     C = 1 / float(len(legal_pockets))
@@ -158,7 +168,7 @@ def computeBucketTransitions( conn, cboard, cboard_prime, \
     conn.insert( 'TRANSITIONS_%s' % street_prime.upper(), \
                  ["%s|%s" % (cboard, cboard_prime),dist], \
                  skip_dupes=True)
-    print "inserted"
+    #print "not inserted, you turned it off"
 
 # input  : [sorted_pockets, sorted_ehs2s, bucket_percentiles ] = data
 # output : {pocket:{bucket:%membership}}
@@ -574,7 +584,6 @@ def insertRepresentatives() :
             aboard = canonicalize( reps[cboard] )
             conn.insert('REPRESENTATIVES',[cboard,aboard]  )
 
-
 def testSymmetric() :
     conn  = db.Conn("localhost")
     tests = []
@@ -641,10 +650,11 @@ def testSymmetric() :
         #ehs2p = 
 
 def iterateTransitions() :
+    #2529 insterting into flop trans
     transitions = {}
     conn = db.Conn("localhost")
-    street = 'turn'
-    for i, board_prime in enumerate( combinations( range(52), 4 ) ):
+    street = 'flop'
+    for i, board_prime in enumerate( combinations( range(52), 3 ) ):
         #19148.pts-5.genomequery
         #if i < 0 or i >= 50000: continue
 
@@ -658,14 +668,20 @@ def iterateTransitions() :
         #if i < 150000 or i >= 200000: continue
 
         #3718.pts-4.genomequery
-        if i < 200000 : continue
+        #if i < 200000 : continue
 
         print i
-        board = board_prime[:-1]
-        cboard = collapseBoard(board)
-        cboard_prime = collapseBoard(board_prime)
+        if street == 'flop' :
+            cboard = "dummy"
+            cboard_prime = collapseBoard(board_prime)
+            cboards = cboard_prime
+        else :
+            board = board_prime[:-1]
+            cboard = collapseBoard(board)
+            cboard_prime = collapseBoard(board_prime)
 
         cboards =  "%s|%s" % (cboard, cboard_prime)
+
         if cboards not in transitions :
             transitions[cboards] = True
 
@@ -679,10 +695,66 @@ def iterateTransitions() :
 
     print len(transitions)       
 
+#compute rows start-end_cboard_ix of the distance matrix for the appro street
+#each row is the distance between that cboard and all greater than it
+#build all n_bucket distance matrices at once
+def printDistanceMatrices( conn, street, streetp ) :
+
+    def parseDBJoint( db_string ) :
+        return [[float(p) for p in c.split(',')] for c in db_string.split(';')]
+
+    n_buckets = len(globles.BUCKET_PERCENTILES[street])
+    print "n_buckets", n_buckets
+    #the filehandles for each matrix file
+    matrix_handles = []
+    #the current line being written for each matrix
+    matrix_lines = []
+    for k in range(n_buckets) :
+        fout = open("emd/distance_%s_to_%s_k%d.csv" % (street,streetp,k+1),'w')
+        matrix_handles.append( fout )
+        matrix_lines.append( [] )
+
+    q = """select count(*) from TRANSITIONS_%s""" % streetp.upper()
+    n_cboards = conn.queryScalar(q, int)
+
+    q = """select cboards, dist
+           from TRANSITIONS_%s""" % (streetp.upper())
+    rows = conn.query(q)
+    cboards = [row[0] for row in rows]
+    dists = [parseDBJoint(row[1]) for row in rows]
+    rows = zip(cboards, dists)
+    for dmatrix_row in range(n_cboards) :
+        print "dmatrix_row: ", dmatrix_row
+        for rix, (cboards,dist) in enumerate(rows[dmatrix_row:]) :
+            #print "    cboard", cboards
+            if rix == 0 :
+                #pin the dist
+                pinned_cboards = cboards
+                pinned_joint = dist
+            else :
+                #compare each row to the right one in dist
+                compare_joint = dist
+                for k in range(n_buckets) :
+                    dst = myemd.getBTDistance( streetp, \
+                                               pinned_joint[k], \
+                                               compare_joint[k] )
+                    if k == 1 and pinned_cboards == 'dummy|238_h_3f' and \
+                       cboards == 'dummy|23A_s_3f' :
+                        print "dst = ", dst
+                        #assert False
+                    matrix_lines[k].append( str(dst) )
+        for k in range(n_buckets) :
+            matrix_handles[k].write( ','.join(matrix_lines[k]) + '\n' )
+
+    for k in range(n_buckets) :
+        matrix_handles[k].close()
+
 if __name__ == '__main__' :
-    #conn = db.Conn("localhost")
-    #computeBucketTransitions( conn, 'JQAA_p_2foxx', 'JQAAA_t_r')
-    iterateTransitions()
+    conn = db.Conn("localhost")
+    printDistanceMatrices( conn, "flop", "turn" )
+    #print computeBucketTransitions( conn, '2345_s_4f', '23456_s_5f')
+    #iterateTransitions()
+
     #testSymmetric()
     #getTransitionProbs_DB( conn, \
                            #['2h','2c','2d','2s'], 'turn', \
