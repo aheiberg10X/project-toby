@@ -6,12 +6,14 @@ import matplotlib.pyplot as plt
 from os import listdir
 from os.path import exists
 #import json
+import math
 import simplejson as json
 from yaml import load, dump
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
-from random import sample
+from random import sample, random
+import numpy as np
 import db
 import myemd
 
@@ -695,64 +697,16 @@ def iterateTransitions() :
 
     print len(transitions)       
 
-#compute rows start-end_cboard_ix of the distance matrix for the appro street
-#each row is the distance between that cboard and all greater than it
-#build all n_bucket distance matrices at once
-def printDistanceMatrices( conn, street, streetp ) :
 
-    def parseDBJoint( db_string ) :
-        return [[float(p) for p in c.split(',')] for c in db_string.split(';')]
-
-    n_buckets = len(globles.BUCKET_PERCENTILES[street])
-    print "n_buckets", n_buckets
-    #the filehandles for each matrix file
-    matrix_handles = []
-    #the current line being written for each matrix
-    matrix_lines = []
-    for k in range(n_buckets) :
-        fout = open("emd/distance_%s_to_%s_k%d.csv" % (street,streetp,k+1),'w')
-        matrix_handles.append( fout )
-        matrix_lines.append( [] )
-
-    q = """select count(*) from TRANSITIONS_%s""" % streetp.upper()
-    n_cboards = conn.queryScalar(q, int)
-
-    q = """select cboards, dist
-           from TRANSITIONS_%s""" % (streetp.upper())
-    rows = conn.query(q)
-    cboards = [row[0] for row in rows]
-    dists = [parseDBJoint(row[1]) for row in rows]
-    rows = zip(cboards, dists)
-    for dmatrix_row in range(n_cboards) :
-        print "dmatrix_row: ", dmatrix_row
-        for rix, (cboards,dist) in enumerate(rows[dmatrix_row:]) :
-            #print "    cboard", cboards
-            if rix == 0 :
-                #pin the dist
-                pinned_cboards = cboards
-                pinned_joint = dist
-            else :
-                #compare each row to the right one in dist
-                compare_joint = dist
-                for k in range(n_buckets) :
-                    dst = myemd.getBTDistance( streetp, \
-                                               pinned_joint[k], \
-                                               compare_joint[k] )
-                    if k == 1 and pinned_cboards == 'dummy|238_h_3f' and \
-                       cboards == 'dummy|23A_s_3f' :
-                        print "dst = ", dst
-                        #assert False
-                    matrix_lines[k].append( str(dst) )
-        for k in range(n_buckets) :
-            matrix_handles[k].write( ','.join(matrix_lines[k]) + '\n' )
-
-    for k in range(n_buckets) :
-        matrix_handles[k].close()
 
 if __name__ == '__main__' :
     conn = db.Conn("localhost")
-    printDistanceMatrices( conn, "flop", "turn" )
-    #print computeBucketTransitions( conn, '2345_s_4f', '23456_s_5f')
+    #distBetween( conn, "dummy|678_s_3f", "dummy|234_s_3f", "preflop", "flop" )
+    computeDistances(conn, 'flop','turn')
+
+
+    #distanceCompController()
+        #print computeBucketTransitions( conn, '2345_s_4f', '23456_s_5f')
     #iterateTransitions()
 
     #testSymmetric()
@@ -1254,4 +1208,102 @@ def computeEHS2Dists() :
             print "skipping", cboards
 
     print len(transitions)
- 
+ #def printDistanceMatrices( data ) :
+    #(street, streetp, start_row, end_row) = data
+
+    ##conn = db.Conn("localhost")
+        ###return [[float(p) for p in c.split(',')] for c in db_string.split(';')]
+
+    ##n_buckets = len(globles.BUCKET_PERCENTILES[street])
+    ##n_bucketsp = len(globles.BUCKET_PERCENTILES[streetp])
+    ##F1 = [(1,i) for i in range(n_bucketsp)]
+    ##F2 = [(1,i) for i in range(n_bucketsp)]
+
+    ##print "n_buckets", n_buckets
+    ###the filehandles for each matrix file
+    ##matrix_handles = []
+    ###the current line being written for each matrix
+    ##matrix_lines = []
+    ##for k in range(n_buckets) :
+        ###fout = open("emd/%s_to_%s/distance_rows%d_to_%d_k%d.csv" % (street,streetp,start_row,end_row,k+1),'w')
+        ###matrix_handles.append( fout )
+        ##matrix_lines.append( [] )
+
+
+    ##q = """select cboards, dist
+           ##from TRANSITIONS_%s
+           ##order by cboards""" % (streetp.upper())
+
+    ##rows = conn.query(q)
+    ##cboards = [row[0] for row in rows]
+    ##dists = [parseAndNormalize(row[1]) for row in rows]
+    ##rows = zip(cboards, dists)
+    ##for dmatrix_row in range(start_row,end_row+1) :
+        ##print "dmatrix_row: ", dmatrix_row
+        ##for rix, (cboards,dist) in enumerate(rows[dmatrix_row:]) :
+            ###print "    cboard", cboards
+            ##if rix == 0 :
+                ###pin the dist
+                ##pinned_cboards = cboards
+                ##pinned_joint = dist
+            ##else :
+                ###compare each row to the right one in dist
+                ##compare_joint = dist
+                ##for k in range(n_buckets) :
+                    ##dst = myemd.getBTDistance( streetp, \
+                                               ##pinned_joint[k], \
+                                               ##compare_joint[k], \
+                                               ##F1, F2)
+                    ###if k == 1 and pinned_cboards == 'dummy|238_h_3f' and \
+                       ###cboards == 'dummy|23A_s_3f' :
+                    ##if k == 0 and pinned_cboards == "dummy|234_s_3f" and \
+                       ##cboards == "235_h_3f" :
+                        ##print "dst = ", dst
+                        ###assert False
+                    ##matrix_lines[k].append( str(dst) )
+
+        ##for k in range(n_buckets) :
+            ##conn.insert("DISTANCES_%s" % streetp.upper(), \
+                        ##[k,pinned_cboards,','.join(matrix_lines[k])], \
+                        ##skip_dupes = True)
+            ###matrix_handles[k].write( ','.join(matrix_lines[k]) + '\n' )
+            ##matrix_lines[k] = []
+
+    ###for k in range(n_buckets) :
+        ###matrix_handles[k].close()
+
+#def distanceCompController() :
+
+    ##conn = db.Conn("localhost")
+    ##street = "flop"
+    ##streetp = "turn"
+    ##q = """select count(*) from TRANSITIONS_%s""" % streetp.upper()
+    ##n_cboards = conn.queryScalar(q, int)
+    ##num_threads = 8 
+
+    ###assign equal work to each thread
+    ##n = n_cboards
+    ##s = num_threads-1
+    ##starting = 0
+    ##partitions = []
+    ##for i in range(num_threads) :
+        ##root = int( (-1*math.sqrt(n**2*s*(s+1)) + n*(s+1) ) / (s+1) ) + 1
+        ##root2 = int( (math.sqrt(n**2*s*(s+1)) + n*(s+1) ) / (s+1) ) + 1
+        ###print root
+        ###print root2
+        ##if root < 0 : root = root2
+        ##print root
+        ##ending = starting+root
+        ##print "s,e", starting, ending
+        ##partitions.append( (starting,ending) )
+        ##starting += root+1
+        ##s -= 1
+        ##n -= root 
+    ##print partitions
+    ###per = n_cboards/num_threads + 1
+    ###data_tuples = [(street,streetp,i*per,(i+1)*per) for i in range(num_threads)]
+    ##data_tuples = [(street,streetp,p[0],p[1]) for p in partitions]
+    ##p = Pool(processes=num_threads)
+    ##mapped = p.map( printDistanceMatrices, data_tuples )
+    ##p.close()
+

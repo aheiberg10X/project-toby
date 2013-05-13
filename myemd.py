@@ -17,11 +17,11 @@ def bucketTransferCostClosure(street) :
             return dist
     return inner
 
-def getBTDistance( street, W1, W2 ) :
-    W1 = [float(t) for t in W1]
-    W2 = [float(t) for t in W2]
-    F1 = [(1,i) for i in range(len(W1))]
-    F2 = [(1,i) for i in range(len(W2))]
+def getBTDistance( street, W1, W2, F1, F2 ) :
+    #W1 = [float(t) for t in W1]
+    #W2 = [float(t) for t in W2]
+    #F1 = [(1,i) for i in range(len(W1))]
+    #F2 = [(1,i) for i in range(len(W2))]
     return emd( (F1,W1), (F2,W2), bucketTransferCostClosure(street) )
 
 

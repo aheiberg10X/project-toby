@@ -48,7 +48,8 @@ class Conn :
         except Exception, (e) :
             exc = refineException( repr(e), query )
             if type(exc) == SQLWarning :
-                string = "Warning: %s \n Query: %s\n\n\n" % (exc.error, exc.query)
+                print exc.error
+                #string = "Warning: %s \n Query: %s\n\n\n" % (exc.error, exc.query)
                 self.fwarning.write( string )
                 print string
 
