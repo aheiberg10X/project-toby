@@ -4,45 +4,81 @@ from yaml import load, dump
 from time import time
 import globles
 from multiprocessing import Process, Queue, Pool
-from random import sample, random
+from random import sample, random, seed
 import numpy as np
 import db
 import myemd
 
-
-#compute rows start-end_cboard_ix of the distance matrix for the appro street
-#each row is the distance between that cboard and all greater than it
-#build all n_bucket distance matrices at once
-def parseAndNormalize( db_string, make_cdf = False ) :
-    dist = []
+#take a joint distibutino string (prob from database) and turn it into a 
+#P(k,k'|b') = float[k][k'] 
+def parse_old( db_string ) :
+    joint = []
     for c in db_string.split(';') :
-        joints = [float(p) for p in c.split(',')]
-        Z = sum(joints)
+        joint.append( [float(p) for p in c.split(',')] )
+    return joint
+
+def parse( db_string ) :
+    joint = []
+    for c in db_string.split(';') :
+        for p in c.split(',') :
+            joint.append( float(p) )
+    return joint
+
+#usually don't care about joint, rather conditional P(k'|k,b')
+#normalize each row of the joint
+def normalize( joint, make_cdf=False ) :
+    njoint = []
+    for row in joint :
+        Z = sum(row)
         if Z == 0 :
-            normalized = [float(0)]*len(joints)
+            normalized = [float(0)]*len(row)
         else :
-            normalized = [p / Z for p in joints]
+            normalized = [p / Z for p in row]
 
         if not make_cdf :
-            dist.append( normalized )
+            ndist.append( normalized )
         else :
-            dist.append( np.cumsum( normalized ) )
-    return dist
+            ndist.append( np.cumsum( normalized ) )
+    return ndist
 
-def stringifyJoint( joint ) :
+#turn a float[][] back into a string
+def stringifyJoint( joint, n_bucketsp ) :
+    rows = []
+    row = []
+    row_count = 0
+    for p in joint :
+        row.append( str(p) )
+        row_count += 1
+        if row_count == n_bucketsp :
+            rows.append( ",".join(row) )
+            row = []
+            row_count = 0
+    return ";".join(rows)
+
+def stringifyJoint_old( joint ) :
     r = []
     for row in joint :
         r.append( ",".join([str(t) for t in row]) )
     return ";".join( r )
 
+#add two float[][] together, putting the new values back in joint1
 def addJoints( joint1, joint2 ) :
+    assert( len(joint1) == len(joint2) )
+    for ix in range(len(joint1)) :
+        joint1[ix] += joint2[ix]
 
+def addJoints_old( joint1, joint2 ) :
     assert( len(joint1) == len(joint2) )
     for ix in range(len(joint1)) :
         for jx in range(len(joint1[ix])) :
             joint1[ix][jx] += joint2[ix][jx]
 
+#divide each term in float[][] by n, putting the result back into joint
 def averageJoint( joint, n ) :
+    for ix in range(len(joint)) :
+        joint[ix] = joint[ix] / n
+
+def averageJoint_old( joint, n ) :
     for ix in range(len(joint)) :
         for jx in range(len(joint[ix])) :
             joint[ix][jx] = round( joint[ix][jx] / float(n), 4 )
@@ -64,7 +100,15 @@ def avgEMD( data ) :
         z += dst
     return z / float(n_buckets)
 
-def avgEMDFast( data ) :
+#TODO: want to weight each Z by the avg marginal probability of being in k
+#that is, still normalize, cdf-ize to utilize the closed form
+#but want data to consist of both joints, so the avg prob of being in bucket
+#k to being with can be obtained.  Then, EMD distance will contribute to the 
+#total difference ....
+#BETTER YET:  just unroll each joint as a one dimensional instead.  Apply CDF,
+#and use fastEMD approach.  In this way, no weighting and/or marginalizing 
+#is necessary
+def avgEMDFast_old( data ) :
     (pinned_cdfs, compare_cdfs ) = data
     n_buckets = len(pinned_cdfs)
     z = 0
@@ -76,25 +120,17 @@ def cdfEMD( data ) :
     (cdf1, cdf2) = data
     return sum( [abs(o-t) for (o,t) in zip(cdf1,cdf2)] )
 
-#a Group needs to hold the distributinos of the members
-#this way an average can be computed when distances need to be compared
-#while also allowing new members to be admitted
-class Group :
-    def __inti__(self) :
-        pass
-
-
-def computeDistances( conn, street, streetp ) :
+#cluster the P(k',k|cboards) joints in TRANSITION_X tables
+def clusterJoints( conn, street, streetp ) :
+    seed()
     n_buckets = len(globles.BUCKET_PERCENTILES[street])
     n_bucketsp = len(globles.BUCKET_PERCENTILES[streetp])
     F1 = [(1,i) for i in range(n_bucketsp)]
     F2 = [(1,i) for i in range(n_bucketsp)]
 
-    #q = """select count(*)
-           #from TRANSITIONS_%s""" % (streetp.upper())
-    #n_cboards = conn.queryScalar( q, int )
-    groups = {}
-    #just_changed = set([])
+    #each transition will be handled via it ID
+    #clusters will be {ID*: [ID*,ID1,ID2,...]} 
+    clusters = {}
 
     q = """select cboards, dist
            from TRANSITIONS_%s
@@ -103,24 +139,33 @@ def computeDistances( conn, street, streetp ) :
 
     rows = conn.query(q)
     n_cboards = len(rows)
-    remaining_group_ids = set(range(n_cboards))
+
+    #to start, every transition is in its own cluster
+    remaining_cluster_ids = set(range(n_cboards))
+    #for expediency, will only look at each cluster once
     remaining_unexamined_ids = set(range(n_cboards))
 
+    #the cboard identifiers for each ID
     all_cboards = [row[0] for row in rows]
+
     print "parse,normalize,make CDF starting"
-    joints = [parseAndNormalize( row[1] ) for row in rows]
-    #for row in joints[0] :
-        #print row
-        #assert( sum(row) > .99 and sum(row) < 1.01)
-    cdfs = [parseAndNormalize( row[1], make_cdf=True) for row in rows]
+    #will precompute the normalized cdfs for each transitions joint prob
+    #TODO: see avgEMDFast
+    joints = [parse( row[1] ) for row in rows]
+    cdfs = [np.cumsum(joint) for joint in joints]
+    #used parse_old
+    #cdfs = [ normalize( joint, make_cdf=True ) for joint in joints ]
 
     num_threads = 8
     p = Pool(processes=num_threads)
 
+    #the threshhold for clustering, under which we consider to joint 
+    #probabilities to be the same
     thresh = .45
-    k = 0
 
-    num_under_thresh = 0
+    #TODO
+    #make this its own function???
+    #want to reues to cluster again on k= level
     while len(remaining_unexamined_ids) > 0 :
         print "\n\nnew iteration!"
 
@@ -131,7 +176,7 @@ def computeDistances( conn, street, streetp ) :
         pinned_id = sample( remaining_unexamined_ids, 1 )[0]
         remaining_unexamined_ids.remove(pinned_id)
         pinned_cboards = all_cboards[pinned_id]
-        pinned_joint = cdfs[pinned_id]
+        pinned_cdf = cdfs[pinned_id]
 
         print "pinned id: ", pinned_id
         print "pinned cboard:", pinned_cboards
@@ -143,75 +188,82 @@ def computeDistances( conn, street, streetp ) :
         datas = []
         global_ids = []
         for ID in range(n_cboards) :
-            if ID in remaining_group_ids and ID != pinned_id :
-                datas.append( (pinned_joint, cdfs[ID]) )
+            if ID in remaining_cluster_ids and ID != pinned_id :
+                datas.append( (pinned_cdf, cdfs[ID]) )
                 global_ids.append(ID)
 
         print "len datas", len(datas)
 
-        group = [pinned_id]
-        dists = p.map( avgEMDFast, datas )
+        #find other joints/clusters which are also close
+        cluster = [pinned_id]
+        dists = p.map( cdfEMD, datas )
+        #dists = p.map( avgEMDFast, datas )
         for ID, dist in zip(global_ids, dists) :
             if dist<thresh :
-                #TODO, if a group gets appended to, extended to, etc
-                #mark its joint as needing to be recomputed
-                #else, we can just use the value from last time
-                if ID in groups :
+                if ID in clusters :
                     print "CLOSE TO A GROUP, MERGING"
-                    group.extend( groups[ID] )
-                    del groups[ID]
+                    cluster.extend( clusters[ID] )
+                    del clusters[ID]
                 else:
-                    group.append( ID )
+                    cluster.append( ID )
 
-                #just_changed.add(pinned_id)
                 if ID in remaining_unexamined_ids :
                     remaining_unexamined_ids.remove(ID)
 
-                remaining_group_ids.remove(ID)
+                remaining_cluster_ids.remove(ID)
 
 
-        groups[pinned_id] = group
-        print "len group: ", len(group)
+        clusters[pinned_id] = cluster 
+        print "size cluster: ", len(cluster)
         print "remaining unexamined", len(remaining_unexamined_ids)
 
         #if a new member member(s) got added to it last time
         #recompute the working CDF
-        ID = pinned_id
-        print "recomputing CDF for ID:", ID
+        print "recomputing CDF for pinned_id:", pinned_id
         #setup an empty joint into which to add up and average values
-        avg_joint = []
-        for dummy in range(n_buckets) :
-            avg_joint.append([0]*n_bucketsp)
-        for member_id in groups[ID] :
+        #avg_joint = []
+        #for dummy in range(n_buckets) :
+            #avg_joint.append([0]*n_bucketsp)
+        avg_joint = [0]*(n_bucketsp*n_buckets)
+        for member_id in clusters[pinned_id] :
             addJoints( avg_joint, joints[member_id] )
-        averageJoint( avg_joint, len(groups[ID]) )
+        averageJoint( avg_joint, len(clusters[pinned_id]) )
 
-        cdfs[ID] = [np.cumsum(c) for c in avg_joint]
+        #cdfs[pinned_id] = normalize( avg_joint, make_cdf=True )
+        cdfs[pinned_id] = np.cumsum(avg_joint)
 
 
     #end while len(remaining_unexaminde) > 0
 
-    for group_id in groups :
-        print "\n\nGroup: ", group_id
-        print len(groups[group_id])
+    #insert computed groups into the DB
+    db_cluster_id = 1
+    for cluster_id in clusters :
+        print "\n\nGroup: ", cluster_id
+        print len(clusters[cluster_id])
 
-        avg_joint = []
-        for dummy in range(n_buckets) :
-            avg_joint.append([0]*n_bucketsp)
-        for member_id in groups[group_id] :
+        #avg_joint = []
+        #for dummy in range(n_buckets) :
+            #avg_joint.append([0]*n_bucketsp)
+        avg_joint = [0]*(n_bucketsp*n_buckets)
+        for member_id in clusters[cluster_id] :
             addJoints( avg_joint, joints[member_id] )
-        averageJoint( avg_joint, len(groups[group_id]) )
+        averageJoint( avg_joint, len(clusters[cluster_id]) )
         #for hist in avg_joint :
             #print hist
 
-        for ID in groups[group_id] :
-            conn.insert( "CLUSTER_MAP_%s" % streetp.upper(), \
-                         [all_cboards[ID], group_id] )
+        for ID in clusters[cluster_id] :
             #print "    ", all_cboards[ID]
-        conn.insert( "CLUSTERS_%s" % streetp.upper(), \
-                     [group_id, stringifyJoint(avg_joint)] )
 
-    print  "ngroups:" , len(groups)
+            #plus one is a BIG DEAL.  Python uses 0-index, DB starts auto-inc
+            #from 1
+            conn.insert( "CLUSTER_MAP_%s" % streetp.upper(), \
+                         [all_cboards[ID], ID+1, db_cluster_id] )
+
+        conn.insert( "CLUSTERS_%s" % streetp.upper(), \
+                     [db_cluster_id, stringifyJoint(avg_joint,n_bucketsp)] )
+        db_cluster_id += 1
+
+    print  "nclusters:" , len(clusters)
 
     #average group sizes
     #print out groups in some fashion( if do IDs, remember +1 to make it jive
@@ -221,6 +273,69 @@ def computeDistances( conn, street, streetp ) :
     #then another table with group_id: joint
 
     #print "avg nut:", num_under_thresh / float(len(joints))
+
+#cluster the P(k'|k,cboards), for a fixed k, of the clustered joints
+#have cboards|k|cond_cluster_id
+#and  cond_cluster_id|conditional_distribution
+def clusterConditionals(conn, streetp) :
+    q = """select joint
+           from CLUSTERS_%s""" % streetp.upper()
+    rows = conn.query(q)
+    cond0s = [parse_old(row[0])[0] for row in rows]
+    pinned_id = 6 
+    pinned_cdf = np.cumsum( cond0s[pinned_id] )
+    for i in range(pinned_id + 1,len(cond0s)) :
+        compare_cdf = np.cumsum(cond0s[i])
+        dist = cdfEMD( (pinned_cdf, compare_cdf) )
+        if dist < .2 :
+            print dist
+
+def avgIntraClusterDistance( conn, streetp ) :
+    q = """select count(*)
+           from CLUSTERS_%s""" % streetp.upper()
+    n_clusters = conn.queryScalar( q, int )
+    print n_clusters
+    m = 0
+    for cluster_id in range(1,n_clusters+1) :
+        d = avgDistanceToCentroid( conn, streetp, cluster_id )
+        if d > 1 :
+            print "Over interCluster dist: ", cluster_id, " with dist:", d
+            assert False
+        m += d
+    return m / n_clusters
+
+def avgInterClusterDistance( conn, streetp ) :
+    q = """select joint from CLUSTERS_%s""" % streetp.upper()
+    rows = conn.query(q)
+
+def avgDistanceToCentroid( conn, streetp, cluster_id ) :
+    q = """select joint 
+           from CLUSTERS_%s
+           where cluster_id = %d""" % (streetp.upper(), cluster_id)
+    centroid_joint = conn.queryScalar(q,parse)
+    centroid_cdf = np.cumsum( centroid_joint )
+
+    q = """select member_id 
+           from CLUSTER_MAP_%s
+           where cluster_id = %d""" % (streetp.upper(), cluster_id )
+    rows = conn.query( q ) 
+    dists = []
+    for row in rows :
+        member_id = int(row[0])
+        #print "member_id", member_id
+        q2 = """select dist
+                from TRANSITIONS_%s
+                where id = %d""" % (streetp.upper(), member_id)
+
+        member_joint = conn.queryScalar( q2, parse )
+        assert len(member_joint) == len(centroid_joint)
+
+        member_cdf = np.cumsum( member_joint )
+        dist = cdfEMD( (centroid_cdf, member_cdf) )
+        #print dist
+        dists.append( dist )
+
+    return sum(dists) / float(len(dists))
 
 def printTransitions( conn, street, streetp ) :
     q = """select id, cboards, dist
@@ -267,7 +382,11 @@ def iterateDistances( street, streetp, k ) :
         #for distance in distances :
             #yield distance
 
+
 if __name__ == '__main__' :
     conn = db.Conn("localhost")
-    #computeDistances( conn, "preflop", "flop" )
-    computeDistances( conn, "flop", "turn" )
+    clusterJoints( conn, "turn", "river" )
+    #clusterConditionals(conn,"turn")
+
+    #avgDistanceToCentroid( conn, "turn", 6 )
+    #print avgIntraClusterDistance( conn, "turn" )

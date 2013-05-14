@@ -655,27 +655,27 @@ def iterateTransitions() :
     #2529 insterting into flop trans
     transitions = {}
     conn = db.Conn("localhost")
-    street = 'flop'
-    for i, board_prime in enumerate( combinations( range(52), 3 ) ):
+    street = 'turn'
+    len_street = 4
+    for i, board_prime in enumerate( combinations( range(52), len_street ) ):
         #19148.pts-5.genomequery
-        #if i < 0 or i >= 50000: continue
+        #if i < 0 or i >= 70000: continue
 
         #2529.pts-4.genomequery
         #if i < 50000 or i >= 100000: continue
 
         #3567.pts-4.genomequery
-        #if i < 100000 or i >= 150000: continue  #finished
+        #if i < 70000 or i >= 140000: continue  #finished
 
         #3601.pts-4.genomequery
-        #if i < 150000 or i >= 200000: continue
+        #if i < 140000 or i >= 210000: continue
 
         #3718.pts-4.genomequery
-        #if i < 200000 : continue
+        #if i < 210000 : continue
 
-        print i
+        #print i
         if street == 'flop' :
-            cboard = "dummy"
-            cboard_prime = collapseBoard(board_prime)
+
             cboards = cboard_prime
         else :
             board = board_prime[:-1]
@@ -701,13 +701,7 @@ def iterateTransitions() :
 
 if __name__ == '__main__' :
     conn = db.Conn("localhost")
-    #distBetween( conn, "dummy|678_s_3f", "dummy|234_s_3f", "preflop", "flop" )
-    computeDistances(conn, 'flop','turn')
-
-
-    #distanceCompController()
-        #print computeBucketTransitions( conn, '2345_s_4f', '23456_s_5f')
-    #iterateTransitions()
+    iterateTransitions()
 
     #testSymmetric()
     #getTransitionProbs_DB( conn, \
