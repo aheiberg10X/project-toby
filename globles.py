@@ -1,24 +1,21 @@
 LOG_YEAR = 2011
 LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
-
 TRAIN_FILENAME = "nodes/show_4-round_perm0_train_merged.csv"
 
 
 #old
 #BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]
 
-PAST_BET_RATIOS = [0,.2,.33,.45,.5,.6,.75,.9] #[0,.33,.5,.8]
+#PAST_BET_RATIOS = [0,.2,.33,.45,.5,.6,.75,.9] #[0,.33,.5,.8]
 
 #individual bet ratios
-ACTIVE_BET_RATIOS = [.5,1,1.66,2.33,3,3.66,4.33,7] #[.5,1,1.6,4]
+BET_RATIOS = ['r.5','r1','r1.66','r2.33','r3','r3.66','r4.33','r7'] #[.5,1,1.6,4]
+DUMMY_ACTION = 'd'
 
-def closestRatio( ratio, switch ) :
-    if switch == 'past' :
-        return  min( PAST_BET_RATIOS, key = lambda bet : abs(ratio-bet) )
-    elif switch == 'active' :
-        return min( ACTIVE_BET_RATIOS, key = lambda bet : abs(ratio-bet) )
-    else : return False
+def closestRatio( ratio ) :
+    return min( BET_RATIOS, key = lambda bet : abs(ratio-float(bet[1:])) )
 
+print closestRatio( .33 )
 
 #BUCKET_PERCENTILES = {'flop' : [.4,.1,.1] + [.05]*4 + [.02]*10, \
                       #'turn' : [.4,.1,.1] + [.05]*4 + [.02]*10, \

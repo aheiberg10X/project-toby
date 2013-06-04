@@ -5,89 +5,78 @@ import json
 from random import random
 
 import table
-from globles import veryClose, PAST_BET_RATIOS, ACTIVE_BET_RATIOS, LOG_DIRECTORY, LOG_YEAR
+from globles import veryClose, BET_RATIOS, LOG_DIRECTORY, LOG_YEAR, DUMMY_ACTION
 from deck import listify
+from iterate_decision_points import iterateActionStates
 
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = True
+printing = False 
 
-#concatenate
-def actionState2Str( action_state ) :
+def concat( action_state ) :
     return ','.join( [str(t) for t in action_state] )
 
-#coordinate with table.advanceStreet, which builds the actions themselvesa
-#BET_RATIOS
-#1/0 last_to_act
-#1/0
-pastActionState2Int = {}
-activeActionState2Int = {}
-#want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
-int_repr = 1;
+#take the action node values and map them to an integer for MATLAB processing
+#Aggregate ActionState 2 Int
+def buildAAS2I() :
+    actionState2Int = {}
+    for ix,s in enumerate( iterateActionStates(2,2) ) :
+        state = list(s)
+        n_to_append = 2*2 - len(s)
+        for i in range(n_to_append) :
+            state.append(DUMMY_ACTION)
+        actionState2Int[ concat(state) ] = ix
+    return actionState2Int
 
-#past states
-for br in PAST_BET_RATIOS :
-    for p1_was_aggressive in [1,0] :
-        for p2_was_aggressive in [1,0] :
-            if p1_was_aggressive and p2_was_aggressive :
-                assert p1_was_aggressive == 1 and  p2_was_aggressive == 1
-                for p1_did_re_raise in [1,0] :
-                    for p2_did_re_raise in [1,0] :
-                        astate_str = actionState2Str( [\
-                           br, p1_was_aggressive, p2_was_aggressive, \
-                               p1_did_re_raise, p2_did_re_raise] )
-                        pastActionState2Int[ astate_str ] = int_repr
-                        int_repr += 1
-            else :
-                astate_str = actionState2Str([\
-                                   br, p1_was_aggressive, p2_was_aggressive \
-                                             ])
+def buildIAS2I() :
+    actionState2Int = {}
+    #want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
+    int_repr = 1;
 
-                pastActionState2Int[ astate_str ] = int_repr
-                int_repr += 1
+    #individual states
+    #start the count over for the active nodes
+    int_repr = 1
+    for action in 'k','f','c' :
+        actionState2Int[ action ]  = int_repr
+        int_repr += 1
 
-#active states
-#start the count over for the active nodes
-int_repr = 1
-for action in 'k','f','c' :
-    astate_str = actionState2Str( [action] )
-    activeActionState2Int[ astate_str ]  = int_repr
+    #only care about the ratio, bet or raise part implicit in the network
+    for br in BET_RATIOS :
+        actionState2Int[ br ]  = int_repr
+        int_repr += 1
+
+    #when the betting has ended but we have extra node values to fill up
+    #use the DUMMY_ACTION.  If this value is larger than the state-space
+    #specified in toby_net, it will get disregarded in ML computation
+    actionState2Int[ DUMMY_ACTION ] = int_repr
     int_repr += 1
 
-#only care about the ratio, bet or raise part implicit in the network
-for br in ACTIVE_BET_RATIOS :
-    astate_str = actionState2Str( [br] )
-    activeActionState2Int[ astate_str ]  = int_repr
-    int_repr += 1
+    return actionState2Int
 
-#when the betting has ended but we have extra node values to fill up
-#use the DUMMY_ACTION.  If this value is larger than the state-space
-#specified in toby_net, it will get disregarded in ML computation
-DUMMY_ACTION = 'd'
-activeActionState2Int[ DUMMY_ACTION ] = int_repr
-int_repr += 1
+def debugActionStateMappings() :
+    #print what is what
+    aggActionsMap = buildAAS2I()
+    sorted_astates = sorted( aggActionsMap.keys(), \
+                             key= lambda astate : aggActionsMap[astate] )
+    for sa in sorted_astates :
+        print sa, "\t", aggActionsMap[sa]
+    print "numpast actions:", len(sorted_astates)
 
-#print what is what
-sorted_astates = sorted( pastActionState2Int.keys(), key= lambda astate : pastActionState2Int[astate] )
-for sa in sorted_astates :
-    print sa, "\t", pastActionState2Int[sa]
-print "numpast actions:", len(sorted_astates)
-
-sorted_astates = sorted( activeActionState2Int.keys(), key= lambda astate : activeActionState2Int[astate] )
-for sa in sorted_astates :
-    print sa, "\t", activeActionState2Int[sa]
-print "num active actions:", len(sorted_astates)
-
-assert False
+    indActionsMap = buildIAS2I()
+    sorted_astates = sorted( indActionsMap.keys(), \
+                             key= lambda astate : indActionsMap[astate] )
+    for sa in sorted_astates :
+        print sa, "\t", indActionsMap[sa]
+    print "num active actions:", len(sorted_astates)
 
 #take entry from table.actions and map it to an in for MATLAB to crunch
 def mapActionState2Int( action_state, switch ) :
-    if switch == 'past' :
-        return pastActionState2Int[ actionState2Str( action_state ) ]
-    elif switch == 'active' :
-        return activeActionState2Int[ actionState2Str( action_state ) ]
+    if switch == 'aggregate' :
+        return pastActionState2Int[ concat( action_state ) ]
+    elif switch == 'individual' :
+        return activeActionState2Int[ concat( action_state ) ]
     else : assert False
 
 #want to extract all hands where focus_player=SartreNL is first to act
@@ -155,7 +144,12 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
 
     #TODO close handles
 
+#def parseHandLine( 
+
 def log2Nodes( filename, focus_player, focus_position ) :
+
+    aggActionsMap = buildAAS2I()
+    indActionsMap = buildIAS2I()
 
     print "paring: ", filename
     fin = open(filename)
@@ -166,13 +160,11 @@ def log2Nodes( filename, focus_player, focus_position ) :
     players = [ splt[1], splt[2] ]
     perm = int(splt[4][5:])
     #if perm==1, button/dealer is the first player in the filename
-    if perm == 1 :
-        button = 0
-    else :
-        button = 1
+    if perm == 1 : button = 0
+    else :         button = 1
 
     #if street has too many rounds of betting, throw it out
-    MAX_MICRO = 3 
+    MAX_MICRO = 2
     n_thrown_out = 0
     #sum of BBs the thrown out hands involved
     amt_thrown_out = 0
@@ -180,6 +172,29 @@ def log2Nodes( filename, focus_player, focus_position ) :
     focus_start_on_button = button == players.index(focus_player)
     want_to_be_button = focus_position == "button"
     use_evens = focus_start_on_button == want_to_be_button
+    if use_evens :
+        if perm == 1 :
+            ordered_players = [1,0]
+        else :
+            ordered_players = [0,1]
+    else :
+        if perm == 1 :
+            ordered_players = [0,1]
+        else :
+            ordered_players = [1,0]
+    preflop_ordered_players = [ordered_players[1],ordered_players[0]]
+
+    #ordered_players defines indices into table.players
+    #such that the first to act player shows up on the left
+    #side of the network
+    focus_player_ix = players.index(focus_player)
+    want_to_be_button = int(focus_position == 'button')
+    if focus_player_ix == want_to_be_button :
+        ordered_players2 = [0,1]
+    else :
+        ordered_players2 = [1,0]
+
+    assert ordered_players == ordered_players2
 
     #stacks are always reset to 20000 at the start of every game 
     pockets = [['__','__'],['__','__']]
@@ -190,6 +205,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
     header = fin.readline()
     for i in range(3) : burn = fin.readline()
     for line_num, line in enumerate(fin.readlines()) : 
+        #print "LINE NUM:", line_num
         is_even = line_num % 2 == 0
         if( is_even != use_evens ) : continue
 
@@ -284,91 +300,77 @@ def log2Nodes( filename, focus_player, focus_position ) :
         #all done iterating through the action/card lists
         tbl.advanceStreet(False)
 
+
         n_betting_rounds = min( [len(action_strings), allin_round+1] )
         has_showdown = 'f' not in action_strings[n_betting_rounds-1]
         #if has_showdown :
         pockets = [listify(p) for p in card_strings[0].split('|')]
-        if register_pockets : 
+        if register_pockets :
             tbl.registerRevealedPockets( pockets )
         else:
             for i in range(n_betting_rounds) :
                 tbl.buckets.append([-1,-1])
-
-
 
         #if has_showdown :
             #assert tbl.pot/2 == amt
         #else :
             #pass
 
+        #TODO
+        #end true parsing(), what follows is processing()
+
         #emit a training instance for each possible network, given
         #the number of rounds in this hand
         #if n_betting_rounds==3, we can emit nodes for pre,flop,and turn
-        for final_street in range(0,n_betting_rounds) :
-            training_instance = []
-            n_network_betting_rounds = final_street+1
-            for street in range(0,n_network_betting_rounds) :
-                #always want the player who is first to act to be on the left
-                #side of the network.
-                #since player list we pass to Table does not depend on position
-                #in the hand, but instead on position in the file name, we
-                #need to do some conversion
-                focus_player_ix = players.index(focus_player)
-                want_to_be_button = int(focus_position == 'button')
-                if focus_player_ix == want_to_be_button :
-                    ordered_players = [0,1]
-                else :
-                    ordered_players = [1,0]
+        training_instance = []
+        for betting_round in range(1,n_betting_rounds+1) :
+            #the order is flipped for the preflop round
+            if betting_round == 1 :
+                oplayers = preflop_ordered_players
+            else :
+                oplayers = ordered_players
 
-                #see toby_net.m for the node ordering
-                #want to print all the node values, will mask later
-                for pix in ordered_players :
-                    training_instance.append( tbl.buckets[street][pix] )
+            street = betting_round - 1
 
-                #print "street", street
-                #print tbl.active_actions
+            #attach bucket nodes
+            for pix in oplayers :
+                training_instance.append( tbl.buckets[street][pix] )
 
-                too_many_micro_rounds = False
-                #if street == final_street :
-                for pix in ordered_players :
-                    n_micro_rounds = len(tbl.active_actions[street][pix])
-                    too_many_micro_rounds |= n_micro_rounds > MAX_MICRO
-                    #assert not too_many_micro_rounds
-                    for micro_round in [0,1] :
-                        #the network expects some number of micro rounds
-                        #in the final street
-                        if micro_round >= n_micro_rounds :
-                            aa = DUMMY_ACTION 
-                        else :
-                            aa = tbl.active_actions[street][pix][micro_round]
-                        training_instance.append( mapActionState2Int(aa,'active') )
-                #else :
-                    #past_action = [-1]
-                    #agg_players = []
-                    ##print tbl.past_actions[street]
-                    #for pix in ordered_players :
-                        #(ratio,agg,reraise) = tbl.past_actions[street][pix]
-                        #agg_players.append( agg )
-                        #past_action[0] = ratio
-                        #past_action.append(agg)
-#
-                    #if sum(agg_players) >= 2 :
-                        #for pix in ordered_players :
-                            #past_action.append(tbl.past_actions[street][pix][2])
-#
-                    #asint = mapActionState2Int( past_action, 'past' )
-                    #training_instance.append( asint )
+            #attach merged-action node
+            too_many_micro_rounds = False
+            individual_actions = []
+
+            #check for games with too much back and forth betting
+            for pix in oplayers :
+                n_micro_rounds = len(tbl.active_actions[street][pix])
+                too_many_micro_rounds = n_micro_rounds > MAX_MICRO
+                if too_many_micro_rounds : break
 
             if too_many_micro_rounds :
-                #print "too_many_micro_rounds"
-                #assert False
+                #too_many_micro_rounds, go onto next hand/line 
                 n_thrown_out += 1
                 amt_thrown_out = amt_exchanged
-                continue
+                break
 
+            for micro_round in [0,1] :
+                for pix in oplayers :
+                    n_micro_rounds = len(tbl.active_actions[street][pix])
+                    #the network expects some number of micro rounds
+                    #in the final street
+                    if micro_round >= n_micro_rounds :
+                        aa = DUMMY_ACTION 
+                    else :
+                        aa = tbl.active_actions[street][pix][micro_round]
+                    individual_actions.append(aa)
+
+            action_str = ','.join( individual_actions )
+            training_instance.append( aggActionsMap[action_str] )
+
+            
             #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
-            yield [(game_id,n_network_betting_rounds,has_showdown),\
-                   training_instance, \
+            #TODO yield both belief-layer nodes and action-layer nodes
+            yield [(game_id,betting_round,has_showdown),\
+                    list(training_instance), \
                    amt_exchanged]
     print "n_thrown_out: " , n_thrown_out
     print "amt_thrown_out: ", amt_thrown_out
@@ -422,10 +424,9 @@ def scaleNodes( nodefilename, factor = 3 ) :
     fin.close()
     print "line num change: ", nadded
 
-
 if __name__ == '__main__' :
 
-    
+    #debugActionStateMappings()
     #scaleNodes("nodes/noshow_4-round_perm0_train_merged")
     #assert False
     

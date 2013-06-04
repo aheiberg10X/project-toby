@@ -278,7 +278,7 @@ class Table() :
                 ##when printing bet_ratios to find good abstraction
                 #self.error_file.write( "%f\n" % frac )
 
-                pot_frac = str(closestRatio( frac, 'active' ))
+                pot_frac = closestRatio( frac )
                 self.updateStack( player_ix, amt, "aggressive" )
                 if not self.stacks[player_ix] >= -0.00001 :
                     print self.stacks[player_ix]
@@ -329,9 +329,9 @@ class Table() :
         self.last_action = action
 
         if pot_frac :
-            action_rep = [pot_frac]
+            action_rep = pot_frac
         else :
-            action_rep = [action]
+            action_rep = action
 
         if self.street >= 0 :
             self.active_actions[self.street][player_ix].append( action_rep )
@@ -349,7 +349,8 @@ class Table() :
         #pix = self.players.index(player_name)
         #TODO: handle preflop strength via some table
         #print "registerRevealed player:", player_name
-        for street in range(len(self.past_actions)) :
+        for street in range(self.street) :
+        #for street in range(len(self.past_actions)) :
             self.buckets.append( [] )
             for pix,pocket in enumerate(pockets) :
                 if street == 0 :
@@ -551,54 +552,50 @@ class Table() :
                               in range(self.num_players) \
                               if self.acted[player]]
 
-            #compute the features we want to emit
-            #pip_to_sb_ratios, pip_to_pot_ratios, agg_to_pip_ratios, pass_to_pip  
-            action_state = []
-            #bet_ratio_added = False
-            for p in acted_players :
-                player_state = []
-                pip_to_pot = self.current_bets[p] / float(self.pot)
-
-                #when looking for appropriate bet ratios
-                #self.error_file.write( "%f\n" % (pip_to_pot) )
-                #print pip_to_pot
-                #if self.current_bets[p] > 0 :
-                    #pip_to_stack = self.current_bets[p] / float(self.stacks[p] + self.current_bets[p])
-                    #print pip_to_stack
-                closest_ratio = closestRatio( pip_to_pot, 'past' )
-                player_state.append( closest_ratio )
-                #bet_ratio_added = True
-
-                #Inherent in network structure now
-                #the left side is always first to act
-                ##1 if in position, last to act
-                ##TODO: hardcoded for heads up
-                ##if advancing from preflop
-                #if self.street == 1 :
-                    #action_state.append( int(self.button != p ) )
-                #else :
-                    #action_state.append( int(self.button == p) )
-
-
-                #1 if aggressive PIP ratio
-                was_agg = int(self.aggressive_pip[p] > 0) 
-                player_state.append( was_agg )
-                
-                #did_re_raise = 0
-                #for act in self.active_actions[self.street-1][p][1:] :
-                    #if 'rt' in act or 'r' in act : did_re_raise = 1
-                #player_state.append( did_re_raise )
-                #print self.re_raises
-                #print self.re_raises[-1][p]
-                player_state.append( int(self.re_raises[-1][p]) )
-
-                action_state.append( player_state )
-
-            #meaningless to register actions where no one acts
-            #this can happend when an all-In is called
-            #future streets are dealt but there are no actions to take
-            if len(acted_players) > 0 : 
-                self.past_actions.append( action_state )
+            ##DEPRECATED, not using crude aggregates
+            ##see parsing, goes through the actions for the round and 
+            ##merges into super-action
+            #action_state = []
+            #for p in acted_players :
+                #player_state = []
+                ##when looking for appropriate bet ratios
+                #pip_to_pot = self.current_bets[p] / float(self.pot)
+                ##self.error_file.write( "%f\n" % (pip_to_pot) )
+                ##print pip_to_pot
+                #closest_ratio = closestRatio( pip_to_pot, 'past' )
+                #player_state.append( closest_ratio )
+                ##bet_ratio_added = True
+#
+                ##Inherent in network structure now
+                ##the left side is always first to act
+                ###1 if in position, last to act
+                ###TODO: hardcoded for heads up
+                ###if advancing from preflop
+                ##if self.street == 1 :
+                    ##action_state.append( int(self.button != p ) )
+                ##else :
+                    ##action_state.append( int(self.button == p) )
+#
+#
+                ##1 if aggressive PIP ratio
+                #was_agg = int(self.aggressive_pip[p] > 0) 
+                #player_state.append( was_agg )
+               # 
+                ##did_re_raise = 0
+                ##for act in self.active_actions[self.street-1][p][1:] :
+                    ##if 'rt' in act or 'r' in act : did_re_raise = 1
+                ##player_state.append( did_re_raise )
+                ##print self.re_raises
+                ##print self.re_raises[-1][p]
+                #player_state.append( int(self.re_raises[-1][p]) )
+#
+                #action_state.append( player_state )
+#
+            ##meaningless to register actions where no one acts
+            ##this can happend when an all-In is called
+            ##future streets are dealt but there are no actions to take
+            #if len(acted_players) > 0 : 
+                #self.past_actions.append( action_state )
 
         #make space for the next street
         #TODO hardcoded for 2p

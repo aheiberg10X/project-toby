@@ -385,8 +385,8 @@ def iterateDistances( street, streetp, k ) :
 
 if __name__ == '__main__' :
     conn = db.Conn("localhost")
-    clusterJoints( conn, "turn", "river" )
+    #clusterJoints( conn, "turn", "river" )
     #clusterConditionals(conn,"turn")
 
-    #avgDistanceToCentroid( conn, "turn", 6 )
-    #print avgIntraClusterDistance( conn, "turn" )
+    print avgDistanceToCentroid( conn, "river", 226 )
+    #print avgIntraClusterDistance( conn, "river" )
