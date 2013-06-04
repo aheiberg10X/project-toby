@@ -36,10 +36,10 @@ def normalize( joint, make_cdf=False ) :
             normalized = [p / Z for p in row]
 
         if not make_cdf :
-            ndist.append( normalized )
+            njoint.append( normalized )
         else :
-            ndist.append( np.cumsum( normalized ) )
-    return ndist
+            njoint.append( np.cumsum( normalized ) )
+    return njoint
 
 #turn a float[][] back into a string
 def stringifyJoint( joint, n_bucketsp ) :
@@ -290,23 +290,52 @@ def clusterConditionals(conn, streetp) :
         if dist < .2 :
             print dist
 
+#avg distance 
 def avgIntraClusterDistance( conn, streetp ) :
     q = """select count(*)
            from CLUSTERS_%s""" % streetp.upper()
     n_clusters = conn.queryScalar( q, int )
     print n_clusters
-    m = 0
+    num = 0
+    den = 0
     for cluster_id in range(1,n_clusters+1) :
-        d = avgDistanceToCentroid( conn, streetp, cluster_id )
+        (n,d) = avgDistanceToCentroid( conn, streetp, cluster_id )
+        print "cluster: ", cluster_id, " distance:", d, " num:", n
         if d > 1 :
             print "Over interCluster dist: ", cluster_id, " with dist:", d
             assert False
-        m += d
-    return m / n_clusters
+        num += n*d
+        den += n
+    return num/den
+
 
 def avgInterClusterDistance( conn, streetp ) :
-    q = """select joint from CLUSTERS_%s""" % streetp.upper()
-    rows = conn.query(q)
+    summ = 0
+    q = "select count(*) from CLUSTERS_%s" % streetp.upper()
+    nclusters = conn.queryScalar(q,int)
+    for cluster_id in range(1,nclusters) :
+        print "===============\ncluster_id"
+        q = """select joint from CLUSTERS_%s""" % streetp.upper()
+        rows = conn.query(q)
+
+        rix = 0
+        num = 0
+        den = 0
+        for row in rows :
+            rix += 1
+            if rix < cluster_id : continue
+            elif rix == cluster_id :
+                pinned_cdf = np.cumsum(parse(row[0]))
+            else :
+                cdf = np.cumsum(parse(row[0]))
+                d = cdfEMD( (pinned_cdf,cdf) )
+
+                num += d
+                den += 1
+        t = num / den
+        print t
+        summ += t
+    return summ / nclusters
 
 def avgDistanceToCentroid( conn, streetp, cluster_id ) :
     q = """select joint 
@@ -335,7 +364,7 @@ def avgDistanceToCentroid( conn, streetp, cluster_id ) :
         #print dist
         dists.append( dist )
 
-    return sum(dists) / float(len(dists))
+    return [len(dists),  sum(dists) / float(len(dists))]
 
 def printTransitions( conn, street, streetp ) :
     q = """select id, cboards, dist
@@ -347,8 +376,9 @@ def printTransitions( conn, street, streetp ) :
         fout.write( row[2] + "\n" )
     fout.close()
 
+#distance using the legit, weighted EMD distance
 def distBetween( conn, cboards1, cboards2, street, streetp  ) :
-    n_buckets = len(globles.BUCKET_PERCENTILES[street])
+    #n_buckets = len(globles.BUCKET_PERCENTILES[street])
     n_bucketsp = len(globles.BUCKET_PERCENTILES[streetp])
     F1 = [(1,i) for i in range(n_bucketsp)]
     F2 = [(1,i) for i in range(n_bucketsp)]
@@ -360,10 +390,10 @@ def distBetween( conn, cboards1, cboards2, street, streetp  ) :
             from TRANSITIONS_%s
             where cboards = '%s' """ % (streetp.upper(), cboards2 )
 
-    joint1 = parseAndNormalize( conn.queryScalar( q1, str ) )
-    joint2 = parseAndNormalize( conn.queryScalar( q2, str ) )
+    joint1 = normalize( parse_old( conn.queryScalar( q1, str ) ) )
+    joint2 = normalize( parse_old( conn.queryScalar( q2, str ) ) )
 
-    print avgEMD( (joint1, joint2, F1, F2, streetp ) )
+    return avgEMD( (joint1, joint2, F1, F2, streetp ) )
 
 def iterateDistances( street, streetp, k ) :
     q = """select distances
@@ -385,8 +415,12 @@ def iterateDistances( street, streetp, k ) :
 
 if __name__ == '__main__' :
     conn = db.Conn("localhost")
-    #clusterJoints( conn, "turn", "river" )
+    #print distBetween( conn, "569_h_r|5569_p_r", "24A_h_r|224A_p_r", "flop","turn" )
+    #print distBetween( conn, "569_h_r|5569_p_r", "678_s_r|6789_s_2fooxx", "flop","turn" )
+    #print distBetween( conn, "569_h_r|5569_p_r", "8JQ_h_r|88JQ_p_r", "flop","turn" )
+    clusterJoints( conn, "turn", "river" )
     #clusterConditionals(conn,"turn")
 
-    print avgDistanceToCentroid( conn, "river", 226 )
-    #print avgIntraClusterDistance( conn, "river" )
+    #print avgDistanceToCentroid( conn, "river", 226 )
+    #print avgIntraClusterDistance( conn, "turn" )
+    #print avgInterClusterDistance( conn, "turn" )
