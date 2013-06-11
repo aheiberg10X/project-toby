@@ -128,6 +128,20 @@ def collapsePocket( hole_cards ) :
                             stringifyCardinality(c2),
                             suit) )
 
+def board2cboards( board, street ) :
+    if street == 0 :
+        assert False
+    elif street == 1 :
+        cboard = 'dummy'
+        cboardp = collapseBoard( board[:3] )
+    else :
+        cboard = collapseBoard( board[:street+1] )
+        cboardp = collapseBoard( board[:street+2] )
+    return (cboard, cboardp)
+
+def canonicalizeCboards( cboard, cboardp ) :
+    return "%s|%s" % (cboard,cboardp)
+
 def collapseBoard( board ) :
     if type(board) == str :
         board = [board[i:i+2] for i in range(0,len(board),2)]

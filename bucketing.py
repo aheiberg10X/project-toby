@@ -1,5 +1,5 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement, completeStemToMakeCboard
+from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement, completeStemToMakeCboard, canonicalizeCboads, board2cboards
 from itertools import combinations
 import rollout
 import matplotlib.pyplot as plt
@@ -674,15 +674,22 @@ def iterateTransitions() :
         #if i < 210000 : continue
 
         #print i
+        #deprecated
         if street == 'flop' :
-
             cboards = cboard_prime
         else :
             board = board_prime[:-1]
             cboard = collapseBoard(board)
             cboard_prime = collapseBoard(board_prime)
-
         cboards =  "%s|%s" % (cboard, cboard_prime)
+
+        #better but untested in this context
+        cboard,cboardp = board2cboards( board_prime )
+        cboards = canonicalizeCboards( cboard, cboardp )
+
+        #until tested
+        assert False
+
 
         if cboards not in transitions :
             transitions[cboards] = True
