@@ -1,6 +1,5 @@
-dag_switch
 test_show = 1
-n_test_rows = 10000
+n_test_rows = 1000
 smoothing = 0
 %if we want to get accuracy doing no prediction
 computing_baseline = 0
@@ -8,7 +7,8 @@ uniform = 0
 
 %for testing river belief buckets ONLY
 if test_show == 1
-    test_all = csvread('nodes/show_4-round_perm0_test_merged.csv');
+    %test_all = csvread('nodes/show_4-round_perm0_test_merged.csv');
+    test_all = csvread('nodes/hugh_SartreNL/perm1/test_4-rounds_showdown.csv');
 else
     test_all = csvread('nodes/noshow_4-round_perm0_test_merged.csv');
 end
@@ -17,20 +17,12 @@ test = test_all(1:n_test_rows,1:N);
 amts = test_all(1:n_test_rows,N+1);
 [ncases,natt] = size(test);
 
-%shit, we printed all -1, but we want the true label for testing
-%should reparse, printing everything, and use a hand-input visible mask
-%visible_ixs = find( test(0,:) >= 0 );
-if dag_switch == 1 || dag_switch == 2 
-    visible_ixs = [12 13 14 15];
-else
-    visible_ixs = [6 9 12 13 14 15];
-end
-
+visible_ixs = [3 6 9 12]; 
 
 %we want to be able to exclude arbitrary types of hands from evaluation
 %for examples, it is easy to get good accuacy by predicting check every time
 %what is our prediction rate for the hands that do not have all checks?
-focus_nodes = [12 13 14 15];
+focus_nodes = [12];
 special_focus_values = []; %[20 20 1 3 4 12]; %; [1 3 5 8]; [1 3 4 8]];
 %can ignore focus, and include all else
 %or include all else, and ignore focus
@@ -52,6 +44,7 @@ avg_diff_sum1 = 0;
 avg_diff_sum2 = 0;
 avg_weighted_diff_sum1 = 0;
 avg_weighted_diff_sum2 = 0;
+avg_amt = 0;
 
 %sum of how likely we are to get the exact pocket correct
 avg_p_correct_pocket1 = 0;
@@ -67,12 +60,12 @@ novel_count = 0;
 
 %s=struct(bnet_learned.CPD{predict_nod e});  % violate object privacy
 %predict_prior = s.CPT;
-if scaling == 1
-    predict_prior = [0.2340    0.1782    0.1384    0.1211    0.0986    0.0706    0.0522    0.0416    0.0306    0.0345];
-else 
-    predict_prior = [0.3752    0.2762    0.1611    0.0736    0.0369    0.0299    0.0183    0.0126    0.0081    0.0081];
+%if scaling == 1
+%    predict_prior = [0.2340    0.1782    0.1384    0.1211    0.0986    0.0706    0.0522    0.0416    0.0306    0.0345];
+%else 
+predict_prior = [0.3752    0.2762    0.1611    0.0736    0.0369    0.0299    0.0183    0.0126    0.0081    0.0081];
    % [ 0.00809088803483 0.00805163093616 0.0126211572208 0.0183409164962 0.0299178348925  0.0369213012943  0.0736070599966 0.161064024402 0.276201169076 0.37518401765]
-end
+%end
 
 for ex=1:n_test_rows
     if mod(ex,1000) == 0
@@ -196,11 +189,12 @@ for ex=1:n_test_rows
     end
     %average the samples differences from true_label
     %weight them by amt_exchanged
-    avg_diff1 = diff_sum1 / n_samples;
+    avg_diff1 = diff_sum1 / n_samples
     avg_weighted_diff1 = avg_diff1 * amts(ex);
     
-    avg_diff2 = diff_sum2 / n_samples;
+    avg_diff2 = diff_sum2 / n_samples
     avg_weighted_diff2 = avg_diff2 * amts(ex);
+    avg_amt = avg_amt + amts(ex);
 
     %add the averages to the total to average over all training examples
     avg_diff_sum1 = avg_diff_sum1 + avg_diff1;
@@ -229,7 +223,6 @@ for ex=1:n_test_rows
 
     end
     p_correct_winner;
-    amts(ex);
     space = 1;
     avg_p_correct_winner = avg_p_correct_winner + p_correct_winner;
     avg_weighted_correct_winner = avg_weighted_correct_winner + p_correct_winner*amts(ex);
@@ -244,6 +237,8 @@ avg_weighted_diff1 = avg_weighted_diff_sum1 / n_not_excluded
 
 avg_diff2 = avg_diff_sum2 / n_not_excluded
 avg_weighted_diff2 = avg_weighted_diff_sum2 / n_not_excluded
+
+avg_amt = avg_amt / n_not_excluded
 
 avg_p_correct_pocket1 = avg_p_correct_pocket1 / n_not_excluded
 avg_p_correct_pocket2 = avg_p_correct_pocket2 / n_not_excluded

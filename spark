@@ -259,7 +259,6 @@ Considering not implementing EM myself.  matlab package http://bnt.googlecode.co
 =====================================================================================================================
 
 1/23/13
-
 Decided on using Bayes Net Toolbox (MATLAB).  Figured out that CPT's could be clamped, important for the belief nodes, whose CPT's will be computed offline.  Work so far in /home/andrew/downloads/bnt/toby_net.m
 
 Concerned over how I will evaluate such a hole card predictor.  Can leave some revealed hand data out of training, but the whole point is to reasonably predict the unlabeled data.  
@@ -1032,5 +1031,40 @@ have to reparse again, but if turn of registerRevealed will be much faster
 so parse out bucket values from current parsing (they won't change), then just splice them in
 
 seriously, any other past state info to include?  Could do reraise amount, or BB multiple?
+
+===================================================================================
+
+5/13
+
+Clustered flop-turn transitions with the 'online' ghetto version of clustering.  Randomly picks an unclustered element, and see which other element/groups fall within some threshold distance of it.  If they do, everyone gets merged together.  Also, rather than distance computed by the fancy version of EMD, I am using the closed form that results when the cost to transfer mass between any two buckets is fixed: sum(abs(cdf(x)-cdf(y)))
+
+By inspection, the results look pretty good.  Reasonable things are grouped together, and their average joint looks to be a good compromise.  Also, different groups have obviously different transition profiles.  Have done any more rigorous verfication.  I am sure some groups are a big mess.
+
+With a threshold of .45, 1025 groups were generated, basically 40 per group.  This seems like a feasible CPT size.
+
+What clustering effect will happen on river remains to be seen.
+
+TODO, cluster_ids need to be 1,2,.... to make it compatible with MATLAB
+
+==================================================================================================
+
+5/14
+
+Clustering seems to have worked.  Flop has 187 cluster, turn has 774 clusters.  Runs quick.  With small avgerage distance to centroid.
+
+Will still need to cluster this further to make CPT size of belief nodes managable.
+Even with n_r = 6, action states can take on 2,441 states.  (TODO: implement past action rounds as one node with the right state size, not (n_r+4)^4 as it currently stands.  Can we compress even more?  Does the triple re-raise take on the same ratios?  Should each type be considered?).  
+
+2,441 * 774 * 20 = 37,786,680.  And that is just parents.  So need to cluster the k=? conditionals across the joint clusters.  Preliminary results are positive.  Can also increase cluster threshold for the joint clustering.
+
+Joint clustering of river is proceeding.
+And finished, only 302, half of number of turn clusters!!!??? One cluster as 100,000 members, avg dist of .402 to center.
+
+TODO:
+Compute average distance between joint distributions to show clustering is not trivial, perhaps min/max as well
+Also compute distnace between two random distributions
+
+
+========================================================================================================
 
 
