@@ -122,24 +122,20 @@ def iterateActionStates( num_players, max_rounds, raises=BET_RATIOS, player_ix=-
 
 if __name__=='__main__' :
     count = 0
-    nraises = 6 
-    raises = []
-    for i in range(nraises) :
-        raises.append( "r%d" % i )
     p1_action_pairs = set([])
     p2_action_pairs = set([])
-    
+
     for point in iterateActionStates( 2, 2, player_ix=-1 ) :
         count += 1
         full_state = list(point)
         for i in range( 4 - len(point) ) :
             full_state.append('d')
 
-        print full_state 
+        print full_state
         p1_action_pairs.add( "%s,%s" % (full_state[0],full_state[2]) )
         p2_action_pairs.add( "%s,%s" % (full_state[1],full_state[3]) )
 
     print "count", count
     print len(p1_action_pairs)
     print len(p2_action_pairs)
-    
+

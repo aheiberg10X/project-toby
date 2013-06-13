@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = False 
+printing = True #False 
 
 def concat( action_state ) :
     return ','.join( [str(t) for t in action_state] )
@@ -22,7 +22,8 @@ def concat( action_state ) :
 #Aggregate ActionState 2 Int
 def buildAAS2I() :
     actionState2Int = {}
-    for ix,s in enumerate( iterateActionStates(2,2) ) :
+    num_players, max_rounds = 2,2
+    for ix,s in enumerate( iterateActionStates(num_players, max_rounds ) ) :
         state = list(s)
         n_to_append = 2*2 - len(s)
         for i in range(n_to_append) :
@@ -366,7 +367,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
             action_str = ','.join( individual_actions )
             training_instance.append( aggActionsMap[action_str] )
 
-            
+
             #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
             #TODO yield both belief-layer nodes and action-layer nodes
             yield [(game_id,betting_round,has_showdown),\

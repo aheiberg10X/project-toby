@@ -1,6 +1,6 @@
-scaling = 0
+scaling = 13 
 dag_switch = 10
-em = 1 
+em = 0 
 
 seed = 42;
 rand('state',seed);
@@ -105,6 +105,14 @@ elseif( dag_switch == 12 )
     dag(12,[13 14 15]) = 1;
     dag(13,15) = 1;
     dag(14,[13 15]) = 1;
+
+%big aggregate action states
+elseif( dag_switch == 13 )
+    dag( [1 2], 3 ) = 1;
+    dag( [4 5], 6 ) = 1;
+    dag( [7 8], 9 ) = 1;
+    dag( [10 11], 12 ) = 1;
+   
 
 %5 = connected by belief transitions
 else

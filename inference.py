@@ -38,10 +38,18 @@ def lookupPk( street, bucket ) :
 #P(b)
 def lookupPb( street ) :
     if street == 0 : return 1
-    elif 1 <= street <= 3 :
-        l = street + 2
-        n_boards = nCr( (52-(2*globles.POCKET_SIZE)), l )
-        return 1 / float( n_boards )
+    elif street == 1 :
+        return 5.78168362627e-05
+    elif street == 2 :
+        return 5.13927433446e-06
+    elif street == 3 :
+        return 5.84008447098e-07
+
+    #elif 1 <= street <= 3 :
+        #l = street + 2
+        #n_boards = nCr( (52-(2*globles.POCKET_SIZE)), l )
+        #return 1 / float( n_boards )
+
     else : assert False
 
 #return {cboards : cluster_id}
@@ -274,12 +282,13 @@ def P_assgmnt_G_evdnc( assignment, evidence ) :
         product *= p
     return p
 
+#(3)
 #P( ki | k_{i-1}, [board, actions] ) 
-def P_ki_G_kimo_evdnc( street=42, \
-                       bucket_tuple=[42,42], \
-                       prev_bucket_tuple=[42,42], \
-                       evidence=[ ['b','o','a','r','d'],\
-                                  ['4actions','etc'] ], \
+def P_ki_G_kimo_evdnc( street = 42, \
+                       ki = [42,42], \
+                       kimo = [42,42], \
+                       evidence = [ ['b','o','a','r','d'],\
+                                    ['4actions','etc'] ], \
                        lookups = ['Ptran','PA','Pb','Pk'] ) :
 
     
@@ -298,36 +307,55 @@ def P_ki_G_kimo_evdnc( street=42, \
 
         # = ((BT1 * BT2 * K1 * K2 * B * AK) / Z
 
-        k1,kp1 = prev_bucket_tuple[0], bucket_tuple[0]
-        k2,kp2 = prev_bucket_tuple[1], bucket_tuple[1]
+        kimo_p1 = kimo[0]
+        kimo_p2 = kimo[1]
 
-        #BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
-        joint = lookupPtrans( Ptrans, street, cboards )
-        BT1 = joint[k1][kp1]
-        BT2 = joint[k2][kp2]
-        print BT1,BT2
-        #key = "%d%d" % (street-1, street)
-        #BT1 = prob_trans[key][k1][kp1]
-        #BT2 = prob_trans[key][k2][kp2]
+        #num and denom in (3)
+        numerator = 0
+        Z = 0
 
-        #K1,K2
-        #K1 = lookupBucketProb(street,kp1)
-        #K2 = lookupBucketProb(street,kp2)
+        #all possible bucket assignments for the current street
+        #used to compute the partition Z
+        ki_buckets = globles.NBUCKETS[street]
+        all_ki_pairs = product(ki_buckets, ki_buckets)
 
         #B = P( B=board ) 
-        #B = lookupBoardProb(street)
+        B = lookupPb(street)
 
-        #   each term a constant, one def by percentiles, the other by nCr 
-        #AK = 1 #TODO lookup from loaded EM computed weights
+        for (ki_p1,ki_p2) in all_ki_pairs :
 
+            #BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
+            joint = lookupPtrans( Ptrans, street, cboards )
+            BT1 = joint[kimo_p1][ki_p1]
+            BT2 = joint[kimo_p2][ki_p2]
+            print BT1,BT2
 
-        #C = P( A=actions | ki )
-        #   learned from EM
+            #K1,K2
+            K1 = lookupBucketProb(street,kimo_p1)
+            K2 = lookupBucketProb(street,kimo_p2)
+
+            #   each term a constant, one def by percentiles, the other by nCr 
+            #AK = 1 #TODO lookup from loaded EM computed weights
+
+            #C = P( A=actions | ki )
+            #   learned from EM
+
+            term = (BT1*K1) * (BT2*K2) * B * AK
+
+            #if this assignment is same as the one passed in
+            if ki == (ki_p1,ki_p2) :
+                numerator = term
+
+            Z += term
 
     return 1
 
 if __name__ == '__main__' :
 
+    print lookupPb(1)
+    print lookupPb(2)
+    print lookupPb(3)
+    assert False
     #cluster_id = Ptrans["flop"][0]["dummy|237_h_3f"]
     #joint = Ptrans["flop"][1][cluster_id]
     #print cluster_id, joint
