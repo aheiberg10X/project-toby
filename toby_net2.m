@@ -48,6 +48,7 @@ for i=1:N
         bnet.CPD{i} = tabular_CPD(bnet, i);
     end
 
-bnet_learned = learn_params(bnet, evidence);
+
+    bnet_learned = learn_params(bnet, evidence);
 
 
