@@ -7,6 +7,7 @@ import globles
 import db
 import deck
 import BTclustering as clust
+import iterate_decision_points as idp
 
 conn = db.Conn('localhost')
 
@@ -18,17 +19,73 @@ def nCr(n, r):
     return numer//denom
 
 
-def loadPALookups() :#load lookup information...
-    #P( Ai )
-    PA = []
-    PA.append( selective_eval.computeTypeFrequencies( [2,3,4,5] ) )
-    PA.append( selective_eval.computeTypeFrequencies( [8,9,10,11] ) )
-    PA.append( selective_eval.computeTypeFrequencies( [14,15,16,17] ) )
-    PA.append( selective_eval.computeTypeFrequencies( [20,21,22,23] ) )
-    return PA
+#there is no P(A) term why did I put these here?
+#def loadPALookups() :#load lookup information...
+    ##P( Ai )
+    #PA = []
+    #PA.append( selective_eval.computeTypeFrequencies( [2,3,4,5] ) )
+    #PA.append( selective_eval.computeTypeFrequencies( [8,9,10,11] ) )
+    #PA.append( selective_eval.computeTypeFrequencies( [14,15,16,17] ) )
+    #PA.append( selective_eval.computeTypeFrequencies( [20,21,22,23] ) )
+    #return PA
+#
+#def lookupPA( PA, street, action_str ) :
+    #return PA[street][action_str]
 
-def lookupPA( PA, street, action_str ) :
-    return PA[street][action_str]
+def loadPAK() :
+    #not layed out in file in a way conduscive to fast lookup
+    #load the data as-is into interim, re-arrange and put in PAK
+    interim = {}
+    PAK = {}
+
+    agg_act_nodes = [3,6,9,12]
+    streets = [0,1,2,3]
+
+    #read in data
+    for (node,street) in zip(agg_act_nodes,streets) :
+        interim[street] = []
+
+        print "node: ", node
+
+        fin = open( "AK/CPT%d.csv" % node )
+        blob = fin.read().strip()
+        lines = blob.split('\n')
+        #print "nlines: ", len(lines)
+        for line in lines :
+            splt = [float(prob) for prob in line.split(',')]
+            #print "nsplt: ", len(splt)
+            interim[street].append( splt )
+        fin.close()
+
+    #reorg for faster lookups
+    for (node,street) in zip(agg_act_nodes,streets) :
+        PAK[street] = []
+
+        nbuckets = globles.NBUCKETS[street]
+        buckets = range(nbuckets)
+        nacts = len(interim[street][0]) / nbuckets
+
+        #print "nbuckets,  nacts", nbuckets, nacts
+
+        for k1 in buckets :
+            k1_probs = []
+            for k2 in buckets :
+                k2_probs = []
+                for act in range(nacts) :
+                    offset = act*nbuckets
+                    prob = interim[street][k1][offset+k2]
+                    k2_probs.append( prob )
+                k1_probs.append( k2_probs )
+
+            PAK[street].append(k1_probs)
+
+    #also load the action_str -> int mapper, AAS2I
+    #AAS2I = idp.buildAAS2I()
+
+    return PAK
+
+def lookupPAK( PAK, street, k1, k2, action_int ) :
+    return PAK[street][k1][k2][action_int]
 
 #P(k)
 def lookupPk( street, bucket ) :
@@ -80,7 +137,6 @@ def loadPtrans() :
 
         Ptrans[street_name] = ( (cluster_map, joint_map) )
     return Ptrans
-
 
 def lookupPtrans( Ptrans, street, cboards ) :
     street_name = globles.int2streetname( street )
@@ -264,6 +320,8 @@ def pf_P_ki_G_evdnc( final_street, evidence, m=100 ) :
 
 #compute P( [ki=ai,...,k0=a0] | [board,actions] )
 #an assignment is [(k10,k20),..,(k1i,k2i)]
+
+#TODO: add lookups
 def P_assgmnt_G_evdnc( assignment, evidence ) :
     n_streets = len(assignment)
     assert n_streets >= 1
@@ -271,12 +329,12 @@ def P_assgmnt_G_evdnc( assignment, evidence ) :
     for i in range(n_streets) :
         if i == 0 :
             p = P_ki_G_kimo_evdnc( street = i, \
-                                   bucket_tuple = assignment[i], \
+                                   ki = assignment[i], \
                                    evidence = evidence )
         else :
             p = P_ki_G_kimo_evdnc( street = i, \
-                                   bucket_tuple = assignment[i], \
-                                   prev_bucket_tuple=assignment[i-1], \
+                                   ki = assignment[i], \
+                                   kimo = assignment[i-1], \
                                    evidence = evidence )
 
         product *= p
@@ -289,15 +347,16 @@ def P_ki_G_kimo_evdnc( street = 42, \
                        kimo = [42,42], \
                        evidence = [ ['b','o','a','r','d'],\
                                     ['4actions','etc'] ], \
-                       lookups = ['Ptran','PA','Pb','Pk'] ) :
+                       lookups = ['PAK','Ptrans'] ) :
 
-    
     if street == 0 :
+        print "what to do here?"
+        assert False
         pass
     else :
         #unpack
         board, actions = evidence[0], evidence[1]
-        Ptrans,PA,Pb,Pk = [lookups[i] for i in range(4)]
+        PAK,Ptrans = [lookups[i] for i in range(2)]
 
         #derive
         print "board: ", board
@@ -316,8 +375,8 @@ def P_ki_G_kimo_evdnc( street = 42, \
 
         #all possible bucket assignments for the current street
         #used to compute the partition Z
-        ki_buckets = globles.NBUCKETS[street]
-        all_ki_pairs = product(ki_buckets, ki_buckets)
+        ki_buckets = range(globles.NBUCKETS[street])
+        all_ki_pairs = cartProduct(ki_buckets, ki_buckets)
 
         #B = P( B=board ) 
         B = lookupPb(street)
@@ -331,14 +390,13 @@ def P_ki_G_kimo_evdnc( street = 42, \
             print BT1,BT2
 
             #K1,K2
-            K1 = lookupBucketProb(street,kimo_p1)
-            K2 = lookupBucketProb(street,kimo_p2)
+            K1 = lookupPk(street,kimo_p1)
+            K2 = lookupPk(street,kimo_p2)
 
             #   each term a constant, one def by percentiles, the other by nCr 
-            #AK = 1 #TODO lookup from loaded EM computed weights
-
-            #C = P( A=actions | ki )
-            #   learned from EM
+            action_str = actions[street]
+            print "action_str, ", action_str
+            AK = lookupPAK( PAK, street, ki_p1, ki_p2, action_str )
 
             term = (BT1*K1) * (BT2*K2) * B * AK
 
@@ -352,24 +410,32 @@ def P_ki_G_kimo_evdnc( street = 42, \
 
 if __name__ == '__main__' :
 
-    print lookupPb(1)
-    print lookupPb(2)
-    print lookupPb(3)
-    assert False
+    ##sanity check for loading of EM P(A|K) weights
+    #(PAK,AAS2I) = loadPAK()
+    #for street in range(4) :
+        #for k1 in range( globles.NBUCKETS[street] ) :
+            #for k2 in range( globles.NBUCKETS[street] ) :
+                #s = sum(PAK[street][k1][k2])
+                #assert .9999 <= s <= 1.0001
+    #assert False
+
     #cluster_id = Ptrans["flop"][0]["dummy|237_h_3f"]
     #joint = Ptrans["flop"][1][cluster_id]
     #print cluster_id, joint
 
     board = ['2c','4c','7h','7c','Td']
-    actions = ['1,12,1,12']*4
+    #2 = 'k,k,d,d'
+    actions = [2,2,2,2]
+    #actions = ['1,12,1,12']*4
     evidence = [board, actions]
 
+    PAK = loadPAK()
     Ptrans = loadPtrans()
 
-    lookups = [Ptrans,-1,-1,-1]
+    lookups = [PAK,Ptrans]
     P_ki_G_kimo_evdnc( street=1, \
-                       bucket_tuple = (1,1), \
-                       prev_bucket_tuple = (1,1), \
+                       ki = (1,1), \
+                       kimo = (1,1), \
                        evidence = evidence, \
                        lookups = lookups )
     #print evidence

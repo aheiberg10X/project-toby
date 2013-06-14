@@ -7,78 +7,13 @@ from random import random
 import table
 from globles import veryClose, BET_RATIOS, LOG_DIRECTORY, LOG_YEAR, DUMMY_ACTION
 from deck import listify
-from iterate_decision_points import iterateActionStates
+import iterate_decision_points as idp 
 
 MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = True #False 
-
-def concat( action_state ) :
-    return ','.join( [str(t) for t in action_state] )
-
-#take the action node values and map them to an integer for MATLAB processing
-#Aggregate ActionState 2 Int
-def buildAAS2I() :
-    actionState2Int = {}
-    num_players, max_rounds = 2,2
-    for ix,s in enumerate( iterateActionStates(num_players, max_rounds ) ) :
-        state = list(s)
-        n_to_append = 2*2 - len(s)
-        for i in range(n_to_append) :
-            state.append(DUMMY_ACTION)
-        actionState2Int[ concat(state) ] = ix
-    return actionState2Int
-
-def buildIAS2I() :
-    actionState2Int = {}
-    #want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
-    int_repr = 1;
-
-    #individual states
-    #start the count over for the active nodes
-    int_repr = 1
-    for action in 'k','f','c' :
-        actionState2Int[ action ]  = int_repr
-        int_repr += 1
-
-    #only care about the ratio, bet or raise part implicit in the network
-    for br in BET_RATIOS :
-        actionState2Int[ br ]  = int_repr
-        int_repr += 1
-
-    #when the betting has ended but we have extra node values to fill up
-    #use the DUMMY_ACTION.  If this value is larger than the state-space
-    #specified in toby_net, it will get disregarded in ML computation
-    actionState2Int[ DUMMY_ACTION ] = int_repr
-    int_repr += 1
-
-    return actionState2Int
-
-def debugActionStateMappings() :
-    #print what is what
-    aggActionsMap = buildAAS2I()
-    sorted_astates = sorted( aggActionsMap.keys(), \
-                             key= lambda astate : aggActionsMap[astate] )
-    for sa in sorted_astates :
-        print sa, "\t", aggActionsMap[sa]
-    print "numpast actions:", len(sorted_astates)
-
-    indActionsMap = buildIAS2I()
-    sorted_astates = sorted( indActionsMap.keys(), \
-                             key= lambda astate : indActionsMap[astate] )
-    for sa in sorted_astates :
-        print sa, "\t", indActionsMap[sa]
-    print "num active actions:", len(sorted_astates)
-
-#take entry from table.actions and map it to an in for MATLAB to crunch
-def mapActionState2Int( action_state, switch ) :
-    if switch == 'aggregate' :
-        return pastActionState2Int[ concat( action_state ) ]
-    elif switch == 'individual' :
-        return activeActionState2Int[ concat( action_state ) ]
-    else : assert False
+printing = False
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -149,8 +84,8 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
 
 def log2Nodes( filename, focus_player, focus_position ) :
 
-    aggActionsMap = buildAAS2I()
-    indActionsMap = buildIAS2I()
+    aggActionsMap = idp.buildAAS2I()
+    indActionsMap = idp.buildIAS2I()
 
     print "paring: ", filename
     fin = open(filename)
@@ -365,7 +300,8 @@ def log2Nodes( filename, focus_player, focus_position ) :
                     individual_actions.append(aa)
 
             action_str = ','.join( individual_actions )
-            training_instance.append( aggActionsMap[action_str] )
+            ID = idp.lookupAggActionID( aggActionsMap, action_str, street )
+            training_instance.append( ID )
 
 
             #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
@@ -434,21 +370,21 @@ if __name__ == '__main__' :
     p1s = []
     p2s = []
     ##3601.pts-4.genomequery
-    #p1 = "Rembrant"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Rembrant"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
-    ##3567.pts-4.genomequery
+    ##10866.pts-4.genomequery
     #p1 = "player_kappa_nl"
     #p2 = "SartreNL"
     #p1s.append(p1)
     #p2s.append(p2)
 
-    ##18968.pts-4.genomequery
+    ##12508.pts-4.genomequery
     #p1 = "Hyperborean-2011-2p-nolimit-iro"
     #p2 = "SartreNL"
     #p1s.append(p1)
@@ -467,10 +403,10 @@ if __name__ == '__main__' :
     #p2s.append(p2)
 
     #19148.pts-5.genomequery
-    p1 = "hugh"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "hugh"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     perm = 1
     leave_out_runs = range(90,100)
@@ -555,6 +491,7 @@ def reGroupsToAmount( dollar_group, cent_group ) :
     else : cents = 0
     return dollars+cents
 
+#what is this, deprecated by iterateActionStates?
 #yield a dict {"actions", "buckets", "gameid"}
 def iterateActionStates( filename ) :
     num_games, num_revealed = 0,0

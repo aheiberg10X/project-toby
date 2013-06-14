@@ -1,4 +1,4 @@
-from globles import BET_RATIOS
+from globles import BET_RATIOS, DUMMY_ACTION
 
 def isLegal( action, outstanding ) :
     if outstanding.startswith('r') :
@@ -37,7 +37,11 @@ def isFolded( stack, pix, num_players ) :
 # must be reached
 #if player_ix >= 0, iterate their decision points
 #if player_ix == -1, iterate all terminating betting sequences
-def iterateActionStates( num_players, max_rounds, raises=BET_RATIOS, player_ix=-1 ) :
+def iterateActionStates( num_players, \
+                         max_rounds, \
+                         street=1, \
+                         raises=BET_RATIOS, \
+                         player_ix=-1 ) :
     actions = ['f','k','c']+raises
     final_actions = ['f','k','c'] # to force conclusions
 
@@ -69,7 +73,10 @@ def iterateActionStates( num_players, max_rounds, raises=BET_RATIOS, player_ix=-
     last_to_act = -1
 
     #the action each player must make their response to (no check after raise)
-    outstanding = ['k']*num_virtual
+    if street == 0 :
+        outstanding = ['r']*num_virtual
+    else :
+        outstanding = ['k']*num_virtual
 
     while True :
         try :
@@ -118,6 +125,79 @@ def iterateActionStates( num_players, max_rounds, raises=BET_RATIOS, player_ix=-
                 refill(pix)
                 last_to_act = pix-1
                 pix -= 1
+
+#take the action node values and map them to an integer for MATLAB processing
+#Aggregate ActionState 2 Int
+def buildAAS2I() :
+    actionState2Int = {}
+    num_players, max_rounds = 2,2
+    for ix,s in enumerate( iterateActionStates(num_players, max_rounds ) ) :
+        state = list(s)
+        n_to_append = 2*2 - len(s)
+        for i in range(n_to_append) :
+            state.append(DUMMY_ACTION)
+        actionState2Int[ ','.join(state) ] = ix
+    return actionState2Int
+
+#set of actions for the preflop round is slightly different
+#because it starts with outstanding bet
+#so if we go to lookup and don't find, try mapping the starting 'c' to 
+#a 'k'.
+def lookupAggActionID( actionState2Int, action_str, street ) :
+    if action_str in actionState2Int :
+        return actionState2Int[action_str]
+    else :
+        if street == 0 and action_str.startswith('c') :
+            action_str = 'k' + action_str[1:]
+            if action_str in actionState2Int :
+                return actionState2Int[action_str]
+            else :
+                print "Even after c->k, action_str: ", action_str, "not in map"
+                assert False
+        else :
+            print "Action_str: ", action_str, "not in map"
+            assert False
+
+def buildIAS2I() :
+    actionState2Int = {}
+    #want the states to be 1 indexed, not 0-indexed.  For compat with MATLAB
+    int_repr = 1;
+
+    #individual states
+    #start the count over for the active nodes
+    int_repr = 1
+    for action in 'k','f','c' :
+        actionState2Int[ action ]  = int_repr
+        int_repr += 1
+
+    #only care about the ratio, bet or raise part implicit in the network
+    for br in BET_RATIOS :
+        actionState2Int[ br ]  = int_repr
+        int_repr += 1
+
+    #when the betting has ended but we have extra node values to fill up
+    #use the DUMMY_ACTION.  If this value is larger than the state-space
+    #specified in toby_net, it will get disregarded in ML computation
+    actionState2Int[ DUMMY_ACTION ] = int_repr
+    int_repr += 1
+
+    return actionState2Int
+
+def debugActionStateMappings() :
+    #print what is what
+    aggActionsMap = buildAAS2I()
+    sorted_astates = sorted( aggActionsMap.keys(), \
+                             key= lambda astate : aggActionsMap[astate] )
+    for sa in sorted_astates :
+        print sa, "\t", aggActionsMap[sa]
+    print "numpast actions:", len(sorted_astates)
+
+    indActionsMap = buildIAS2I()
+    sorted_astates = sorted( indActionsMap.keys(), \
+                             key= lambda astate : indActionsMap[astate] )
+    for sa in sorted_astates :
+        print sa, "\t", indActionsMap[sa]
+    print "num active actions:", len(sorted_astates)
 
 
 if __name__=='__main__' :

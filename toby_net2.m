@@ -2,8 +2,32 @@ seed = 42;
 randn('state',seed);
 N = 12;
 
-training = csvread('../../project-toby/nodes/hugh_SartreNL/perm1/training_4-rounds_showdown.csv'); %show_4-round_perm0_train_merged_scaled.csv');
-evidence = training(:,1:N)';
+em = 0
+
+if em == 0
+    training = csvread('../../project-toby/nodes/hugh_SartreNL/perm1/training_4-rounds_showdown.csv'); %show_4-round_perm0_train_merged_scaled.csv');
+    evidence = training(:,1:N)';
+else
+    training_show = csvread('nodes/show_4-round_perm0_train_merged.csv');
+    [show_nex natt] = size(training_show);
+    assert( N+2 == natt );
+
+    show_evidence = cell(N, show_nex);
+    show_evidence = num2cell( training_show(:,1:N)' );
+
+    training_noshow = csvread('nodes/noshow_4-round_perm0_train_merged.csv');
+    [noshow_nex natt] = size(training_noshow);
+    assert( N+2 == natt );
+
+    %turn all non-visible nodes into [] in evidence cell array
+    visible_ixs = [3 6 9 12];
+    noshow_evidence = cell( N, noshow_nex );
+    noshow_evidence( visible_ixs,: ) = num2cell( training_noshow(:,visible_ixs)' );
+    
+    evidence = [show_evidence, noshow_evidence];
+
+    %mix em up?
+end
 
 dag = zeros(N,N);
 
@@ -36,10 +60,10 @@ for i=1:N
        i == 10 || i == 11 
         bnet.CPD{i} = root_CPD(bnet, i);
     else 
-        k = node_sizes(i); 
-        ps = parents(dag, i); 
-        psz = prod(node_sizes(ps)); 
-        CPT = sample_dirichlet(p*ones(1,k), psz);
+%        k = node_sizes(i); 
+%        ps = parents(dag, i); 
+%        psz = prod(node_sizes(ps)); 
+%        CPT = sample_dirichlet(p*ones(1,k), psz);
 
         %if i == 3
         %    node_size = preflop_buckets;
@@ -51,11 +75,20 @@ for i=1:N
         %    node_size = river_buckets;
         %end
         %CPT = reshape( repmat( priors(i,:), node_size^2, 1 ), 1, active_action_state_size*node_size^2 );
-        bnet.CPD{i} = tabular_CPD(bnet, i, 'CPT', CPT);
+        bnet.CPD{i} = tabular_CPD(bnet, i); %, 'CPT', CPT);
     end
 end
 
-
+if em == 0
     bnet_learned = learn_params(bnet, evidence);
+else
+    engine = jtree_inf_engine(bnet);
+    [bnet_learned LL] = learn_params_em( engine, evidence, 20 );
+end
 
+learn_params = 1
 
+for i=[3 6 9 12]
+    s = struct( bnet_learned.CPD{i});
+    csvwrite( sprintf('AK/CPT%d.csv',i), s.CPT )
+end

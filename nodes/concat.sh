@@ -1,6 +1,6 @@
 #!/bin/bash
 
-perm=perm0
+perm=perm1
 
 rm show_4-round_$perm\_train.csv
 rm show_4-round_$perm\_test.csv
