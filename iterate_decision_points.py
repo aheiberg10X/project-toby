@@ -131,12 +131,14 @@ def iterateActionStates( num_players, \
 def buildAAS2I() :
     actionState2Int = {}
     num_players, max_rounds = 2,2
-    for ix,s in enumerate( iterateActionStates(num_players, max_rounds ) ) :
+    int_repr = 1
+    for s in iterateActionStates(num_players, max_rounds ) :
         state = list(s)
         n_to_append = 2*2 - len(s)
         for i in range(n_to_append) :
             state.append(DUMMY_ACTION)
-        actionState2Int[ ','.join(state) ] = ix
+        actionState2Int[ ','.join(state) ] = int_repr
+        int_repr += 1
     return actionState2Int
 
 #set of actions for the preflop round is slightly different

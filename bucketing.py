@@ -1,6 +1,6 @@
 import pokereval
-from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement, completeStemToMakeCboard, canonicalizeCboads, board2cboards
-from itertools import combinations
+from deck import Deck, makeMachine, makeHuman, collapseBoard, getStreet, truncate, canonicalize, listify, symmetricComplement, completeStemToMakeCboard, canonicalizeCboards, board2cboards
+from itertools import combinations, permutations
 import rollout
 import matplotlib.pyplot as plt
 from os import listdir
@@ -655,23 +655,25 @@ def iterateTransitions() :
     #2529 insterting into flop trans
     transitions = {}
     conn = db.Conn("localhost")
-    street = 'turn'
-    len_street = 4
-    for i, board_prime in enumerate( combinations( range(52), len_street ) ):
-        #19148.pts-5.genomequery
-        #if i < 0 or i >= 70000: continue
+    street = 'river'
+    len_street = 5
+    #permutations v combinations is important for transitions because the 
+    #way in which you go from 3 to 4 card board matters
+    for i, board_prime in enumerate( permutations( range(52), len_street ) ):
+        #12508.pts-1.genomequery
+        if i < 0 or i >= 60000000  : continue
 
-        #2529.pts-4.genomequery
-        #if i < 50000 or i >= 100000: continue
+        #10866.pts-1.genomequery
+        #if i < 60000000 or i >= 120000000: continue
 
-        #3567.pts-4.genomequery
-        #if i < 70000 or i >= 140000: continue  #finished
+        #12481.pts-3.genomequery
+        #if i < 120000000 or i >= 180000000: continue  #finished
 
-        #3601.pts-4.genomequery
-        #if i < 140000 or i >= 210000: continue
+        #12526.pts-3.genomequery
+        #if i < 180000000 or i >= 240000000: continue
 
-        #3718.pts-4.genomequery
-        #if i < 210000 : continue
+        #12635.pts-3.genomequery
+        #if i < 240000000 : continue
 
         #print i
         #deprecated
@@ -681,15 +683,16 @@ def iterateTransitions() :
             board = board_prime[:-1]
             cboard = collapseBoard(board)
             cboard_prime = collapseBoard(board_prime)
-        cboards =  "%s|%s" % (cboard, cboard_prime)
+        cboards = "%s|%s" % (cboard, cboard_prime)
 
+
+        #print board_prime
         #better but untested in this context
-        cboard,cboardp = board2cboards( board_prime )
+        cboard,cboardp = board2cboards( board_prime, globles.streetname2Int(street)  )
         cboards = canonicalizeCboards( cboard, cboardp )
 
-        #until tested
-        assert False
-
+        ##until tested
+        #assert False
 
         if cboards not in transitions :
             transitions[cboards] = True
@@ -698,6 +701,7 @@ def iterateTransitions() :
                  (street.upper(),cboards)
             count = conn.queryScalar(q, int)
             if count == 0 :
+                print "missing: ", cboards
                 computeBucketTransitions( conn, cboard, cboard_prime )
             else :
                 print "skipping:", cboards
@@ -707,8 +711,14 @@ def iterateTransitions() :
 
 
 if __name__ == '__main__' :
+    #board = ['As', 'Ac', '3s', 'Jc', '4s']
+    #print canonicalizeCboards( *board2cboards( board, 2 ) )
+    #print makeMachine( board )
+    #assert False
+    
     conn = db.Conn("localhost")
     iterateTransitions()
+    assert False
 
     #testSymmetric()
     #getTransitionProbs_DB( conn, \

@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = False
+printing = True 
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -48,13 +48,14 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
         in_filename = "%s/%d-2p-nolimit.%s.%s.run-%d.perm-%d.log" % \
                        (LOG_DIRECTORY, LOG_YEAR, p1, p2, run, perm)
         count = 0
-        for ((game_id,rounds,showdown),nodes,amt_exchanged) in \
+        for ((game_id,rounds,showdown),nodes,amt_exchanged,board_str) in \
             log2Nodes( in_filename, focus_player, focus_position ) :
             nodes.append( amt_exchanged )
             nodes.append( game_id )
+            nodes.append( board_str )
             nodes = ','.join([str(node) for node in nodes])
 
-            #print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown
+            #print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown, "board_str: ", board_str
             if printing :
                 if run in leave_out_runs :
                     buffers[rounds][showdown]['test'].append( nodes )
@@ -79,8 +80,6 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
             print total_games_in_run
 
     #TODO close handles
-
-#def parseHandLine( 
 
 def log2Nodes( filename, focus_player, focus_position ) :
 
@@ -303,14 +302,20 @@ def log2Nodes( filename, focus_player, focus_position ) :
             ID = idp.lookupAggActionID( aggActionsMap, action_str, street )
             training_instance.append( ID )
 
-
+            board_str = ''.join(card_strings[1:betting_round])
             #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
             #TODO yield both belief-layer nodes and action-layer nodes
             yield [(game_id,betting_round,has_showdown),\
                     list(training_instance), \
-                   amt_exchanged]
+                    amt_exchanged, \
+                    board_str]
     print "n_thrown_out: " , n_thrown_out
     print "amt_thrown_out: ", amt_thrown_out
+
+#def extractBoard( line ) :
+    #card_str = line.strip().split(':')[3]
+    #board_splt = card_str.strip('/').split('/')[1:]
+    #print board_split
 
 #every game has money exchanged
 #the amount (as multiples of big blind) is the second to last column (15)

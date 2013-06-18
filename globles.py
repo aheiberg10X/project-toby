@@ -1,6 +1,7 @@
 LOG_YEAR = 2011
 LOG_DIRECTORY = "histories/acpc/%d/logs/2p_nolimit" % LOG_YEAR
-TRAIN_FILENAME = "nodes/show_4-round_perm0_train_merged.csv"
+TRAIN_FILENAME = "nodes/show_4-round_perm1_train.csv"
+TEST_FILENAME = "nodes/show_4-round-perm1_test.csv"
 
 #old
 #BET_RATIOS = [0,.2,.3,.4,.5,.75,1,3]

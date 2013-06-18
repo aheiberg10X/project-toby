@@ -46,6 +46,15 @@ def returnMasker( focus_nodes, ignore_set ) :
 
     
 if __name__ == '__main__' :
+    type_freqs =  computeTypeFrequencies( [2] )
+    svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
+    s = 0
+    for v in svalues :
+        s += type_freqs[v]
+        print v, "\t" , type_freqs[v]
+    print "sum", s
+    assert False
+
     given_cols = []
     given_conditions = ['']
     priors = []
@@ -78,6 +87,4 @@ if __name__ == '__main__' :
 
     print '['+';'.join(priors)+']'
     
-    #svalues = sorted( type_freqs.keys(), key=lambda k : type_freqs[k] )
-    #for v in svalues :
-        #print v, "\t" , type_freqs[v]
+    
