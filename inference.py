@@ -11,6 +11,10 @@ import iterate_decision_points as idp
 
 conn = db.Conn('localhost')
 
+############################################################################
+####             Loading and Lookups
+############################################################################
+
 def nCr(n, r):
     r = min(r, n-r)
     if r == 0: return 1
@@ -18,21 +22,29 @@ def nCr(n, r):
     denom = reduce(operator.mul, xrange(1, r+1))
     return numer//denom
 
-
 def loadPA() :#load lookup information...
     PA = []
     visible_nodes = [3,6,9,12]
     for node in visible_nodes :
-        PA.append( se.computeTypeFrequencies( [node-1] ) )
+        fin = open( 'AK/PA%d.csv' % node )
+        probs = [float(t) for t in fin.read().strip().split(',')]
+        PA.append( probs )
+        fin.close()
+
+        #deprecated
+        #PA.append( se.computeTypeFrequencies( [node-1] ) )
     return PA
 
 #action_int is 1-indexed
+#see lookupPAK for why -2 instead of -1.  Needs a remedy'in'
 def lookupPA( PA, street, action_int ) :
-    action_str = str(action_int-1)
-    if action_str in PA[street] :
-        return PA[street][action_str]
-    else :
-        return 0
+    return PA[street][action_int-2]
+
+    #action_str = str(action_int-1)
+    #if action_str in PA[street] :
+        #return PA[street][action_str]
+    #else :
+        #return 0
 
 def loadPAK() :
     #not layed out in file in a way conduscive to fast or intuitive lookup
@@ -195,80 +207,16 @@ def lookupTransitionProbs( final_street, final_board ) :
         trans_lookup[lookup_name] = dist
     return trans_lookup
 
-#return float(dist.split(';')[k].split(',')[kp])
 
-#(1)
-#compute P( k_i=k_i* | board, Actions )
-#sum_{k_1...k{i-1}} PROD_j=0^i P(k_j|k_{j-1},b_j,A_j)
-#                              product_terms                 
-#i is the street number
-#evidence is [board,['a11,a12,a13,a14',...,'ai1,ai2,ai3,ai4'] ]
-#DEPRECATED FOR particle filter version: pf_P_ki_G_evdnc
-def probKi( player_ix, street, evidence ) :
+############################################################################
+####   Inference
+############################################################################
 
-    #generate all the possible bucket assignments for the past streets
-    #ie the cartesian product of [1,2,...10] x [1,2,...15] x etc
-    l = [range(globles.NBUCKETS[past_street]) for past_street in range(street)]
-    all_bucket_assignments = cartProduct( *l )
-
-    #keep track of the last bucket seen for a particular street
-    n_past_streets = street
-    bucket_assignment = [-1]*n_past_streets
-
-    n_bucket_values = globles.NBUCKETS[street]
-    zs = [0]*n_bucket_values
-    for bucket_value in range(n_bucket_values) :
-        product_terms = [-1]*(street+1)
-        for new_bucket_assignment in all_bucket_assignments :
-            for past_street in range(n_past_streets) :
-                if new_bucket_assignment[past_street] == \
-                   bucket_assignment[past_street] :
-                    #use the old product_term value
-                    pass
-                else : #recompute
-                    #update
-                    bucket_assignment[past_street] = \
-                            new_bucket_assignment[past_street]
-
-                    #handle when there is no previous street
-                    if past_street == 0 :
-                        prev_street_bucket_value = False
-                    else :
-                        prev_street_bucket_value = \
-                                bucket_assignment[past_street-1]
-
-                    product_terms[past_street] = computeProductTerm( \
-                                         player_ix, \
-                                         past_street, \
-                                         new_bucket_assignment[past_street], \
-                                         prev_street_bucket_value, \
-                                         evidence )
-
-            if street == 0 :
-                prev_street_bucket_value = False
-            else :
-                prev_street_bucket_value = bucket_assignment[street-1]
-
-            product_terms[street] = computeProductTerm( \
-                                                   player_ix, \
-                                                   street, \
-                                                   bucket_value, \
-                                                   prev_street_bucket_value, \
-                                                   evidence)
-
-            product = reduce( operator.mul, product_terms, 1 )
-            zs[bucket_value] += product
-        #end bucket assignment iteration
-    #end bucket_values interation
-    Z = sum(zs)
-    return [z/Z for z in zs]
-
-
-#estimate P(k_{final_street}=? | [board,actions] )
-
+#helper class to wrap sequences of belief bucket tuples
+#an assignment is [(k10,k20),..,(k1i,k2i)]
 class BktAssmnt :
-    def __init__(self) :
-        self.buckets = []
+    def __init__(self, default=[] ) :
+        self.buckets = default
 
     def extend(self, bucket_tuple ) :
         self.buckets.append( bucket_tuple )
@@ -294,14 +242,19 @@ class BktAssmnt :
     def __len__(self) :
         return len(self.buckets)
 
-#for now, return the full {assignment : prob} dict
-#later, will probalbly just need {final_assmnt : prob }
+#Find the most likely belief bucket sequences for the given evidence
+#Use M particles
 def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
+    assert final_street != 0
 
     #the m BktAssmnts we filter after each street
-    particles = [BktAssmnt()]
+    dummy_preflop_assignment = (-1,-1)
+    particles = [BktAssmnt( [dummy_preflop_assignment] )]
     assignment_probs = {}
-    for street in range(final_street+1) :
+
+    #starting with preflop was counterproductive.
+    #actions here are very uninformative (esp in heads-up)
+    for street in range(1,final_street+1) :
         #form an extended set of assignments, built on existing particles
         #will compute prob for each assignment, and take the m highest prob
         #as our new particles
@@ -316,6 +269,11 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
         ##compute prob of each assignmnt
         assignment_probs = {}
         for count,assmnt in enumerate( assignments ) :
+            #there is room for speedup here
+            #we are re-computing each assignment each time
+            #stupid because each assignment is a product of terms
+            #if we store the previous terms we can simply multiple the 
+            #new term to it
             p = P_assmnt_G_evdnc( assmnt, evidence, lookups )
             assignment_probs[ str(assmnt) ] = p
 
@@ -379,21 +337,20 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
     pass
 
 #compute P( [ki=ai,...,k0=a0] | [board,actions] )
-#an assignment is [(k10,k20),..,(k1i,k2i)]
-
 def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
     n_streets = len(assignment)
     assert n_streets >= 1
-    
+
     Ptrans = lookups[2]
 
     product = 1
-    for i in range(n_streets) :
+    for i in range(1,n_streets) :
+        #print "i: " , i
+        #print "assignment: ", str(assignment)
         if i == 0 :
             p = P_ki_G_kimo_evdnc( street = i, \
                                    ki = assignment.get(i), \
                                    action_int = actions[i], \
-                                   #evidence = evidence, \
                                    lookups = lookups )
             #print "prob for street:", i, p
         else :
@@ -405,7 +362,6 @@ def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
                                    kimo = assignment.get(i-1), \
                                    cluster_id = cluster_id, \
                                    action_int = actions[i], \
-                                   #evidence = evidence, \
                                    lookups = lookups )
             #print "prob for street:", i, p
 
@@ -420,8 +376,6 @@ def P_ki_G_kimo_evdnc( street = -1, \
                        kimo = [-1,-1], \
                        cluster_id = -1, \
                        action_int = -1, \
-                       #evidence = [ '{ street : cboards}', \
-                                    #['agg_action_int','...' ] ], \
                        lookups = ['PA','PAK','Ptrans'], \
                        return_Z = False ) :
 
@@ -430,6 +384,7 @@ def P_ki_G_kimo_evdnc( street = -1, \
 
     if street == 0 :
         #P(k|A) = P(A|k)*P(k) / P(A)
+
         P_A_g_k = lookupPAK( PAK, street, ki[0], ki[1], action_int )
         #print "P(A|K): ", P_A_g_k
 
@@ -445,18 +400,27 @@ def P_ki_G_kimo_evdnc( street = -1, \
         #print "k_given_A", k_given_A
         return k_given_A
     else :
-
-        # = ((BT1 * BT2 * K1 * K2 * B * AK) / Z
-        #num and denom in (3)
-        numerator = 0
-        Z = 0
+        joint = lookupPtrans( Ptrans, street, cluster_id )
 
         #each players bucket in the previous round
         kimo_p1 = kimo[0]
         kimo_p2 = kimo[1]
         #print "kimo_p1, kimo_p2: ", kimo_p1, kimo_p2
 
-        #K1,K2
+
+        if action_int == -1 :
+            #dont know the action
+            #just need to compute P(ki|kimo,bi)
+            BT1 = joint[kimo_p1][ki[0]]
+            BT2 = joint[kimo_p2][ki[1]]
+            return BT1*BT2
+
+        # = ((BT1 * BT2 * K1 * K2 * B * AK) / Z
+        #num and denom in (3)
+        numerator = 0
+        Z = 0
+
+                #K1,K2
         PKIMO1 = lookupPk(street-1,kimo_p1)
         PKIMO2 = lookupPk(street-1,kimo_p2)
         #print "PKIMO1,2: " , PKIMO1, PKIMO2
@@ -465,8 +429,6 @@ def P_ki_G_kimo_evdnc( street = -1, \
         B = lookupPb(street)
         #print "P board: ", B
 
-        joint = lookupPtrans( Ptrans, street, cluster_id )
-        #joint = lookupPtrans( Ptrans, street, cboards )
 
         #all possible bucket assignments for the current street
         #used to compute the partition Z
@@ -476,46 +438,50 @@ def P_ki_G_kimo_evdnc( street = -1, \
         terms = {}
         for (ki_p1,ki_p2) in all_ki_pairs :
 
-            #print ""
+            #ki_p1,ki_p2 = ki
             #print "\nki_p1,ki_p2", ki_p1, ki_p2
 
             ##BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
-            PK1 = lookupPk(street, ki_p1) #joint[kimo_p1][ki_p1] # #
-            PK2 = lookupPk(street, ki_p2) #joint[kimo_p2][ki_p2]
-            print "PK1,PK2: " , PK1, PK2
+            #PK1 = lookupPk(street, ki_p1) #joint[kimo_p1][ki_p1] # #
+            #PK2 = lookupPk(street, ki_p2) #joint[kimo_p2][ki_p2]
 
             BT1 = joint[kimo_p1][ki_p1] # #
             BT2 = joint[kimo_p2][ki_p2]
 
-            #print "    "
-            #print "street: ", street
-            #print "cluste_id: " , cluster_id
-            #print "    kimo_p1, ki_p1", kimo_p1, ki_p1
-            #print "    BT1,BT2: ", BT1,BT2
-            #print "    PK1,PK2: ", PK1, PK2
-
             AK = lookupPAK( PAK, street, ki_p1, ki_p2, action_int )
-            #print "    AK: ", AK
+            #AK = pow(AK,2)
+            
+            #print "    "
+            #if street == 1 and (ki_p1 == 5 and ki_p2 == 9) or (ki_p1 == 0 and ki_p2 == 2) :
+                #print "street: ", street
+                #print "cluste_id: " , cluster_id
+                #print "    ki_p1, ki_p2", ki_p1, ki_p2
+                #print "    kimo_p1, kimo_p2", kimo_p1, kimo_p2
+                #print "    BT1,BT2: ", BT1,BT2
+                #print "    AK: ", AK
 
-            #term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
-            term = (PK1) * (PK2) * AK
+            if street == 1 :
+                term = AK
+            else:
+                term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
 
             #print  "    prob:", term
             #print "    log prob: ", log(term)
             terms["%d,%d" % (ki_p1,ki_p2)] = term
 
-            ##if this assignment is same as the one passed in
-            if ki == (ki_p1,ki_p2) :
-                #print" =============== TARGET --------------"
-                #print "BT1,BT2: ", BT1,BT2
-                #print "AK: ", AK
-                #print "prob: ", term
+            ###if this assignment is same as the one passed in
+            if (ki_p1,ki_p2) == ki :
+                ##print" =============== TARGET --------------"
+                ##print "BT1,BT2: ", BT1,BT2
+                ##print "AK: ", AK
+                ##print "prob: ", term
                 numerator = term
 
             Z += term
 
-        #for pair in terms :
-            #print pair, " : ", terms[pair] / Z
+        #for all_ki_pairs
+
+        #return term
 
         #print "Z: ", Z
         if return_Z : return Z
@@ -609,11 +575,13 @@ if __name__ == '__main__' :
     #board = ['As', 'Ac', '3s', 'Jc', '4s']
 
     board = ['9h','3h','6h','5c','8d']
+
     actions = [441,5,187,315]
+    #actions = [441,5,187,-1]
 
     evidence = setupEvidence(board,actions)
     lookups = setupLookups()
-
+    PA = lookups[0]
 
     #prob = P_ki_G_kimo_evdnc( street=1, \
                               #ki = (1,1), \
@@ -621,17 +589,17 @@ if __name__ == '__main__' :
                               #evidence = evidence, \
                               #lookups = lookups )
 
-    precomputeDenominators( lookups )
+    #precomputeDenominators( lookups )
 
     #print prob
     
-    #assignment = BktAssmnt()
-    #assignment.extend((2,2))
-    #assignment.extend((5,9))
-    #assignment.extend((9,7))
+    assignment = BktAssmnt()
+    assignment.extend((2,2))
+    assignment.extend((5,9))
+    assignment.extend((9,7))
     #assignment.extend((1,1))
     #assignment.extend((0,2))
     #prob = P_assmnt_G_evdnc( assignment, evidence, lookups )
     #print "assmnt_G_evdnc: ", prob
     
-    #pf_P_ki_G_evdnc(3, evidence, lookups, m=50 )
+    pf_P_ki_G_evdnc(3, evidence, lookups, m=50 )

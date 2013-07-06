@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = False 
+printing = True
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -55,8 +55,7 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
             nodes.append( board_str )
             nodes = ','.join([str(node) for node in nodes])
 
-            print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown, "board_str: ", board_str
-            if game_id == 966 : assert False
+            #print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown, "board_str: ", board_str
             if printing :
                 if run in leave_out_runs :
                     buffers[rounds][showdown]['test'].append( nodes )
@@ -377,12 +376,12 @@ if __name__ == '__main__' :
     
     p1s = []
     p2s = []
-    p1 = "hugh"
-    p2 = "Rembrant"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "hugh"
+    #p2 = "Rembrant"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    ##3601.pts-4.genomequery
+    ##10436.pts-0.genomequery
     #p1 = "Rembrant"
     #p2 = "SartreNL"
     #p1s.append(p1)
@@ -391,42 +390,39 @@ if __name__ == '__main__' :
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
-    ##10866.pts-4.genomequery
+    #10556.pts-0.genomequery
     #p1 = "player_kappa_nl"
     #p2 = "SartreNL"
     #p1s.append(p1)
     #p2s.append(p2)
 
-    ##12508.pts-4.genomequery
-    #p1 = "Hyperborean-2011-2p-nolimit-iro"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    #10847.pts-0.genomequery
+    p1 = "Hyperborean-2011-2p-nolimit-iro"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    ##3718.pts-4.genomequery
-    #p1 = "Hyperborean-2011-2p-nolimit-tbr"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Hyperborean-2011-2p-nolimit-tbr"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    ##2529.pts-4.genomequery
-    #p1 = "Lucky7"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Lucky7"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #19148.pts-5.genomequery
-    #p1 = "hugh"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "hugh"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     perm = 1
     leave_out_runs = range(90,100)
     for p1,p2 in zip(p1s,p2s) :
         logs2Nodes( p1, p2, perm, leave_out_runs, \
-                    focus_player="hugh", focus_position = "button" )
-                    #focus_player="SartreNL", focus_position = "first" )
+                    #focus_player="hugh", focus_position = "button" )
+                    focus_player="SartreNL", focus_position = "first" )
 
 
 
