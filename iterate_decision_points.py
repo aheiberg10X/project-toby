@@ -203,21 +203,26 @@ def debugActionStateMappings() :
 
 
 if __name__=='__main__' :
-    count = 0
-    p1_action_pairs = set([])
-    p2_action_pairs = set([])
+    aas2i = buildAAS2I()
+    sorted_keys = sorted( aas2i.keys(), key=lambda x : aas2i[x] )
+    for key in sorted_keys :
+        print key, aas2i[key]
 
-    for point in iterateActionStates( 2, 2, player_ix=-1 ) :
-        count += 1
-        full_state = list(point)
-        for i in range( 4 - len(point) ) :
-            full_state.append('d')
-
-        print full_state
-        p1_action_pairs.add( "%s,%s" % (full_state[0],full_state[2]) )
-        p2_action_pairs.add( "%s,%s" % (full_state[1],full_state[3]) )
-
-    print "count", count
-    print len(p1_action_pairs)
-    print len(p2_action_pairs)
+    #count = 0
+    #p1_action_pairs = set([])
+    #p2_action_pairs = set([])
+#
+    #for point in iterateActionStates( 2, 2, player_ix=-1 ) :
+        #count += 1
+        #full_state = list(point)
+        #for i in range( 4 - len(point) ) :
+            #full_state.append('d')
+#
+        #print count, full_state
+        #p1_action_pairs.add( "%s,%s" % (full_state[0],full_state[2]) )
+        #p2_action_pairs.add( "%s,%s" % (full_state[1],full_state[3]) )
+#
+    #print "count", count
+    #print len(p1_action_pairs)
+    #print len(p2_action_pairs)
 

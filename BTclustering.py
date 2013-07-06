@@ -239,30 +239,33 @@ def clusterJoints( conn, street, streetp ) :
 
     #end while len(remaining_unexaminde) > 0
 
-    #if there are any clusters with < CLUSTER_SIZE_THRESH members
-    #assign them to the closest cluster (assuming they are not too wildly far
-    #off??)
-    print "===================================="
-    CLUSTER_SIZE_THRESH = 2
-    print "trying to find merge for very small clusters (<%d elems)" % CLUSTER_SIZE_THRESH
-    for pinned_id in clusters :
-        cluster_too_small = len(clusters[pinned_id]) < CLUSTER_SIZE_THRESH
-        if cluster_too_small :
-            (global_ids, dists) = distanceToClusters( pinned_id )
-            #find closest existing cluster
-            min_dist = 9999
-            closest_cluster_id = -42.42
-            for ID,dist in zip(global_ids,dists) :
-                if dist < min_dist :
-                    min_dist = dist
-                    closest_cluster_id = ID
-            if min_dist < thresh :
-                print "yay, lonely id:", pinned_id, " can haz family: ", closest_cluster_id
-                clusters[closest_cluster_id].extend( clusters[pinned_id] )
-                del clusters[pinned_id]
-                updateClusterCDF( closest_cluster_id )
-            else :
-                print pinned_id, " next closest cluster is:", min_dist, "away"
+    ##if there are any clusters with < CLUSTER_SIZE_THRESH members
+    ##assign them to the closest cluster (assuming they are not too wildly far
+    ##off??)
+    #print "===================================="
+    #CLUSTER_SIZE_THRESH = 2
+    #print "trying to find merge for very small clusters (<%d elems)" % CLUSTER_SIZE_THRESH
+    #for pinned_id in clusters :
+        #cluster_too_small = len(clusters[pinned_id]) < CLUSTER_SIZE_THRESH
+        #if cluster_too_small :
+            #(global_ids, dists) = distanceToClusters( pinned_id )
+            ##find closest existing cluster
+            #min_dist = 9999
+            #closest_cluster_id = -42.42
+            #for ID,dist in zip(global_ids,dists) :
+                #if dist < min_dist :
+                    #min_dist = dist
+                    #closest_cluster_id = ID
+            #if min_dist < thresh :
+                #print "yay, lonely id:", pinned_id, " can haz family: ", closest_cluster_id
+                #clusters[closest_cluster_id].extend( clusters[pinned_id] )
+                #assert(False)
+                ##this deletion changes the dictionary size during iteration
+                ##throws error
+                #del clusters[pinned_id]
+                #updateClusterCDF( closest_cluster_id )
+            #else :
+                #print pinned_id, " next closest cluster is:", min_dist, "away"
 
     #insert computed groups into the DB
     db_cluster_id = 1
@@ -447,7 +450,7 @@ if __name__ == '__main__' :
     #print distBetween( conn, "569_h_r|5569_p_r", "24A_h_r|224A_p_r", "flop","turn" )
     #print distBetween( conn, "569_h_r|5569_p_r", "678_s_r|6789_s_2fooxx", "flop","turn" )
     #print distBetween( conn, "569_h_r|5569_p_r", "8JQ_h_r|88JQ_p_r", "flop","turn" )
-    #clusterJoints( conn, "flop", "turn" )
+    clusterJoints( conn, "turn", "river" )
     #clusterConditionals(conn,"turn")
 
     #print avgDistanceToCentroid( conn, "river", 226 )

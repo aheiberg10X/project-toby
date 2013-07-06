@@ -711,13 +711,13 @@ def iterateTransitions() :
 
 
 if __name__ == '__main__' :
-    #board = ['As', 'Ac', '3s', 'Jc', '4s']
-    #print canonicalizeCboards( *board2cboards( board, 2 ) )
-    #print makeMachine( board )
+    board = ['9h','3h','6h','5c'] #'As', 'Ac', '3s', 'Jc', '4s']
+    print canonicalizeCboards( *board2cboards( board, 2 ) )
+    print makeMachine( board )
     #assert False
     
-    conn = db.Conn("localhost")
-    iterateTransitions()
+    #conn = db.Conn("localhost")
+    #iterateTransitions()
     assert False
 
     #testSymmetric()

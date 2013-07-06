@@ -6,16 +6,16 @@ em = 0
 
 if em == 0
     training = csvread('../../project-toby/nodes/hugh_SartreNL/perm1/training_4-rounds_showdown.csv'); %show_4-round_perm0_train_merged_scaled.csv');
-    evidence = training(:,1:N)';
+    #evidence = training(:,1:N)';
 else
-    training_show = csvread('nodes/show_4-round_perm0_train_merged.csv');
+    training_show = csvread('nodes/show_4-round_perm0_train.csv');
     [show_nex natt] = size(training_show);
     assert( N+2 == natt );
 
     show_evidence = cell(N, show_nex);
     show_evidence = num2cell( training_show(:,1:N)' );
 
-    training_noshow = csvread('nodes/noshow_4-round_perm0_train_merged.csv');
+    training_noshow = csvread('nodes/noshow_4-round_perm0_train.csv');
     [noshow_nex natt] = size(training_noshow);
     assert( N+2 == natt );
 

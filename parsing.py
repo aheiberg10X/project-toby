@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = True 
+printing = False 
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -55,7 +55,8 @@ def logs2Nodes( p1, p2,  perm, leave_out_runs, \
             nodes.append( board_str )
             nodes = ','.join([str(node) for node in nodes])
 
-            #print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown, "board_str: ", board_str
+            print "game_id:", game_id, ":", nodes, "goto: " , rounds, showdown, "board_str: ", board_str
+            if game_id == 966 : assert False
             if printing :
                 if run in leave_out_runs :
                     buffers[rounds][showdown]['test'].append( nodes )
@@ -235,6 +236,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
         #all done iterating through the action/card lists
         tbl.advanceStreet(False)
 
+        #print tbl.active_actions
 
         n_betting_rounds = min( [len(action_strings), allin_round+1] )
         has_showdown = 'f' not in action_strings[n_betting_rounds-1]
@@ -300,6 +302,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
 
             action_str = ','.join( individual_actions )
             ID = idp.lookupAggActionID( aggActionsMap, action_str, street )
+            #print ID, action_str
             training_instance.append( ID )
 
             board_str = ''.join(card_strings[1:betting_round])
@@ -374,11 +377,16 @@ if __name__ == '__main__' :
     
     p1s = []
     p2s = []
-    ##3601.pts-4.genomequery
-    p1 = "Rembrant"
-    p2 = "SartreNL"
+    p1 = "hugh"
+    p2 = "Rembrant"
     p1s.append(p1)
     p2s.append(p2)
+
+    ##3601.pts-4.genomequery
+    #p1 = "Rembrant"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
@@ -417,7 +425,8 @@ if __name__ == '__main__' :
     leave_out_runs = range(90,100)
     for p1,p2 in zip(p1s,p2s) :
         logs2Nodes( p1, p2, perm, leave_out_runs, \
-                    focus_player="SartreNL", focus_position = "first" )
+                    focus_player="hugh", focus_position = "button" )
+                    #focus_player="SartreNL", focus_position = "first" )
 
 
 

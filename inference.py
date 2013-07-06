@@ -1,8 +1,8 @@
 from itertools import product as cartProduct
 import operator
-from math import factorial
+from math import factorial, log
 
-import selective_eval
+import selective_eval as se
 import globles
 import db
 import deck
@@ -23,12 +23,16 @@ def loadPA() :#load lookup information...
     PA = []
     visible_nodes = [3,6,9,12]
     for node in visible_nodes :
-        PA.append( selective_eval.computeTypeFrequencies( [node-1] ) )
+        PA.append( se.computeTypeFrequencies( [node-1] ) )
     return PA
 
 #action_int is 1-indexed
 def lookupPA( PA, street, action_int ) :
-    return PA[street][str(action_int-1)]
+    action_str = str(action_int-1)
+    if action_str in PA[street] :
+        return PA[street][action_str]
+    else :
+        return 0
 
 def loadPAK() :
     #not layed out in file in a way conduscive to fast or intuitive lookup
@@ -73,6 +77,13 @@ def loadPAK() :
                     offset = act*nbuckets
                     prob = interim[street][k1][offset+k2]
                     k2_probs.append( prob )
+                    #print "given k1,k2: ", k2_probs
+
+                #print "1 or 0, right?: ", sum(k2_probs)
+                #if( sum(k2_probs) < .99 ) :
+                    #print k1,k2
+                    #print k2_probs
+                    #assert False
                 k1_probs.append( k2_probs )
 
             PAK[street].append(k1_probs)
@@ -138,18 +149,20 @@ def loadPtrans() :
                from %s """ % joint_table_name
         rows = conn.query(q)
         for (cluster_id,joint_str) in rows :
-            joint_map[cluster_id] = clust.parseTable(joint_str)
+            #joint_map[cluster_id] = clust.parseTable(joint_str)
+            joint_map[cluster_id] = clust.normalize( clust.parseTable(joint_str) )
 
         Ptrans[street_name] = ( (cluster_map, joint_map) )
     return Ptrans
 
-def lookupPtrans( Ptrans, street, cboards ) :
+def lookupPtrans( Ptrans, street, cluster_id ) :
     street_name = globles.int2streetname( street )
-    cluster_id = Ptrans[street_name][0][cboards]
+    #cluster_id = Ptrans[street_name][0][cboards]
     joint = Ptrans[street_name][1][cluster_id]
     return joint
 
 #will want to replace this with accessing cached clustered version
+#deprecated in favor of lookupPtrans
 def lookupTransitionProbs( final_street, final_board ) :
     if final_street == 0 :
         print "preflop, no transitions to return"
@@ -303,7 +316,6 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
         ##compute prob of each assignmnt
         assignment_probs = {}
         for count,assmnt in enumerate( assignments ) :
-            #print count
             p = P_assmnt_G_evdnc( assmnt, evidence, lookups )
             assignment_probs[ str(assmnt) ] = p
 
@@ -313,7 +325,8 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
                                    key = lambda k: assignment_probs[str(k)], \
                                    reverse = True )
             particles = []
-            for i in range(m) :
+            mm = min( m, len(sassignments) )
+            for i in range(mm) :
                 assmnt = sassignments[i]
                 p = assignment_probs[str(assmnt)]
                 print "Assignment: ", str(assmnt), " has prob: ", p
@@ -337,30 +350,30 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
         else :
             final_assmnt_probs[final_assmnt] = p
 
-    print Z
-    assert Z > .85  #want to be looking at atleast so much mass
+    print "final particles are: ", Z, " percent of the total mass"
+    #assert Z > .85  #want to be looking at atleast so much mass
 
     #normalize
     for assmnt in assignment_probs :
         assignment_probs[assmnt] = assignment_probs[assmnt] / Z
 
-    sassignments = sorted( assignments, \
-                           key = lambda k: assignment_probs[str(k)], \
-                           reverse = True )
+    #sassignments = sorted( assignments, \
+                           #key = lambda k: assignment_probs[str(k)], \
+                           #reverse = True )
 
-    for ass in sassignments :
-        print "ass: ", ass, "prob: ", assignment_probs[str(ass)]
+    #for ass in sassignments :
+        #print "ass: ", ass, "prob: ", assignment_probs[str(ass)]
 
     #sort, normalize, and return
-    #sfinal = sorted( final_assmnt_probs.keys(), \
-                     #key = lambda k: final_assmnt_probs[k], \
-                     #reverse = True )
-    #for f in sfinal :
-        #print "final assmnt: ", f, " prob: ", final_assmnt_probs[f]
+    sfinal = sorted( final_assmnt_probs.keys(), \
+                     key = lambda k: final_assmnt_probs[k], \
+                     reverse = True )
+    for f in sfinal :
+        print "final assmnt: ", f, " prob: ", final_assmnt_probs[f] / Z
 
 
 
-#2 - sum up all probs where k = some value
+    #2 - sum up all probs where k = some value  i
     #3 - normalize
 
     pass
@@ -371,39 +384,53 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
 def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
     n_streets = len(assignment)
     assert n_streets >= 1
+    
+    Ptrans = lookups[2]
+
     product = 1
     for i in range(n_streets) :
         if i == 0 :
             p = P_ki_G_kimo_evdnc( street = i, \
                                    ki = assignment.get(i), \
-                                   evidence = evidence, \
+                                   action_int = actions[i], \
+                                   #evidence = evidence, \
                                    lookups = lookups )
+            #print "prob for street:", i, p
         else :
+            street_name = globles.int2streetname(i)
+            cboards = evidence[0][i]
+            cluster_id = Ptrans[street_name][0][cboards]
             p = P_ki_G_kimo_evdnc( street = i, \
                                    ki = assignment.get(i), \
                                    kimo = assignment.get(i-1), \
-                                   evidence = evidence, \
+                                   cluster_id = cluster_id, \
+                                   action_int = actions[i], \
+                                   #evidence = evidence, \
                                    lookups = lookups )
+            #print "prob for street:", i, p
 
         product *= p
     return product
 
 #(3)
 #P( ki | k_{i-1}, [board, actions] ) 
-def P_ki_G_kimo_evdnc( street = 42, \
-                       ki = [42,42], \
-                       kimo = [42,42], \
-                       evidence = [ '{ street : cboards}',\
-                                    ['agg_action','etc'] ], \
-                       lookups = ['PA','PAK','Ptrans'] ) :
+#cluster_id is the cluster the board -> cboard got assigned to
+def P_ki_G_kimo_evdnc( street = -1, \
+                       ki = [-1,-1], \
+                       kimo = [-1,-1], \
+                       cluster_id = -1, \
+                       action_int = -1, \
+                       #evidence = [ '{ street : cboards}', \
+                                    #['agg_action_int','...' ] ], \
+                       lookups = ['PA','PAK','Ptrans'], \
+                       return_Z = False ) :
 
     #unpack
-    cboards, actions = evidence[0][street], evidence[1]
     PA,PAK,Ptrans = [lookups[i] for i in range(3)]
 
     if street == 0 :
-        #P(k1|A1) = P(A1|k1)*P(k1) / P(A1)
-        P_A_g_k = lookupPAK( PAK, street, ki[0], ki[1], actions[street] )
+        #P(k|A) = P(A|k)*P(k) / P(A)
+        P_A_g_k = lookupPAK( PAK, street, ki[0], ki[1], action_int )
         #print "P(A|K): ", P_A_g_k
 
         Pk1 = lookupPk( street, ki[0] )
@@ -411,7 +438,7 @@ def P_ki_G_kimo_evdnc( street = 42, \
         Pk = Pk1*Pk2
         #print "P(k): ", Pk
 
-        P_A = lookupPA( PA, street, actions[street] )
+        P_A = lookupPA( PA, street, action_int )
         #print "P(A) : ", P_A
 
         k_given_A = P_A_g_k * Pk / P_A
@@ -432,10 +459,14 @@ def P_ki_G_kimo_evdnc( street = 42, \
         #K1,K2
         PKIMO1 = lookupPk(street-1,kimo_p1)
         PKIMO2 = lookupPk(street-1,kimo_p2)
+        #print "PKIMO1,2: " , PKIMO1, PKIMO2
 
         #B = P( B=board ) 
         B = lookupPb(street)
-        joint = lookupPtrans( Ptrans, street, cboards )
+        #print "P board: ", B
+
+        joint = lookupPtrans( Ptrans, street, cluster_id )
+        #joint = lookupPtrans( Ptrans, street, cboards )
 
         #all possible bucket assignments for the current street
         #used to compute the partition Z
@@ -446,22 +477,39 @@ def P_ki_G_kimo_evdnc( street = 42, \
         for (ki_p1,ki_p2) in all_ki_pairs :
 
             #print ""
-            #print "ki_p1,ki_p2", ki_p1, ki_p2
+            #print "\nki_p1,ki_p2", ki_p1, ki_p2
 
-            #BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
-            BT1 = joint[kimo_p1][ki_p1]
+            ##BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
+            PK1 = lookupPk(street, ki_p1) #joint[kimo_p1][ki_p1] # #
+            PK2 = lookupPk(street, ki_p2) #joint[kimo_p2][ki_p2]
+            print "PK1,PK2: " , PK1, PK2
+
+            BT1 = joint[kimo_p1][ki_p1] # #
             BT2 = joint[kimo_p2][ki_p2]
-            #print "BT1,BT2: ", BT1,BT2
 
-            action_int = actions[street]
+            #print "    "
+            #print "street: ", street
+            #print "cluste_id: " , cluster_id
+            #print "    kimo_p1, ki_p1", kimo_p1, ki_p1
+            #print "    BT1,BT2: ", BT1,BT2
+            #print "    PK1,PK2: ", PK1, PK2
+
             AK = lookupPAK( PAK, street, ki_p1, ki_p2, action_int )
-            #print "AK: ", AK
+            #print "    AK: ", AK
 
-            term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
+            #term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
+            term = (PK1) * (PK2) * AK
+
+            #print  "    prob:", term
+            #print "    log prob: ", log(term)
             terms["%d,%d" % (ki_p1,ki_p2)] = term
 
             ##if this assignment is same as the one passed in
             if ki == (ki_p1,ki_p2) :
+                #print" =============== TARGET --------------"
+                #print "BT1,BT2: ", BT1,BT2
+                #print "AK: ", AK
+                #print "prob: ", term
                 numerator = term
 
             Z += term
@@ -470,8 +518,55 @@ def P_ki_G_kimo_evdnc( street = 42, \
             #print pair, " : ", terms[pair] / Z
 
         #print "Z: ", Z
+        if return_Z : return Z
         #print "num/Z: ", numerator/Z
         return numerator/Z
+        #return Z
+
+def precomputeDenominators( lookups ) :
+    street = 3
+    kimo_buckets = range(globles.NBUCKETS[street-1])
+    all_kimo_pairs = cartProduct(kimo_buckets, kimo_buckets)
+
+    PA,PAK,Ptrans = [lookups[i] for i in range(3)]
+
+
+    count = 0
+    for kimo_pair in all_kimo_pairs :
+        count += 1
+        if count < 100 :
+            continue
+        #TODO automate cluster size depending on street w/ query
+        for cluster in range( 1,173 ) : #nclusters[street] ) :
+            #TODO automate
+            nacts = 1315
+            for action in range( 1,nacts+1) :
+
+                p = P_ki_G_kimo_evdnc( street = street, \
+                                   ki = [42,42], \
+                                   kimo = kimo_pair, \
+                                   action_int = action, \
+                                   cluster_id = cluster, \
+                                   #evidence = [ '{ street : cboards}', \
+                                                #['agg_action_int','...' ] ], \
+                                   lookups = lookups, \
+                                   return_Z = True) 
+
+                if p > 0 :
+                    print "kimo, cluster, action", kimo_pair, cluster, action
+                    print "Prob: ", p
+
+                    #if( p < .0001 ) : assert False
+
+                    Pa = lookupPA( PA, street, action )
+                    #Pkimo1 = lookupPk( street-1, kimo_pair[0] )
+                    #Pkimo2 = lookupPk( street-1, kimo_pair[1] )
+                    #Pb = lookupPb( street ) 
+                    approx = Pa
+
+                    print  "approv Prob: ", approx
+                    if approx < p : 
+                        print "EURRRREREKEKAKKAKA"
 
 def setupEvidence( board, actions ) :
     #derive
@@ -510,26 +605,33 @@ def loadPAKSanityCheck() :
 
 if __name__ == '__main__' :
 
-    actions = [3, 3, 3, 148]
-    board = ['As', 'Ac', '3s', 'Jc', '4s']
+    #actions = [3, 3, 3, 148]
+    #board = ['As', 'Ac', '3s', 'Jc', '4s']
 
-    #board = ['2c','4c','7h','7c','Td']
-    #actions = [2,2,2,2]
+    board = ['9h','3h','6h','5c','8d']
+    actions = [441,5,187,315]
 
     evidence = setupEvidence(board,actions)
     lookups = setupLookups()
 
-    P_ki_G_kimo_evdnc( street=1, \
-                       ki = (1,1), \
-                       kimo = (1,1), \
-                       evidence = evidence, \
-                       lookups = lookups )
 
+    #prob = P_ki_G_kimo_evdnc( street=1, \
+                              #ki = (1,1), \
+                              #kimo = (1,1), \
+                              #evidence = evidence, \
+                              #lookups = lookups )
+
+    precomputeDenominators( lookups )
+
+    #print prob
+    
     #assignment = BktAssmnt()
-    #assignment.extend( (1,1) )
-    #assignment.extend( (1,1) )
-    #assignment.extend( (1,1) )
+    #assignment.extend((2,2))
+    #assignment.extend((5,9))
+    #assignment.extend((9,7))
+    #assignment.extend((1,1))
+    #assignment.extend((0,2))
     #prob = P_assmnt_G_evdnc( assignment, evidence, lookups )
     #print "assmnt_G_evdnc: ", prob
     
-    #pf_P_ki_G_evdnc(3, evidence, lookups )
+    #pf_P_ki_G_evdnc(3, evidence, lookups, m=50 )
