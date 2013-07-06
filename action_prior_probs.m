@@ -49,7 +49,7 @@ for action=1:1315
     PA12(action) = sum(sum( CPT12( :, (action-1)*nbuckets+1 : action*nbuckets) .* joint_kk));
 end
 
-csvwrite( 'PA3.csv', PA3 );
-csvwrite( 'PA6.csv', PA6 );
-csvwrite( 'PA9.csv', PA9);
-csvwrite( 'PA12.csv', PA12 );
+csvwrite( 'AK/PA3.csv', PA3 );
+csvwrite( 'AK/PA6.csv', PA6 );
+csvwrite( 'AK/PA9.csv', PA9);
+csvwrite( 'AK/PA12.csv', PA12 );
