@@ -215,8 +215,11 @@ def lookupTransitionProbs( final_street, final_board ) :
 #helper class to wrap sequences of belief bucket tuples
 #an assignment is [(k10,k20),..,(k1i,k2i)]
 class BktAssmnt :
-    def __init__(self, default=[] ) :
-        self.buckets = default
+    def __init__(self, default=-1 ) :
+        if default == -1 :
+            self.buckets = []
+        else :
+            self.buckets = default
 
     def extend(self, bucket_tuple ) :
         self.buckets.append( bucket_tuple )
@@ -330,6 +333,7 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
         print "final assmnt: ", f, " prob: ", final_assmnt_probs[f] / Z
 
 
+    return sfinal[0]
 
     #2 - sum up all probs where k = some value  i
     #3 - normalize
@@ -356,12 +360,13 @@ def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
         else :
             street_name = globles.int2streetname(i)
             cboards = evidence[0][i]
+            action_int = evidence[1][i]
             cluster_id = Ptrans[street_name][0][cboards]
             p = P_ki_G_kimo_evdnc( street = i, \
                                    ki = assignment.get(i), \
                                    kimo = assignment.get(i-1), \
                                    cluster_id = cluster_id, \
-                                   action_int = actions[i], \
+                                   action_int = action_int, \
                                    lookups = lookups )
             #print "prob for street:", i, p
 
@@ -465,8 +470,6 @@ def P_ki_G_kimo_evdnc( street = -1, \
             else:
                 term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
 
-            #print  "    prob:", term
-            #print "    log prob: ", log(term)
             terms["%d,%d" % (ki_p1,ki_p2)] = term
 
             ###if this assignment is same as the one passed in
@@ -485,8 +488,11 @@ def P_ki_G_kimo_evdnc( street = -1, \
 
         #print "Z: ", Z
         if return_Z : return Z
-        #print "num/Z: ", numerator/Z
-        return numerator/Z
+        else :
+            #print "num/Z: ", numerator/Z
+            if Z == 0 : return 0
+            else :
+                return numerator/Z
         #return Z
 
 def precomputeDenominators( lookups ) :

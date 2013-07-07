@@ -63,6 +63,8 @@ for street in BUCKET_PERCENTILES :
 
 #print CENTROID_DISTANCES["river"]
 def bucketCentroidDistance(street,a,b) :
+    if type(street) == int :
+        street = int2streetname(street)
     distances = CENTROID_DISTANCES[street]
     if a == b :
         dst = 0
