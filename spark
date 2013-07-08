@@ -1067,4 +1067,276 @@ Also compute distnace between two random distributions
 
 ========================================================================================================
 
+6/17
+
+whoa, big oversight discovered.  In computing transitions, was only enumerating combinations(deck,[3 4 5]).  This is wrong, it should be permutations, because for transitions the order matters (going from one cboard to another in a particular order).  Am fixing turns right now, still have river and flop remaining
+
+There are a lot misisng, and will necessitate re-doing the clustering computation.  Hopefully doesn't cause to many problems.  
+
+All of this was noticed as I was implemeting the inference.  Got all lookups loaded and inference proceeds bug free (knock).   Still needs testing somehow, TDB.
+
+Another TODO is reparsing the files.  I forgot to start the aggregate action node counting at 1 instead of 0.  Hacking in a work around to lookupPAK, so oK for now. 
+
+===============================================================================
+
+6/18
+
+Working on poster
+
+Game 966 of hugh v Rembrant, run 0, perm 1, is a good example
+
+STATE:966:r300c/cr729c/r1558r4674c/r11785r20000c:9d6d|7h8s/9h3h6h/5c/8d:-20000|20000:Rembrant|hugh
+2,2,441,
+5,9,5,
+9,7,187,
+6,4,315,
+200,966,9h3h6h5c8d
+
+
+trans 
+0.780221551,0.1538461538,0,0,0,0,0.0073258106,0.0586064846,0,0,0,0,0,0,0
+0.5980872606,0.3014345545,0.0406672999,0,0.0255175838,0.003189698,0.0047872455,0.015684031,0.0106323266,0,0,0,0,0,0
+0,0.3385109051,0.4406470914,0.1059335393,0,0.0372659058,0,0.0231204153,0.0545221431,0,0,0,0,0,0
+0,0.3283911672,0.3104961285,0.2424624797,0.0423764458,0.0508459994,0,0,0.0254277794,0,0,0,0,0,0
+0,0.2333337511,0.0666649956,0.4111070726,0.1999949867,0.0222216652,0.0111170993,0.0222216652,0.0333387645,0,0,0,0,0,0
+0,0.2572460807,0.1823576531,0.2560363571,0.2173905936,0,0.0434846578,0,0.0434846578,0,0,0,0,0,0
+0,0,0.4182996417,0.1307117265,0.444441987,0.0065466448,0,0,0,0,0,0,0,0,0
+0,0,0.2564065483,0.153843929,0.2179383352,0.2948747614,0.0769364262,0,0,0,0,0,0,0,0
+0,0,0,0.1034616881,0.1206923376,0.4654998055,0.3103461688,0,0,0,0,0,0,0,0
+0,0,0,0,0.1363822806,0.7727132896,0.0909044299,0,0,0,0,0,0,0,0
+0,0,0,0,0,0,0.8235020901,0.1764979099,0,0,0,0,0,0,0
+0,0,0,0,0,0,0.3846420824,0,0,0.6153579176,0,0,0,0,0
+0,0,0,0,0,0,0,0,0,0.6666248903,0.3333751097,0,0,0,0
+0,0,0,0,0,0,0,0,0,0,0.7714746172,0.2285253828,0,0,0
+0,0,0,0,0,0,0,0,0,0,0.3199458484,0.580099278,0.0999548736,0,0
+0,0,0,0,0,0,0,0,0,0,0,0.437394247,0.562605753,0,0
+0,0,0,0,0,0,0,0,0,0,0,0.25,0.75,0,0
+0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0.5
+0,0,0,0,0,0,0,0,0,0,0,0,0,0.5,0.5
+0,0,0,0,0,0,0,0,0,0,0,0,0,0.375070502,0.624929498
+
+
+
+PREFLPO
+441 : ['r1.66','c','d','d']
+
+p1 marg
+
+ 0.0892, 0.1464
+    0.1528
+    0.1506
+    0.1340
+    0.1070
+    0.0272
+    0.0406
+    0.0604
+    0.0917
+
+p2 
+
+ 0.0427
+    0.0712
+    0.0795
+    0.1044
+    0.1283
+    0.1291
+    0.1445
+    0.1190
+    0.0895
+    0.0918
+
+
+FLOP
+5   : k, r.5, c, d
+
+p1 marginal k
+0.0299
+    0.0291
+    0.0308
+    0.0338
+    0.0356
+    0.0379
+    0.0483
+    0.0533
+    0.0612
+    0.0661
+    0.0670
+    0.0734
+    0.0603
+    0.0673
+    0.0539
+    0.0566
+    0.0518
+    0.0495
+    0.0472
+    0.0471
+
+p2 marginal k
+
+0.0066
+    0.0239
+    0.0614
+    0.0646
+    0.0781
+    0.0830
+    0.0831
+    0.0877
+    0.0850
+    0.0725
+    0.0605
+    0.0563
+    0.0405
+    0.0247
+    0.0315
+    0.0266
+    0.0295
+    0.0319
+    0.0265
+    0.0262
+
+TURN
+187 : r.5,r1.66,c,d
+
+p1 
+
+0.0016
+    0.0163
+    0.0456
+    0.0372
+    0.0163
+    0.0134
+    0.0350
+    0.0824
+    0.2518
+    0.1911
+    0.1511
+    0.0395
+    0.0370
+    0.0815
+    0.0003
+
+p2:
+
+0.0000
+    0.0001
+    0.0001
+    0.0001
+    0.0019
+    0.2240
+    0.2092
+    0.1956
+    0.0324
+    0.1098
+    0.0389
+    0.0407
+    0.0403
+    0.0008
+    0.1061
+
+
+RIVER
+315 : r1,r1,c,d
+
+0.0292
+    0.0274
+    0.0404
+    0.0960
+    0.2810
+    0.1866
+    0.1008
+    0.0901
+    0.0795
+    0.0689
+
+0.0004
+         0
+    0.0547
+    0.4210
+    0.1902
+    0.1166
+    0.1116
+    0.0738
+    0.0210
+    0.0106
+
+
+=================================================================================
+
+7/2/13
+
+Some actions just don't ever show up in data, meaning they are a waste of space.
+i.e will never see r7,r7,r7,f 1314 in data.
+
+how can we refine this?
+
+Also, would like to incorporate how much in the pot before a betting sequence.  Betting r1 when the pot
+is small is different from when it is big.  Better to incorporate pot odds (?) somehow.
+
+-----
+
+Working on precomputing the P(kimo,b,A) terms (the partition terms in (3)).  At worst, there are 400*531*1315 280,000,000 combinations.  This is a lot to load into memory.  Thankfully, many P(A|K) terms are all 0 for every K because the action A was never seen in training data.  In fact, only 79 / 1315 values get used!!!
+
+What do we do with these???  I think a leak to leave them with prob=0, because that exposes a big weakness.
+
+But more immediately, how do we plan on loading 280,000,000 partitions floats for fast lookup (and this is just for the turn...)  Maybe approximating P(kimo,b,A) = P(kimo)P(b)P(A) isn't the worst idea, now?
+
+Trying to compare them, for some reason the approx prob is always bigger by orders of magnitude.  Bug?
+
+Replacing BT1 = joint[kimo_p1][ki_p1] w/ lookupPk(street, ki_p1) should bring them in line.  It makes them much close, but still not identical.  Definitely bug/misunderstanding somewhere.
+
+Want to assert   sum_ki P(ki) * P(Ai|Ki) = P(Ai)
+                       
+a priori    from EM      from node parsing
+
+---------------
+
+To do inference.py eval, will need node file to have the board cards.  Must reparse (when do don't forget to change -2 to -1 in PAK lookup!).
+
+==================================================================================
+
+7/5
+
+So, was missing the normalize() operation when grabbing the cluster distributions for computing inference probabilities.....  yeah.  All is definitely not right with the world, sanity checks with P(A) vs P(A|k)P(k) still failing, but that was a definite bug.
+
+FIXED IT by deriving P(A) from the CPT, and not selective_eval
+
+-------------------
+
+So, now to speed it up.  Too slow for evaluation, way too slow for MCTS.  Obvious way is to pre-compute the Z's.  
+
+Store in DB:
+
+action_int, cluster_id : string of Z for each kimo pair
+
+At the start of the particle filter, we can load from db.  Some of the particles at each step will be in here.  Assuming the DB load is faster than iterating through all nbucket*nbucket ki pairs
+
+Parallelize the P_assmnt_G_evidence step
+
+Make the code better
+
+=========================================================================================
+
+7/6
+
+Big success today.  Divorced the flop term's prob from being influenced by the preflop particle assignments.  Instead, it just depends on AK, not AK * BT1*BT2*....
+
+This seems to be much more accurate, but need further testing.  Also, not computing the Z terms doesn't seem to be affecting the outcomes too much.  First step should be to write a testing harness to compare.
+
+1) Redo parsing with boards included
+	) -2 -> -1
+2) Seek out other perf optimizations
+3) Write bucket accuracy tester, compare Z and no-Z
+
+=================================================================
+
+7/7
+
+Continued testing, really good, followed by really bad winner prediction, 75 and 37 percent.  Assuming thi sis for different opponents.  why so different?  New plan is to test opponent by opponent, not smash and train on all data together.
+
+Realized registered pockets where being ordered like the actions were, that is, according to table's internal scheme, when this was wrong.  Basically the node ordering between prelop and the rest was flipped.  Not sure how much this was affecting predictions, though
+
+Also bug in symmetric complement.
+
+
+
 

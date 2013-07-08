@@ -4,9 +4,14 @@ N = 12;
 
 em = 0
 
+%setup evidence
 if em == 0
-    training = csvread('../../project-toby/nodes/hugh_SartreNL/perm1/training_4-rounds_showdown.csv'); %show_4-round_perm0_train_merged_scaled.csv');
-    #evidence = training(:,1:N)';
+    %training = csvread('nodes/Rembrant_SartreNL/perm1/training_4-rounds_showdown.csv', 0, 0, [0,0,100000,11]);
+    fid = 'nodes/Rembrant_SartreNL/perm1/training_4-rounds_showdown.csv';
+    [a b c d e f g h i j k l m n o] = textread(fid,'%d %d %d %d %d %d %d %d %d %d %d %d %d %d %s',-1,'delimiter',',');
+    training = [a b c d e f g h i j k l];
+
+    evidence = training(:,1:N)';
 else
     training_show = csvread('nodes/show_4-round_perm0_train.csv');
     [show_nex natt] = size(training_show);
@@ -90,5 +95,5 @@ learn_params = 1
 
 for i=[3 6 9 12]
     s = struct( bnet_learned.CPD{i});
-    csvwrite( sprintf('AK/CPT%d.csv',i), s.CPT )
+    csvwrite( sprintf('AK/em%d/CPT%d.csv',em,i), s.CPT )
 end
