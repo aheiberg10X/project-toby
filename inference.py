@@ -290,7 +290,7 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
             for i in range(mm) :
                 assmnt = sassignments[i]
                 p = assignment_probs[str(assmnt)]
-                print "Assignment: ", str(assmnt), " has prob: ", p
+                #print "Assignment: ", str(assmnt), " has prob: ", p
                 particles.append( sassignments[i] )
 
         #for ass in assignments : print ass
@@ -329,9 +329,29 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
     sfinal = sorted( final_assmnt_probs.keys(), \
                      key = lambda k: final_assmnt_probs[k], \
                      reverse = True )
-    for f in sfinal :
-        print "final assmnt: ", f, " prob: ", final_assmnt_probs[f] / Z
+    #for f in sfinal :
+        #print "final assmnt: ", f, " prob: ", final_assmnt_probs[f] / Z
 
+    #n_top_guesses = 20
+    kp1_sum = 0
+    kp2_sum = 0
+    diff_sum = 0
+    prob_sum = 0
+    for i in range(len(sfinal)) :
+        (kp1,kp2) = sfinal[i]
+        prob = final_assmnt_probs[ sfinal[i] ] / Z
+        prob_sum += prob
+        kp1_sum += kp1*prob
+        kp2_sum += kp2*prob
+        diff_sum += (kp1-kp2)*prob
+
+    print prob_sum
+    assert prob_sum > .999
+
+    #n_top_guesses = float(n_top_guesses)
+    return (kp1_sum, \
+            kp2_sum, \
+            diff_sum )
 
     return sfinal[0]
 

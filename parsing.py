@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = True
+printing = False
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -144,6 +144,8 @@ def log2Nodes( filename, focus_player, focus_position ) :
         is_even = line_num % 2 == 0
         if( is_even != use_evens ) : continue
 
+        #print line
+
         splt = line.strip().split(':')
         if splt[0] == "SCORE" :
             #do something with total score?
@@ -180,6 +182,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
         for street, (action_string, card_string) in enumerate(zip( action_strings, card_strings)) :
             #print "Street,action_string,card_stringL ", street, action_string, card_string
             if street > 0 :
+                #print "card_string: " , card_string
                 tbl.advanceStreet( listify(card_string) )
             else :
                 #force the first two 'calls' 
@@ -242,7 +245,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
         #if has_showdown :
         pockets = [listify(p) for p in card_strings[0].split('|')]
         if register_pockets :
-            tbl.registerRevealedPockets( pockets )
+            tbl.registerRevealedPockets( player_order, pockets )
         else:
             for i in range(n_betting_rounds) :
                 tbl.buckets.append([-1,-1])
@@ -269,7 +272,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
             street = betting_round - 1
 
             #attach bucket nodes
-            for pix in oplayers :
+            for pix in ordered_players :
                 training_instance.append( tbl.buckets[street][pix] )
 
             #attach merged-action node
@@ -305,6 +308,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
             training_instance.append( ID )
 
             board_str = ''.join(card_strings[1:betting_round])
+            #print "board_str: ", board_str
             #amt_exchanged = int( round (tbl.pot / float(2*sb) ) )
             #TODO yield both belief-layer nodes and action-layer nodes
             yield [(game_id,betting_round,has_showdown),\
@@ -382,48 +386,50 @@ if __name__ == '__main__' :
     #p2s.append(p2)
 
     ##10436.pts-0.genomequery
-    #p1 = "Rembrant"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Rembrant"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
     #10556.pts-0.genomequery
-    #p1 = "player_kappa_nl"
+    p1 = "player_kappa_nl"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
+
+    #10847.pts-0.genomequery
+    #p1 = "Hyperborean-2011-2p-nolimit-iro"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
+#
+    #p1 = "Hyperborean-2011-2p-nolimit-tbr"
     #p2 = "SartreNL"
     #p1s.append(p1)
     #p2s.append(p2)
 
-    #10847.pts-0.genomequery
-    p1 = "Hyperborean-2011-2p-nolimit-iro"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "Lucky7"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    p1 = "Hyperborean-2011-2p-nolimit-tbr"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "hugh"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
-    p1 = "Lucky7"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
-
-    p1 = "hugh"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
-
-    perm = 1
+    perm = 0 
     leave_out_runs = range(90,100)
     for p1,p2 in zip(p1s,p2s) :
         logs2Nodes( p1, p2, perm, leave_out_runs, \
                     #focus_player="hugh", focus_position = "button" )
                     focus_player="SartreNL", focus_position = "first" )
 
+    #for thing in log2Nodes( "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Hyperborean-2011-2p-nolimit-iro.SartreNL.run-97.perm-1.mytestlog", "SartreNL", "first" ) :
+        #print thing
 
 
 #############################################################################

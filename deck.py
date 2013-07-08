@@ -532,7 +532,18 @@ def symmetricComplement( board, pocket, boardp ) :
             boardp_max_suit_count = boardp_suit_counts[s]
             boardp_max_suit = s
 
+
     assert boardp_max_suit_count == board_max_suit_count
+
+    pocket_suits = [getSuit(c) for c in pocket]
+    pocket_suit_counts = {}
+    for i in range(2) :
+        if pocket_suits[i] not in pocket_suit_counts :
+            pocket_suit_counts[ pocket_suits[i] ] = 1
+        else :
+            pocket_suit_counts[ pocket_suits[i] ] += 1
+    #print "pcoket_suit_counts: ", pocket_suit_counts
+
     
     #add in those suits missing from the boards
     for suit in ['h','d','c','s'] :
@@ -540,6 +551,12 @@ def symmetricComplement( board, pocket, boardp ) :
             board_suit_counts[suit] = 0
         if suit not in boardp_suit_counts :
             boardp_suit_counts[suit] = 0
+        if suit not in pocket_suit_counts :
+            pocket_suit_counts[suit] = 0
+
+    #print "suit counts, board, boardp"
+    #print board_suit_counts
+    #print boardp_suit_counts
 
     #will hold the final suit mapping
     suit_map = {}
@@ -553,6 +570,7 @@ def symmetricComplement( board, pocket, boardp ) :
     for p in pocket :
         pc = getCardinality(p)
         ps = getSuit(p)
+
         for b in boardp :
             bc = getCardinality(b)
             bs = getSuit(b)
@@ -561,9 +579,24 @@ def symmetricComplement( board, pocket, boardp ) :
                     illegal_map[ps][bs] = True
                 else :
                     illegal_map[ps] = {bs:True}
-    #it can be the case that some suit has no legal option
-    #this will be a rainbow, and we can arbitrarily change one of the suits of
-    #the pockets, rebuild illegal map and try again
+
+    #some mappings illegal because they change the suit counts
+    #board = [2h,9c,Jh,Kc]     pocket = 6sJs
+    #boardp = [2h,9d,Jh,Kd]
+    #if we map s->d, we will have four of one suit,
+    #whereas before there were only 2 of each.
+    #variable 'thresh' determines whether or not such a change is meaningful
+    thresh = len(board)
+    for suit in ['h','d','s','c'] :
+        for suitp in ['h','d','s','c'] :
+            count = pocket_suit_counts[suit] + board_suit_counts[suit]
+            countp = pocket_suit_counts[suit] + boardp_suit_counts[suitp]
+            if countp >= thresh and count != countp :
+                if suit in illegal_map :
+                    illegal_map[suit][suitp] = True
+                else :
+                    illegal_map[suit] = {suitp:True}
+
     #print "illegal_map:", illegal_map
 
     #check if suit has no legal mapping
@@ -571,11 +604,8 @@ def symmetricComplement( board, pocket, boardp ) :
         if len(illegal_map[suit]) == 4 :
             assert False
 
-    ##if so, assert that this is a river rainbow
-    #if suit_with_no_legal_mapping :
-        #assert len(board) == 5 and board_max_suit_count == 2
-
-    #take a pocket card, and try other suits (that are consistent with board)
+    #we want to map the most constrained suits first
+    #then by the size of each suit
 
     #10*int(has_illegal_mapping) + suit_count
     def sortKeyClosure( suit_counts ) :
@@ -597,9 +627,9 @@ def symmetricComplement( board, pocket, boardp ) :
                                   key = sortKeyClosure(boardp_suit_counts), \
                                   reverse=True )
 
+    #print "sorted_suits"
     #print board_sorted_suits, boardp_sorted_suits
 
-    
     #As we go through and assign mappings
     #maintain 'used' to prohibit future mappings to use a suit that
     #has just been assigned
@@ -722,11 +752,10 @@ if __name__ == '__main__' :
     #pocket = ['4h','Qh']
 
     #print symmetricComplement( ['Jh', 'Qd', 'Ad', 'Ac', 'Ah'], ['Js','As'], ['Jh','Qh','Ad','Ac','As'] )
-    print collapseBoard(['2h','3h','4h','Kd'])
+    #print collapseBoard(['2h','3h','4h','Kd'])
     #print completeStemToMakeCboard( ['2h','4d','6d','Tc'], '2468T_h_3foxxxo' )
     #print completeStemToMakeCboard( ['2d','Td','8h','8c'], '2888T_t_3foxxxo' )
     #print completeStemToMakeCboard( ['2h','3h','4h','3d'], '22334_2p_3fxoxox' )
-    assert False
 
     board = ['7d', '2c', '4c', '4h', '3h']
     boardp = ['2h', '3h', '4d', '7d', '4c']
@@ -736,14 +765,16 @@ if __name__ == '__main__' :
     boardp = ['2h','Ah','2d','Ad','2c']
     pocket = ['2d', 'As']
 
-    board = ['As','Tc','2d','8c','6d']
-    boardp = ['2h','6h','8d','Td','Ac']
-    pocket = ['4h','6s']
+    board = ['9c','Jh','2h','Kc']
+    boardp = ['2h','Jh','9d','Kd']
+    pocket = ['6d','Jd']
 
-    #s cannot go to any suit
-    board = ['7d','3c','Ad','Ah','Ac']
-    boardp = ['3h','7h','Ad','Ac','As']
-    pocket = ['7s','As']
+    ##s cannot go to any suit
+    #board = ['7d','3c','Ad','Ah','Ac']
+    #boardp = ['3h','7h','Ad','Ac','As']
+    #pocket = ['7s','As']
+
+
 
     #print collapseBoard(['2h','3h','4h','9h','Kd'])
     #print collapseBoard(['2h','3h','4s','9h','Kh'])

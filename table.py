@@ -345,14 +345,13 @@ class Table() :
         self.acted[player_ix] = True
         self.action_to = self.nextUnfoldedPlayer( player_ix )
 
-    def registerRevealedPockets( self, pockets ) :
-        #pix = self.players.index(player_name)
+    def registerRevealedPockets( self, player_names, pockets ) :
         #TODO: handle preflop strength via some table
-        #print "registerRevealed player:", player_name
         for street in range(self.street) :
         #for street in range(len(self.past_actions)) :
-            self.buckets.append( [] )
-            for pix,pocket in enumerate(pockets) :
+            self.buckets.append( [0]*len(player_names) )
+            for player_name, pocket in zip(player_names,pockets ) :
+                pix = self.players.index(player_name)
                 if street == 0 :
                     street_name = "preflop"
                     q = """select memberships 
@@ -414,14 +413,15 @@ class Table() :
                 #for now let's just
                 #cram it into the closest to the average
                 memberships = [float(t) for t in memberships.split(':')]
+                #print "memberships: ", memberships
                 #print "membs", memberships
                 #we want the buckets to be from 1->N, not 0->N-1
                 w = [(i+1)*m for i,m in enumerate(memberships)]
-                #print "wsum:", wsum
+                #print "w:", w
                 bucket = int(round(sum(w)))
                 #print "bucket,", bucket
 
-                self.buckets[street].append( bucket )
+                self.buckets[street][pix] =  bucket 
                 #if street == len(self.buckets) :
                     #self.buckets.append( [0,0] )
                     #self.buckets[street][pix] = bucket
