@@ -10,6 +10,7 @@ import BTclustering as clust
 import iterate_decision_points as idp
 
 conn = db.Conn('localhost')
+em = 0
 
 ############################################################################
 ####             Loading and Lookups
@@ -23,10 +24,11 @@ def nCr(n, r):
     return numer//denom
 
 def loadPA() :#load lookup information...
+    print "loadPA: make sure em%d is correct"
     PA = []
     visible_nodes = [3,6,9,12]
     for node in visible_nodes :
-        fin = open( 'AK/PA%d.csv' % node )
+        fin = open( 'AK/em%d/PA%d.csv' % (em,node) )
         probs = [float(t) for t in fin.read().strip().split(',')]
         PA.append( probs )
         fin.close()
@@ -38,7 +40,7 @@ def loadPA() :#load lookup information...
 #action_int is 1-indexed
 #see lookupPAK for why -2 instead of -1.  Needs a remedy'in'
 def lookupPA( PA, street, action_int ) :
-    return PA[street][action_int-2]
+    return PA[street][action_int-1]
 
     #action_str = str(action_int-1)
     #if action_str in PA[street] :
@@ -47,6 +49,7 @@ def lookupPA( PA, street, action_int ) :
         #return 0
 
 def loadPAK() :
+    print "loadPAK: make sure em%d is correct"
     #not layed out in file in a way conduscive to fast or intuitive lookup
     #load the data as-is into interim, re-arrange and put in PAK
     interim = {}
@@ -61,7 +64,7 @@ def loadPAK() :
 
         print "node: ", node
 
-        fin = open( "AK/CPT%d.csv" % node )
+        fin = open( "AK/em%d/CPT%d_nozero.csv" % (em,node) )
         blob = fin.read().strip()
         lines = blob.split('\n')
         #print "nlines: ", len(lines)
@@ -113,7 +116,7 @@ def loadPAK() :
 #BUT, it made everything offset by one extra
 #will have to reparse now that fix has been made to IDP
 def lookupPAK( PAK, street, k1, k2, action_int ) :
-    return PAK[street][k1][k2][action_int-2]
+    return PAK[street][k1][k2][action_int-1]
 
 #P(k)
 def lookupPk( street, bucket ) :
@@ -253,58 +256,85 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
     #the m BktAssmnts we filter after each street
     dummy_preflop_assignment = (-1,-1)
     particles = [BktAssmnt( [dummy_preflop_assignment] )]
-    assignment_probs = {}
+    old_assignment_probs = { particles[0] : 1 }
 
     #starting with preflop was counterproductive.
     #actions here are very uninformative (esp in heads-up)
     for street in range(1,final_street+1) :
+        print "street: " , street
         #form an extended set of assignments, built on existing particles
         #will compute prob for each assignment, and take the m highest prob
         #as our new particles
         street_bkts = range(globles.NBUCKETS[street])
         new_bkt_tuples = cartProduct( street_bkts, street_bkts )
 
-        assignments = [ t[0].copyExtend(t[1]) for t in \
-                        cartProduct( particles, new_bkt_tuples )]
+        #assignments = [ t[0].copyExtend(t[1]) for t in \
+                        #cartProduct( particles, new_bkt_tuples )]
 
-
-        print "n assignments: ", len(assignments)
+        #print "n assignments: ", len(assignments)
         ##compute prob of each assignmnt
         assignment_probs = {}
-        for count,assmnt in enumerate( assignments ) :
-            #there is room for speedup here
-            #we are re-computing each assignment each time
-            #stupid because each assignment is a product of terms
-            #if we store the previous terms we can simply multiple the 
-            #new term to it
-            p = P_assmnt_G_evdnc( assmnt, evidence, lookups )
-            assignment_probs[ str(assmnt) ] = p
+        for (assmnt, bkt_tuple) in cartProduct( particles, new_bkt_tuples ) :
+
+            street_name = globles.int2streetname(street)
+            cboards = evidence[0][street]
+            action_int = evidence[1][street]
+            Ptrans = lookups[2]
+            cluster_id = Ptrans[street_name][0][cboards]
+
+            P_tuple = P_ki_G_kimo_evdnc( street = street, \
+                                ki = bkt_tuple, \
+                                kimo = assmnt.get(street-1), \
+                                cluster_id = cluster_id, \
+                                action_int = action_int, \
+                                lookups = lookups, \
+                                return_Z = False ) 
+
+            P_assmnt = old_assignment_probs[ assmnt ]
+            P_assmnt = P_assmnt * P_tuple
+            new_assmnt = assmnt.copyExtend( bkt_tuple )
+            assignment_probs[ new_assmnt ] = P_assmnt
+
+
+        #for count,assmnt in enumerate( assignments ) :
+            ##there is room for speedup here
+            ##we are re-computing each assignment each time
+            ##stupid because each assignment is a product of terms
+            ##if we store the previous terms we can simply multiple the 
+            ##new term to it
+            #p = P_assmnt_G_evdnc( assmnt, evidence, lookups )
+            #assignment_probs[ str(assmnt) ] = p
 
         #particle filter step
         if street < final_street :
-            sassignments = sorted( assignments, \
-                                   key = lambda k: assignment_probs[str(k)], \
+            sassignments = sorted( assignment_probs.keys(), \
+                                   key = lambda k: assignment_probs[k], \
                                    reverse = True )
             particles = []
             mm = min( m, len(sassignments) )
             for i in range(mm) :
                 assmnt = sassignments[i]
-                p = assignment_probs[str(assmnt)]
+                p = assignment_probs[assmnt]
                 #print "Assignment: ", str(assmnt), " has prob: ", p
                 particles.append( sassignments[i] )
+
+            old_assignment_probs = assignment_probs
 
         #for ass in assignments : print ass
 
     #when done, assignment_probs left with all {assmnt : prob} pairs for all
     #bucket values of the final_street X the m particles
     #1 - sum all probabilities.  This is our normalizing factor
-    Z = 0
-    final_assmnt_probs = {}
     #print assignment_probs
-    for assmnt in assignments :
-        #print str(assmnt)
-        p = assignment_probs[str(assmnt)]
-        Z += p
+    Z = sum( assignment_probs.values() )
+
+    final_assmnt_probs = {}
+    for assmnt in assignment_probs :
+        if Z == 0 :
+            p = 0
+        else :
+            p = assignment_probs[assmnt] / Z
+
         final_assmnt = assmnt.get(final_street)
         if final_assmnt in final_assmnt_probs :
             final_assmnt_probs[final_assmnt] += p
@@ -312,48 +342,40 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, m=10 ) :
             final_assmnt_probs[final_assmnt] = p
 
     print "final particles are: ", Z, " percent of the total mass"
-    #assert Z > .85  #want to be looking at atleast so much mass
 
-    #normalize
-    for assmnt in assignment_probs :
-        assignment_probs[assmnt] = assignment_probs[assmnt] / Z
+    return final_assmnt_probs
 
-    #sassignments = sorted( assignments, \
-                           #key = lambda k: assignment_probs[str(k)], \
-                           #reverse = True )
-
-    #for ass in sassignments :
-        #print "ass: ", ass, "prob: ", assignment_probs[str(ass)]
-
+def predictBucketsAndWinner( assmnt_probs, switch="ml" ) :
     #sort, normalize, and return
-    sfinal = sorted( final_assmnt_probs.keys(), \
-                     key = lambda k: final_assmnt_probs[k], \
+    sfinal = sorted( assmnt_probs.keys(), \
+                     key = lambda k: assmnt_probs[k], \
                      reverse = True )
-    #for f in sfinal :
-        #print "final assmnt: ", f, " prob: ", final_assmnt_probs[f] / Z
 
-    #n_top_guesses = 20
-    kp1_sum = 0
-    kp2_sum = 0
-    diff_sum = 0
-    prob_sum = 0
-    for i in range(len(sfinal)) :
-        (kp1,kp2) = sfinal[i]
-        prob = final_assmnt_probs[ sfinal[i] ] / Z
-        prob_sum += prob
-        kp1_sum += kp1*prob
-        kp2_sum += kp2*prob
-        diff_sum += (kp1-kp2)*prob
+    if switch == 'avg' :
+        kp1_sum = 0
+        kp2_sum = 0
+        diff_sum = 0
+        prob_sum = 0
+        for i in range(len(sfinal)) :
+            #print sfinal[i], assmnt_probs[ sfinal[i] ]
+            (kp1,kp2) = sfinal[i]
+            prob = assmnt_probs[ sfinal[i] ] 
+            prob_sum += prob
+            kp1_sum += kp1*prob
+            kp2_sum += kp2*prob
+            diff_sum += (kp1-kp2)*prob
 
-    print prob_sum
-    assert prob_sum > .999
+        assert prob_sum > .999
 
-    #n_top_guesses = float(n_top_guesses)
-    return (kp1_sum, \
-            kp2_sum, \
-            diff_sum )
+        #n_top_guesses = float(n_top_guesses)
+        return (kp1_sum, \
+                kp2_sum, \
+                diff_sum )
 
-    return sfinal[0]
+    elif switch == 'ml' :
+        kp1,kp2 = sfinal[0][0], sfinal[0][1]
+        diff = kp1-kp2
+        return (kp1,kp2,diff)
 
     #2 - sum up all probs where k = some value  i
     #3 - normalize
@@ -467,13 +489,15 @@ def P_ki_G_kimo_evdnc( street = -1, \
             #print "\nki_p1,ki_p2", ki_p1, ki_p2
 
             ##BT1 = P( k1i=bkt_val | k_{i-1}=prev_bkt_val, B=board )
-            #PK1 = lookupPk(street, ki_p1) #joint[kimo_p1][ki_p1] # #
-            #PK2 = lookupPk(street, ki_p2) #joint[kimo_p2][ki_p2]
+            PK1 = lookupPk(street, ki_p1) #joint[kimo_p1][ki_p1] # #
+            PK2 = lookupPk(street, ki_p2) #joint[kimo_p2][ki_p2]
 
             BT1 = joint[kimo_p1][ki_p1] # #
             BT2 = joint[kimo_p2][ki_p2]
 
             AK = lookupPAK( PAK, street, ki_p1, ki_p2, action_int )
+            #if action_int == 347 :
+                #print "action_int,ki_p1,ki_p2: ", action_int,ki_p1,ki_p2 ," AK: ", AK
             #AK = pow(AK,2)
             
             #print "    "
@@ -486,7 +510,8 @@ def P_ki_G_kimo_evdnc( street = -1, \
                 #print "    AK: ", AK
 
             if street == 1 :
-                term = AK
+                P_A = lookupPA( PA, street, action_int )
+                term = AK * PK1 * PK2 / P_A
             else:
                 term = (BT1*PKIMO1) * (BT2*PKIMO2) * B * AK
 
@@ -502,7 +527,7 @@ def P_ki_G_kimo_evdnc( street = -1, \
 
             Z += term
 
-        #for all_ki_pairs
+        ##for all_ki_pairs
 
         #return term
 
@@ -510,10 +535,31 @@ def P_ki_G_kimo_evdnc( street = -1, \
         if return_Z : return Z
         else :
             #print "num/Z: ", numerator/Z
-            if Z == 0 : return 0
+            if Z == 0 : assert False 
             else :
                 return numerator/Z
         #return Z
+
+def justAK( street, evidence, lookups ) :
+    PA = lookups[0]
+    PAK = lookups[1]
+    action_int = evidence[1][street]
+
+    ki_buckets = range(globles.NBUCKETS[street])
+    all_ki_pairs = cartProduct(ki_buckets, ki_buckets)
+    assmnt_probs = {}
+    Z = 0
+    pa = lookupPA( PA, street, action_int )
+    print "street, action_int, P(a): " , street, action_int, pa
+    for (k1,k2) in all_ki_pairs :
+        pak = lookupPAK(PAK, street, k1, k2, action_int)
+        pk1 = lookupPk( street, k1 )
+        pk2 = lookupPk( street, k2 )
+        prob = pak * pk1 * pk2 / pa
+        Z += prob
+        assmnt_probs[(k1,k2)] = prob
+
+    return assmnt_probs
 
 def precomputeDenominators( lookups ) :
     street = 3

@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = False
+printing = True
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -386,19 +386,19 @@ if __name__ == '__main__' :
     #p2s.append(p2)
 
     ##10436.pts-0.genomequery
-    p1 = "Rembrant"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "Rembrant"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
     #10556.pts-0.genomequery
-    p1 = "player_kappa_nl"
-    p2 = "SartreNL"
-    p1s.append(p1)
-    p2s.append(p2)
+    #p1 = "player_kappa_nl"
+    #p2 = "SartreNL"
+    #p1s.append(p1)
+    #p2s.append(p2)
 
     #10847.pts-0.genomequery
     #p1 = "Hyperborean-2011-2p-nolimit-iro"
@@ -411,15 +411,15 @@ if __name__ == '__main__' :
     #p1s.append(p1)
     #p2s.append(p2)
 
-    #p1 = "Lucky7"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Lucky7"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
-    #p1 = "hugh"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "hugh"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     perm = 0 
     leave_out_runs = range(90,100)

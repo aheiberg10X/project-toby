@@ -2,7 +2,7 @@ seed = 42;
 randn('state',seed);
 N = 12;
 
-em = 0
+em = 1
 
 %setup evidence
 if em == 0
@@ -13,16 +13,21 @@ if em == 0
 
     evidence = training(:,1:N)';
 else
-    training_show = csvread('nodes/show_4-round_perm0_train.csv');
+    fid = 'nodes/Rembrant_SartreNL/all_training_4-rounds_showdown.csv';
+    [a b c d e f g h i j k l m n o] = textread(fid,'%d %d %d %d %d %d %d %d %d %d %d %d %d %d %s',-1,'delimiter',',');
+    training_show = [a b c d e f g h i j k l];
+    %training_show = csvread('nodes/show_4-round_perm0_train.csv');
     [show_nex natt] = size(training_show);
-    assert( N+2 == natt );
 
     show_evidence = cell(N, show_nex);
     show_evidence = num2cell( training_show(:,1:N)' );
 
-    training_noshow = csvread('nodes/noshow_4-round_perm0_train.csv');
+    fid = 'nodes/Rembrant_SartreNL/all_training_4-rounds_no-showdown.csv';
+    [a b c d e f g h i j k l m n o] = textread(fid,'%d %d %d %d %d %d %d %d %d %d %d %d %d %d %s',-1,'delimiter',',');
+    training_noshow = [a b c d e f g h i j k l];
+
+    %training_noshow = csvread('nodes/noshow_4-round_perm0_train.csv');
     [noshow_nex natt] = size(training_noshow);
-    assert( N+2 == natt );
 
     %turn all non-visible nodes into [] in evidence cell array
     visible_ixs = [3 6 9 12];
@@ -42,7 +47,6 @@ dag( [4 5], 6 ) = 1;
 dag( [7 8], 9 ) = 1;
 dag( [10 11], 12 ) = 1;
 
-num_act_bet_ratios = 8;
 agg_action_size = 1315; 
 preflop_buckets = 10;
 flop_buckets = 20;
