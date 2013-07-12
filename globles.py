@@ -9,7 +9,7 @@ TEST_FILENAME = "nodes/show_4-round-perm1_test.csv"
 #PAST_BET_RATIOS = [0,.2,.33,.45,.5,.6,.75,.9] #[0,.33,.5,.8]
 
 #individual bet ratios
-BET_RATIOS = ['r.5','r1','r1.66','r2.33','r3','r3.66','r4.33','r7'] #[.5,1,1.6,4]
+BET_RATIOS = ['r.44','r.5','r.75','r.81','r1','r1.33','r1.7','r4'] #[.5,1,1.6,4]
 DUMMY_ACTION = 'd'
 
 def closestRatio( ratio ) :

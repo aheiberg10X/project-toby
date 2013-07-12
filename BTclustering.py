@@ -32,7 +32,7 @@ def normalize( joint, make_cdf=False ) :
     for row in joint :
         Z = sum(row)
         if Z == 0 :
-            normalized = [float(0)]*len(row)
+            normalized = [float(pow(10,-7))]*len(row)
         else :
             normalized = [p / Z for p in row]
 

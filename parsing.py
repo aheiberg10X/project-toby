@@ -13,7 +13,7 @@ MIN_BET_THRESH = 1
 ALL_IN_THRESH = .8
 
 register_pockets = True
-printing = True
+printing = True 
 
 #want to extract all hands where focus_player=SartreNL is first to act
 #ie not the dealer/button
@@ -93,6 +93,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
     #button is the second player, small blind
     splt = filename.split('.')
     players = [ splt[1], splt[2] ]
+    run = int(splt[3][4:])
     perm = int(splt[4][5:])
     #if perm==1, button/dealer is the first player in the filename
     if perm == 1 : button = 0
@@ -136,7 +137,7 @@ def log2Nodes( filename, focus_player, focus_position ) :
 
     #when someone folds, +/-100 is exchanged
     sb = 50 
-    tbl = table.Table( small_blind=sb )
+    tbl = table.Table( ID="%s_%s_%d_%d" % (players[0], players[1], run, perm ), small_blind=sb )
     header = fin.readline()
     for i in range(3) : burn = fin.readline()
     for line_num, line in enumerate(fin.readlines()) : 
@@ -386,30 +387,30 @@ if __name__ == '__main__' :
     #p2s.append(p2)
 
     ##10436.pts-0.genomequery
-    #p1 = "Rembrant"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Rembrant"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     #p1 = "POMPEIA"
     #p2 = "SartreNL"
 
     #10556.pts-0.genomequery
-    #p1 = "player_kappa_nl"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "player_kappa_nl"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     #10847.pts-0.genomequery
-    #p1 = "Hyperborean-2011-2p-nolimit-iro"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Hyperborean-2011-2p-nolimit-iro"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 #
-    #p1 = "Hyperborean-2011-2p-nolimit-tbr"
-    #p2 = "SartreNL"
-    #p1s.append(p1)
-    #p2s.append(p2)
+    p1 = "Hyperborean-2011-2p-nolimit-tbr"
+    p2 = "SartreNL"
+    p1s.append(p1)
+    p2s.append(p2)
 
     p1 = "Lucky7"
     p2 = "SartreNL"
@@ -428,7 +429,7 @@ if __name__ == '__main__' :
                     #focus_player="hugh", focus_position = "button" )
                     focus_player="SartreNL", focus_position = "first" )
 
-    #for thing in log2Nodes( "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/2011-2p-nolimit.Hyperborean-2011-2p-nolimit-iro.SartreNL.run-97.perm-1.mytestlog", "SartreNL", "first" ) :
+    #for thing in log2Nodes( "/home/andrew/project-toby/histories/acpc/2011/logs/2p_nolimit/abc.Hyperborean-2011-2p-nolimit-iro.SartreNL.test.perm-1.log", "SartreNL", "first" ) :
         #print thing
 
 

@@ -3,6 +3,22 @@ import globles
 scaling =0 
 
 #fin = open("noshow_4-round.csv")
+def nodeFile2Interesting( filepath ) :
+    assert '/' in filepath
+    [path,filename] = filepath.rsplit('/',1)
+    [name,ext] = filename.rsplit('.',1)
+    fin = open(filepath)
+    fout = open( "%s/%s_interesting.%s" % (path,name,ext), 'w' )
+    for line in fin.readlines() :
+        splt = line.strip().split(',')
+        postflop_actions = [int(splt[node]) for node in [5,8,11]]
+        #print postflop_actions
+        num_kkdd = sum( [act==3 for act in postflop_actions] )
+        if num_kkdd < 3 :
+           fout.write( "%s" % line )
+
+    fout.close()
+    fin.close()
 
 #examine some particular subset of nodes, and return a dictionary of:
 #values_nodes_take_on : frequency in file
@@ -46,46 +62,49 @@ def returnMasker( focus_nodes, ignore_set ) :
 
     
 if __name__ == '__main__' :
-    type_freqs =  computeTypeFrequencies( [4] )
-    svalues = sorted( type_freqs.keys(), key=lambda k : k ) #type_freqs[k] )
-    s = 0
-    for v in svalues :
-        s += type_freqs[v]
-        print v, "\t" , type_freqs[v]
-    print "sum", s
-    print len(svalues), "present values"
-    assert False
 
-    given_cols = []
-    given_conditions = ['']
-    priors = []
-    for node in range(24) :
-        if node in [2,3,4,5,8,9,10,11,14,15,16,17,20,21,22,23] :
-            type_freqs =  computeTypeFrequencies( [node], given_cols, given_conditions )
-            
-            ##find the scaling factor, such that the new example file is about the
-            ##same size as before
-            #amts = type_freqs.keys()
-            #percs = type_freqs.values()
+    nodeFile2Interesting("nodes/all_hyper_sartre_4-round_training_showdown.csv") 
 
-            #for i in range(2,5) :
-                #scaled_amts = [float(amt)/i for amt in amts]
-                #print i
-                #scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
-                #print "i:",i, sum(scaled_percs)
-
-            pprobs = []
-            for a in range(1,13) :
-                a = str(a)
-                if a in type_freqs :
-                    p = str(type_freqs[a])
-                else :
-                    p = '0'
-                pprobs.append(p)
-            priors.append( '['+','.join( pprobs )+']' )
-        else :
-            priors.append( '[42,42,42,42,42,42,42,42,42,42,42,42]' )
-
-    print '['+';'.join(priors)+']'
-    
-    
+    #type_freqs =  computeTypeFrequencies( [4] )
+    #svalues = sorted( type_freqs.keys(), key=lambda k : k ) #type_freqs[k] )
+    #s = 0
+    #for v in svalues :
+        #s += type_freqs[v]
+        #print v, "\t" , type_freqs[v]
+    #print "sum", s
+    #print len(svalues), "present values"
+    #assert False
+#
+    #given_cols = []
+    #given_conditions = ['']
+    #priors = []
+    #for node in range(24) :
+        #if node in [2,3,4,5,8,9,10,11,14,15,16,17,20,21,22,23] :
+            #type_freqs =  computeTypeFrequencies( [node], given_cols, given_conditions )
+           # 
+            ###find the scaling factor, such that the new example file is about the
+            ###same size as before
+            ##amts = type_freqs.keys()
+            ##percs = type_freqs.values()
+#
+            ##for i in range(2,5) :
+                ##scaled_amts = [float(amt)/i for amt in amts]
+                ##print i
+                ##scaled_percs = [float(percs[j]) * scaled_amts[j] for j in range(len(percs))]
+                ##print "i:",i, sum(scaled_percs)
+#
+            #pprobs = []
+            #for a in range(1,13) :
+                #a = str(a)
+                #if a in type_freqs :
+                    #p = str(type_freqs[a])
+                #else :
+                    #p = '0'
+                #pprobs.append(p)
+            #priors.append( '['+','.join( pprobs )+']' )
+        #else :
+            #priors.append( '[42,42,42,42,42,42,42,42,42,42,42,42]' )
+#
+    #print '['+';'.join(priors)+']'
+   # 
+   ### 

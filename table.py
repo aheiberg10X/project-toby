@@ -17,12 +17,17 @@ import db
 
 class Table() :
     def __init__(self, \
+                 ID = "id", \
                  logging=False, \
                  small_blind=1) :
 
         self.small_blind = small_blind
         self.logging = logging
-        self.error_file = open("table_errors.txt",'a')
+        self.ratio_files = [open("ratios/preflop/%s_ratios.txt" % ID,'w'), \
+                            open("ratios/flop/%s_ratios.txt" % ID,'w'), \
+                            open("ratios/turn/%s_ratios.txt" % ID,'w'), \
+                            open("ratios/river/%s_ratios.txt" % ID,'w') ]
+
 
         if self.logging :
             self.history = History()
@@ -273,10 +278,13 @@ class Table() :
 
                 #raise_amt = fraction * self.pot
                 #self.updateStack( player_ix, oblig+raise_amt )
+                #print "amt:", amt
+                #print "pot:", self.pot
                 frac = amt / float(self.pot)
+                #print "frac: ", frac
 
                 ##when printing bet_ratios to find good abstraction
-                #self.error_file.write( "%f\n" % frac )
+                self.ratio_files[self.street].write( "%f\n" % frac )
 
                 pot_frac = closestRatio( frac )
                 self.updateStack( player_ix, amt, "aggressive" )
@@ -379,7 +387,7 @@ class Table() :
                     try :
                         [[aboard]] = self.conn.query(q)
                     except Exception as ve :
-                        self.error_file.write( "%s\n\n" % q )
+                        self.ratio_file.write( "%s\n\n" % q )
 
                     aboard = listify(aboard)
 
@@ -404,7 +412,7 @@ class Table() :
                     [[memberships]] = self.conn.query( q )
                 except Exception as ve :
                     message = "cboard: %s\naboard: %s\npocket: %s\n\n" % (cboard,aboard,pocket)
-                    self.error_file.write( message )
+                    self.ratio_file.write( message )
                     ve.message = message
                     raise ve
 
@@ -560,7 +568,7 @@ class Table() :
                 #player_state = []
                 ##when looking for appropriate bet ratios
                 #pip_to_pot = self.current_bets[p] / float(self.pot)
-                ##self.error_file.write( "%f\n" % (pip_to_pot) )
+                ##self.ratio_file.write( "%f\n" % (pip_to_pot) )
                 ##print pip_to_pot
                 #closest_ratio = closestRatio( pip_to_pot, 'past' )
                 #player_state.append( closest_ratio )
