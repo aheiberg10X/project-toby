@@ -1337,6 +1337,72 @@ Realized registered pockets where being ordered like the actions were, that is, 
 
 Also bug in symmetric complement.
 
+==========================================================================
+
+7/8
+
+Think got past the final major bug.  The latest was introduced when I disconnected the flop probability from depending on the preflop.  Correct idea, but did it wrong.  I had P(ki|Ai,bi) = P(A|K).  How I don't know. Should be P(A|K) * P(K) / P(A).  This has helped things tremendously.  Also, I have decided to only eval games that are not [x,3,3,3].  The kkdd pattern is worthless to predict on (weirdly, it seems inference did worse than coin flip, but may have been low sample anomaly)
+
+Currently testing on Rembrant vs Sartre only.  Also only trained on showdown data.  But prediction of winner is >70%, and avg bucket distances around .10!
+
+Testing avgeraging all predictions and just using the most likely, average was clearly better.
+
+Without using the Z term speeds things up tremendously, and isn't that much more inaccurate (need to quantify).
+
+Right now running on 104... screen session to run through all the test data with full Z inference.  Comparing it to just using the ML predictions.
+
+When return, there is a huge speedup to be made in full Z inference.  Right now, when I add a bucket pair to an assignment, I recompute the whole assignment.  This is stupid, because I just need the prob of the new term times the previous prob product.  Then I can move on to precomputing!!!
+
+Also, should eval label/unlabel mix, then eval different opoponent pairs, then mix playrees.
+
+==================================================================================================
+
+7/10
+
+=========================================================================================
+
+7/11
+
+justAK() output
+
+(6, 0) 0.0111287389849
+(0, 6) 0.0111287389849
+(3, 2) 0.0148335873
+(2, 3) 0.0148335873
+(4, 1) 0.0148341814148
+(1, 4) 0.0148341814148
+(0, 5) 0.0148355718085
+(5, 0) 0.0148355718085
+(2, 2) 0.0197774645436
+(3, 1) 0.0197777497187
+(1, 3) 0.0197777497187
+(4, 0) 0.0197787022827
+(0, 4) 0.0197787022827
+(2, 1) 0.0263694638324
+(1, 2) 0.0263694638324
+(3, 0) 0.0263700579472
+(0, 3) 0.0263700579472
+(1, 1) 0.0351586332655
+(0, 2) 0.0351589184406
+(2, 0) 0.0351589184406
+(1, 0) 0.0468776888041
+(0, 1) 0.0468776888041
+(0, 0) 0.0625029332346
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -2,12 +2,12 @@ seed = 42;
 randn('state',seed);
 N = 12;
 
-em = 1
+em = 0 
 
 %setup evidence
 if em == 0
     %training = csvread('nodes/Rembrant_SartreNL/perm1/training_4-rounds_showdown.csv', 0, 0, [0,0,100000,11]);
-    fid = 'nodes/Rembrant_SartreNL/perm1/training_4-rounds_showdown.csv';
+    fid = 'nodes/all_hyper_sartre_4-round_training_showdown_interesting.csv';
     [a b c d e f g h i j k l m n o] = textread(fid,'%d %d %d %d %d %d %d %d %d %d %d %d %d %d %s',-1,'delimiter',',');
     training = [a b c d e f g h i j k l];
 

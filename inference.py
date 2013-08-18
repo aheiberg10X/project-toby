@@ -385,38 +385,72 @@ def predictBucketsAndWinner( assmnt_probs, switch="ml" ) :
 
     pass
 
-#compute P( [ki=ai,...,k0=a0] | [board,actions] )
-def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
-    n_streets = len(assignment)
-    assert n_streets >= 1
 
-    Ptrans = lookups[2]
+#################################################################################################
+#################################################################################################
+#################################################################################################
 
-    product = 1
-    for i in range(1,n_streets) :
-        #print "i: " , i
-        #print "assignment: ", str(assignment)
-        if i == 0 :
-            p = P_ki_G_kimo_evdnc( street = i, \
-                                   ki = assignment.get(i), \
-                                   action_int = actions[i], \
-                                   lookups = lookups )
-            #print "prob for street:", i, p
-        else :
-            street_name = globles.int2streetname(i)
-            cboards = evidence[0][i]
-            action_int = evidence[1][i]
-            cluster_id = Ptrans[street_name][0][cboards]
-            p = P_ki_G_kimo_evdnc( street = i, \
-                                   ki = assignment.get(i), \
-                                   kimo = assignment.get(i-1), \
-                                   cluster_id = cluster_id, \
-                                   action_int = action_int, \
-                                   lookups = lookups )
-            #print "prob for street:", i, p
+#return a {(k1,k2) : prob} dictionary
+#TODO: rename, def P_ki_G_Ai( street, action_int, lookups ) :
+#      conceputaully, more P_ki_G_evdnc
+def justAK( street, evidence, lookups ) :
+    PA = lookups[0]
+    PAK = lookups[1]
+    action_int = evidence[1][street]
 
-        product *= p
-    return product
+    ki_buckets = range(globles.NBUCKETS[street])
+    all_ki_pairs = cartProduct(ki_buckets, ki_buckets)
+    assmnt_probs = {}
+    Z = 0
+    pa = lookupPA( PA, street, action_int )
+    #print "street, action_int, P(a): " , street, action_int, pa
+    for (k1,k2) in all_ki_pairs :
+        pak = lookupPAK(PAK, street, k1, k2, action_int)
+        pk1 = lookupPk( street, k1 )
+        pk2 = lookupPk( street, k2 )
+        prob = pak * pk1 * pk2 / pa
+        Z += prob
+        assmnt_probs[(k1,k2)] = prob
+
+    return assmnt_probs
+
+#return the k most likely buckets that predict 
+#player P winning.  If P == 0, return the k most
+#likely ties.
+#If number of +1,0,-1 games is less than k,
+#return that number
+def selectMLAssignments( assmnt_probs, player, k ) :
+    winning_assmnts = {}
+    sassmnts = sorted( assmnt_probs.keys(), key=lambda x : assmnt_probs[x], reverse=True )
+    kcount = 0
+    for assmnt in sassmnts :
+        (k1,k2) = assmnt
+        if ( player == 0 and k1 == k2) or \
+           ( player == 1 and k1 > k2) or \
+           ( player == 2 and k2 < k1 ) :
+
+            winning_assmnts[assmnt] = assmnt_probs[assmnt]
+            kcount += 1
+            if kcount == k : break
+
+    return winning_assmnts
+
+#street_assmnts = { street_int : {(k1,k2) : prob} }
+def weightCombinations( street_assmnts ) :
+    pass
+
+#transition weighted local bucket assignments
+#transition weighted Independent CPT assignments
+def asdfa() :
+    #for each street i, compute P( ki|Ai )
+    #   and prune to the k most likely P1/P2-winning assignments
+    #take cartesian product, compute prob for each combination
+
+    pass
+
+#################################################################################################
+#################################################################################################
+#################################################################################################
 
 #(3)
 #P( ki | k_{i-1}, [board, actions] ) 
@@ -504,6 +538,7 @@ def P_ki_G_kimo_evdnc( street = -1, \
 
         else :
             if street == 1 :
+                #term = P_ki_G_Ai( lookups, street, ki, action_int)
                 AK = lookupPAK( PAK, street, ki[0], ki[1], action_int )
                 P_A = lookupPA( PA, street, action_int )
                 PK1 = lookupPk(street, ki[0])
@@ -567,27 +602,6 @@ def P_ki_G_kimo_evdnc( street = -1, \
                 else :
                     return numerator/Z
 
-
-def justAK( street, evidence, lookups ) :
-    PA = lookups[0]
-    PAK = lookups[1]
-    action_int = evidence[1][street]
-
-    ki_buckets = range(globles.NBUCKETS[street])
-    all_ki_pairs = cartProduct(ki_buckets, ki_buckets)
-    assmnt_probs = {}
-    Z = 0
-    pa = lookupPA( PA, street, action_int )
-    #print "street, action_int, P(a): " , street, action_int, pa
-    for (k1,k2) in all_ki_pairs :
-        pak = lookupPAK(PAK, street, k1, k2, action_int)
-        pk1 = lookupPk( street, k1 )
-        pk2 = lookupPk( street, k2 )
-        prob = pak * pk1 * pk2 / pa
-        Z += prob
-        assmnt_probs[(k1,k2)] = prob
-
-    return assmnt_probs
 
 def precomputeDenominators( lookups ) :
     street = 3
@@ -669,6 +683,7 @@ def loadPAKSanityCheck() :
                 s = sum(PAK[street][k1][k2])
                 assert .9999 <= s <= 1.0001
 
+
 if __name__ == '__main__' :
 
     #actions = [3, 3, 3, 148]
@@ -713,3 +728,53 @@ if __name__ == '__main__' :
     ##print "assmnt_G_evdnc: ", prob
    # 
     #pf_P_ki_G_evdnc(3, evidence, lookups, m=50 )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##DEPRECATED
+##compute P( [ki=ai,...,k0=a0] | [board,actions] )
+#def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
+    #n_streets = len(assignment)
+    #assert n_streets >= 1
+#
+    #Ptrans = lookups[2]
+#
+    #product = 1
+    #for i in range(1,n_streets) :
+        ##print "i: " , i
+        ##print "assignment: ", str(assignment)
+        #if i == 0 :
+            #p = P_ki_G_kimo_evdnc( street = i, \
+                                   #ki = assignment.get(i), \
+                                   #action_int = actions[i], \
+                                   #lookups = lookups )
+            ##print "prob for street:", i, p
+        #else :
+            #street_name = globles.int2streetname(i)
+            #cboards = evidence[0][i]
+            #action_int = evidence[1][i]
+            #cluster_id = Ptrans[street_name][0][cboards]
+            #p = P_ki_G_kimo_evdnc( street = i, \
+                                   #ki = assignment.get(i), \
+                                   #kimo = assignment.get(i-1), \
+                                   #cluster_id = cluster_id, \
+                                   #action_int = action_int, \
+                                   #lookups = lookups )
+            ##print "prob for street:", i, p
+#
+        #product *= p
+    #return product
+
+
