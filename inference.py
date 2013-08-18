@@ -354,7 +354,7 @@ def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
         prob_sum = 0
         for i in range(len(sfinal)) :
             (kp1,kp2) = sfinal[i]
-            prob = assmnt_probs[ sfinal[i] ] 
+            prob = assmnt_probs[ sfinal[i] ]
             prob_sum += prob
             kp1_sum += kp1*prob
             kp2_sum += kp2*prob
@@ -367,7 +367,7 @@ def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
         return (kp1_sum, \
                 kp2_sum, \
                 diff_sum )
-    
+
     elif switch == 'ml' :
         kp1,kp2 = sfinal[0][0], sfinal[0][1]
         diff = kp1-kp2
@@ -539,33 +539,12 @@ def P_ki_G_kipo_evdnc( street = -1, \
                 if (ki_p1,ki_p2) == ki :
                     numerator = term
 
-<<<<<<< HEAD
-        else :
-            if street == 1 :
-                #term = P_ki_G_Ai( lookups, street, ki, action_int)
-                AK = lookupPAK( PAK, street, ki[0], ki[1], action_int )
-                P_A = lookupPA( PA, street, action_int )
-                PK1 = lookupPk(street, ki[0])
-                PK2 = lookupPk(street, ki[1])
-                term = AK * PK1 * PK2 / P_A
-                #print "street 1 term: ", term
-                return term
-=======
                 Z += term
 
-            if Z == 0 : assert False 
->>>>>>> 083fb00ca32756c547e01123b27b40156f04fb3a
+            if Z == 0 : assert False
             else :
                 return numerator / Z
 
-
-
-<<<<<<< HEAD
-=======
-        # = ((BT1 * BT2 * K1 * K2 * B * AK) / Z
-        #num and denom in (3)
-        numerator = 0
-        Z = 0
 
 def justAK( street, evidence, lookups ) :
     PA = lookups[0]
@@ -715,32 +694,12 @@ if __name__ == '__main__' :
     ##prob = P_assmnt_G_evdnc( assignment, evidence, lookups )
     ##print "assmnt_G_evdnc: ", prob
    # 
-<<<<<<< HEAD
-    #pf_P_ki_G_evdnc(3, evidence, lookups, m=50 )
-=======
     pf_P_ki_G_evdnc(3, evidence, lookups )
->>>>>>> 083fb00ca32756c547e01123b27b40156f04fb3a
 
 
 
 
 
-
-
-<<<<<<< HEAD
-
-
-
-
-
-
-
-
-##DEPRECATED
-=======
-##DEPRECATED: was recomputing stuff, could fit multplication of terms into
-##            particle filter
->>>>>>> 083fb00ca32756c547e01123b27b40156f04fb3a
 ##compute P( [ki=ai,...,k0=a0] | [board,actions] )
 #def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
     #n_streets = len(assignment)
