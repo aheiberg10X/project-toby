@@ -383,6 +383,71 @@ def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
 #################################################################################################
 #################################################################################################
 
+def balanced_P_ki_G_evdnc( final_street, evidence, lookups, m ) :
+    assert final_street != 0
+
+    #TODO: dont' actually need to save the board probabilities, just need them for ranking
+
+    if m % 2 == 0 : m += 1
+    ml_assmnts_by_street = []
+    for street in range( 1,final_street+1 ) :
+
+        #assign probabilities to all assignments just based on this streets action
+        assmnt_probs = justAK( street, evidence, lookups )
+        sassmnts = sorted( assmnt_probs.keys(), key=lambda kpair : assmnt_probs[kpair], reverse=True )
+
+        # fill up:
+        street_assmnts = []
+        remaining_p1 = (m-1)/2
+        remaining_p2 = (m-1)/2
+        remaining_tie = 1
+
+        ix = 0
+        while not( remaining_p1 == 0 and remaining_p2 == 0 and remaining_tie == 0 ) :
+            (k1,k2) = sassmnts[ix]
+            do_append = False
+            if k1 > k2 :
+                if remaining_p1 > 0 :
+                    do_append = True
+                    remaining_p1 -= 1
+            elif k2 > k1 :
+                if remaining_p2 > 0 :
+                    do_append = True
+                    remaining_p2 -= 1
+            else :
+                if remaining_tie > 0 :
+                    do_append = True
+                    remaining_tie -= 1
+
+            #append the assignment and it's probability
+            if do_append :
+                street_assmnts.append( sassmnts[ix] )
+
+            ix += 1
+
+        ml_assmnts_by_street.append( street_assmnts )
+
+    #poss_assmnts = [-1]
+    #for street in range( 1, final_street+1 ):
+        #poss_assmnts = cartProduct( poss_assmnts, ml_assmnts_by_street[street] )
+    poss_assmnts = cartProduct( *ml_assmnts_by_street )
+
+    assmnt_probs = {}
+    for assmnt in poss_assmnts :
+        prob = 1
+        for street in range(3,0,-1) :
+            ki = assmnt[street-1]
+            if street == 3 : kipo = (-1,-1)
+            else :           kipo = assmnt[street]
+
+            prob *= P_ki_G_kipo_evdnc( street, ki, kipo, \
+                                       evidence, lookups )
+        assmnt_probs[str(assmnt)] = prob
+
+    #TODO: whay is prob 0 for so many?  bug?  prob not, just shitty transitions
+    return assmnt_probs
+
+
 #return a {(k1,k2) : prob} dictionary
 #TODO: rename, def P_ki_G_Ai( street, action_int, lookups ) :
 #      conceputaully, more P_ki_G_evdnc
@@ -568,7 +633,6 @@ def justAK( street, evidence, lookups ) :
 
     return assmnt_probs
 
->>>>>>> 083fb00ca32756c547e01123b27b40156f04fb3a
 def precomputeDenominators( lookups ) :
     street = 3
     kimo_buckets = range(globles.NBUCKETS[street-1])
@@ -652,37 +716,10 @@ def loadPAKSanityCheck() :
 
 if __name__ == '__main__' :
 
-    #actions = [3, 3, 3, 148]
-    #board = ['As', 'Ac', '3s', 'Jc', '4s']
-
-    board = ['9h','3h','6h','5c','8d']
-
-
-    #actions = [3, 77, 77, 77]
-    #actions = [3, 24, -1, -1]
-
-
-    #street = 1
-    #probs = justAK( street, evidence, lookups )
-    #skeys = sorted( probs.keys(), key=lambda x:probs[x] )
-    #for key in skeys :
-        #print key, probs[key]
-#
-    #PA = lookups[0]
-
-    #prob = P_ki_G_kimo_evdnc( street=1, \
-                              #ki = (1,1), \
-                              #kimo = (1,1), \
-                              #evidence = evidence, \
-                              #lookups = lookups )
-
-    #precomputeDenominators( lookups )
-
-    #print prob
-    
+    board = ['2c','Jh','Kd','Ks','Ks']
     actions = [441,5,187,315]
     #actions = [441,5,187,-1]
-    
+
     evidence = setupEvidence(board,actions)
     lookups = setupLookups()
 
@@ -694,43 +731,11 @@ if __name__ == '__main__' :
     ##prob = P_assmnt_G_evdnc( assignment, evidence, lookups )
     ##print "assmnt_G_evdnc: ", prob
    # 
-    pf_P_ki_G_evdnc(3, evidence, lookups )
+    #pf_P_ki_G_evdnc(3, evidence, lookups )
 
+    assmnt_probs = balanced_P_ki_G_evdnc( 3, evidence, lookups, 11 )
 
-
-
-
-##compute P( [ki=ai,...,k0=a0] | [board,actions] )
-#def P_assmnt_G_evdnc( assignment, evidence, lookups ) :
-    #n_streets = len(assignment)
-    #assert n_streets >= 1
-#
-    #Ptrans = lookups[2]
-#
-    #product = 1
-    #for i in range(1,n_streets) :
-        ##print "i: " , i
-        ##print "assignment: ", str(assignment)
-        #if i == 0 :
-            #p = P_ki_G_kimo_evdnc( street = i, \
-                                   #ki = assignment.get(i), \
-                                   #action_int = actions[i], \
-                                   #lookups = lookups )
-            ##print "prob for street:", i, p
-        #else :
-            #street_name = globles.int2streetname(i)
-            #cboards = evidence[0][i]
-            #action_int = evidence[1][i]
-            #cluster_id = Ptrans[street_name][0][cboards]
-            #p = P_ki_G_kimo_evdnc( street = i, \
-                                   #ki = assignment.get(i), \
-                                   #kimo = assignment.get(i-1), \
-                                   #cluster_id = cluster_id, \
-                                   #action_int = action_int, \
-                                   #lookups = lookups )
-            ##print "prob for street:", i, p
-#
-        #product *= p
-    #return product
+    for assmnt in assmnt_probs :
+        print assmnt, assmnt_probs[assmnt]
 
 
