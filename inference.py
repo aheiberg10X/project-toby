@@ -223,7 +223,7 @@ class BktAssmnt :
         if default == -1 :
             self.buckets = [(-1,-1),(-1,-1),(-1,-1),(-1,-1),(-1,-1)]
         else :
-            self.buckets = default
+            self.buckets = default + [(-1,-1)]
 
     def set(self, street, bucket_tuple ) :
         self.buckets[street] = bucket_tuple
@@ -244,7 +244,7 @@ class BktAssmnt :
             return self.buckets[street][player]
 
     def __str__(self) :
-        return str(self.buckets[:-1])
+        return str(self.buckets)
 
     #def __len__(self) :
         #return len(self.buckets)
@@ -316,7 +316,12 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, ms=[-1,50,50,100], no_Z = 
 
             old_assignment_probs = assignment_probs
 
-        #for ass in assignments : print ass
+    return assignment_probs
+
+#input: subset of assignments and their un-normalized probabilties
+#output: final assignments, ordered by their normalized probs
+def getFinalAssmntProbs( assignment_probs, final_street ) :
+    assert 1 == 1
 
     #when done, assignment_probs left with all {assmnt : prob} pairs for all
     #bucket values of the final_street X the m particles
@@ -341,10 +346,10 @@ def pf_P_ki_G_evdnc( final_street, evidence, lookups, ms=[-1,50,50,100], no_Z = 
 
     return final_assmnt_probs
 
-def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
+def predictBucketsAndWinner( final_assmnt_probs, switch="avg" ) :
     #sort, normalize, and return
-    sfinal = sorted( assmnt_probs.keys(), \
-                     key = lambda k: assmnt_probs[k], \
+    sfinal = sorted( final_assmnt_probs.keys(), \
+                     key = lambda k: final_assmnt_probs[k], \
                      reverse = True )
 
     if switch == 'avg' :
@@ -354,12 +359,12 @@ def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
         prob_sum = 0
         for i in range(len(sfinal)) :
             (kp1,kp2) = sfinal[i]
-            prob = assmnt_probs[ sfinal[i] ]
+            prob = final_assmnt_probs[ sfinal[i] ]
             prob_sum += prob
             kp1_sum += kp1*prob
             kp2_sum += kp2*prob
             diff_sum += (kp1-kp2)*prob
-            #print sfinal[i], assmnt_probs[ sfinal[i] ], diff_sum
+            #print sfinal[i], final_assmnt_probs[ sfinal[i] ], diff_sum
 
         assert prob_sum > .999
 
@@ -385,8 +390,6 @@ def predictBucketsAndWinner( assmnt_probs, switch="avg" ) :
 
 def balanced_P_ki_G_evdnc( final_street, evidence, lookups, m ) :
     assert final_street != 0
-
-    #TODO: dont' actually need to save the board probabilities, just need them for ranking
 
     if m % 2 == 0 : m += 1
     ml_assmnts_by_street = []
@@ -425,26 +428,36 @@ def balanced_P_ki_G_evdnc( final_street, evidence, lookups, m ) :
 
             ix += 1
 
+        print street, street_assmnts
         ml_assmnts_by_street.append( street_assmnts )
 
     #poss_assmnts = [-1]
     #for street in range( 1, final_street+1 ):
         #poss_assmnts = cartProduct( poss_assmnts, ml_assmnts_by_street[street] )
-    poss_assmnts = cartProduct( *ml_assmnts_by_street )
+
+    #poss_assmnts = cartProduct( *ml_assmnts_by_street )
+    poss_assmnts = [BktAssmnt( [(-1,-1)]+list(t) ) for t in cartProduct( *ml_assmnts_by_street )]
 
     assmnt_probs = {}
     for assmnt in poss_assmnts :
+        #print "assmnt after made:", str(assmnt)
         prob = 1
         for street in range(3,0,-1) :
-            ki = assmnt[street-1]
-            if street == 3 : kipo = (-1,-1)
-            else :           kipo = assmnt[street]
+            ki = assmnt.get(street)
+            kipo = assmnt.get(street+1)
 
+            #print "ki,kipo", ki, kipo
             prob *= P_ki_G_kipo_evdnc( street, ki, kipo, \
                                        evidence, lookups )
-        assmnt_probs[str(assmnt)] = prob
+            if prob == 0 :
+                #print evidence
+                #print "kipo to ki is prob() = 0", kipo, ki
+                break
 
-    #TODO: whay is prob 0 for so many?  bug?  prob not, just shitty transitions
+        #print prob
+        if prob > 0 :
+            assmnt_probs[assmnt] = prob
+
     return assmnt_probs
 
 
@@ -733,9 +746,11 @@ if __name__ == '__main__' :
    # 
     #pf_P_ki_G_evdnc(3, evidence, lookups )
 
-    assmnt_probs = balanced_P_ki_G_evdnc( 3, evidence, lookups, 11 )
+    street = 3
+    assmnt_probs = balanced_P_ki_G_evdnc( street, evidence, lookups, 11 )
+    final_assmnt_probs = getFinalAssmntProbs( assmnt_probs, street )
 
-    for assmnt in assmnt_probs :
-        print assmnt, assmnt_probs[assmnt]
+    for assmnt in final_assmnt_probs :
+        print assmnt, final_assmnt_probs[assmnt]
 
 

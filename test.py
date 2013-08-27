@@ -9,27 +9,41 @@ ftest = open("/home/andrew/project-toby/nodes/all_hyper_sartre_4-round_test_show
 lookups = inf.setupLookups()
 
 
-sum_p1_dist_avg = 0
-sum_p2_dist_avg = 0
-sum_winner_avg = 0
-
-sum_p1_weighted_dist_avg = 0
-sum_p2_weighted_dist_avg = 0
-sum_weighted_winner_avg = 0
+#dist
+sum_p1_dist_pf = 0
+sum_p2_dist_pf = 0
+sum_winner_pf = 0
 
 sum_p1_dist_ml = 0
 sum_p2_dist_ml = 0
 sum_winner_ml = 0
 
+sum_p1_dist_bal = 0
+sum_p2_dist_bal = 0
+sum_winner_bal = 0
+
+#weighted dist
+sum_p1_weighted_dist_pf = 0
+sum_p2_weighted_dist_pf = 0
+sum_weighted_winner_pf = 0
+
 sum_p1_weighted_dist_ml = 0
 sum_p2_weighted_dist_ml = 0
 sum_weighted_winner_ml = 0
 
-sum_p1_correct_pocket_avg = 0
-sum_p2_correct_pocket_avg = 0
+sum_p1_weighted_dist_bal = 0
+sum_p2_weighted_dist_bal = 0
+sum_weighted_winner_bal = 0
+
+#exact pocket matches
+sum_p1_correct_pocket_pf = 0
+sum_p2_correct_pocket_pf = 0
 
 sum_p1_correct_pocket_ml = 0
 sum_p2_correct_pocket_ml = 0
+
+sum_p1_correct_pocket_bal = 0
+sum_p2_correct_pocket_bal = 0
 
 fwrong = open("wrong_winners.txt", 'w')
 
@@ -84,20 +98,35 @@ for line_num, line in enumerate(ftest.readlines()) :
     justAK_assmnt_probs = inf.justAK( street, evidence, lookups )
     (kp1_ml,kp2_ml,diff_ml) = inf.predictBucketsAndWinner( justAK_assmnt_probs, 'avg' )
 
-    final_assmnt_probs = inf.pf_P_ki_G_evdnc(street, evidence, lookups, ms = ms, no_Z = False )
+    #pf predictions
+    #assmnt_probs = inf.pf_P_ki_G_evdnc(street, evidence, lookups, ms = ms, no_Z = False )
+    #final_assmnt_probs = inf.getFinalAssmntProbs( assmnt_probs, street )
+    #(kp1_pf,kp2_pf,diff_pf) = inf.predictBucketsAndWinner( final_assmnt_probs, "avg" )
+    (kp1_pf,kp2_pf,diff_pf) = .5,.5,0 
 
-    (kp1_avg,kp2_avg,diff_avg) = inf.predictBucketsAndWinner( final_assmnt_probs, "avg" )
+    #balanced predictions
+    assmnt_probs = inf.balanced_P_ki_G_evdnc( street, evidence, lookups, 15 )
+    bal_final_assmnt_probs = inf.getFinalAssmntProbs( assmnt_probs, street )
+    (kp1_bal,kp2_bal,diff_bal) = inf.predictBucketsAndWinner( bal_final_assmnt_probs, "avg" )
+
+    #true labels
     (kp1,kp2) = belief_assmnt.get(street)
 
     ######################################################################
     ########### Exact Pocket Accuracy
     ######################################################################
 
-    if int(round(kp1_avg)) == kp1 :
-        sum_p1_correct_pocket_avg += inf.lookupPk( street, kp1 )
+    if int(round(kp1_bal)) == kp1 :
+        sum_p1_correct_pocket_bal += inf.lookupPk( street, kp1 )
 
-    if int(round(kp2_avg)) == kp2 :
-        sum_p2_correct_pocket_avg += inf.lookupPk( street, kp2 )
+    if int(round(kp2_bal)) == kp2 :
+        sum_p2_correct_pocket_bal += inf.lookupPk( street, kp2 )
+
+    if int(round(kp1_pf)) == kp1 :
+        sum_p1_correct_pocket_pf += inf.lookupPk( street, kp1 )
+
+    if int(round(kp2_pf)) == kp2 :
+        sum_p2_correct_pocket_pf += inf.lookupPk( street, kp2 )
 
     if int(round(kp1_ml)) == kp1 :
         sum_p1_correct_pocket_ml += inf.lookupPk( street, kp1 )
@@ -111,16 +140,18 @@ for line_num, line in enumerate(ftest.readlines()) :
 
     print "true buckets 1,2,diff: ", kp1, kp2, kp1-kp2
     print "AVG: "
-    print "    ", kp1_avg, kp2_avg, diff_avg
+    print "    ", kp1_pf, kp2_pf, diff_pf
     print "ML: "
     print "    ", kp1_ml, kp2_ml, diff_ml
+    print "BAL: "
+    print "    ", kp1_bal, kp2_bal, diff_bal
 
-    p1_dist = bucketCentroidDistance(street,kp1,int(round(kp1_avg)))
-    p2_dist = bucketCentroidDistance(street,kp2,int(round(kp2_avg)))
-    sum_p1_dist_avg += p1_dist
-    sum_p2_dist_avg += p2_dist
-    sum_p1_weighted_dist_avg += p1_dist * exchanged
-    sum_p2_weighted_dist_avg += p2_dist * exchanged
+    p1_dist = bucketCentroidDistance(street,kp1,int(round(kp1_pf)))
+    p2_dist = bucketCentroidDistance(street,kp2,int(round(kp2_pf)))
+    sum_p1_dist_pf += p1_dist
+    sum_p2_dist_pf += p2_dist
+    sum_p1_weighted_dist_pf += p1_dist * exchanged
+    sum_p2_weighted_dist_pf += p2_dist * exchanged
 
     p1_dist = bucketCentroidDistance(street,kp1,int(round(kp1_ml)))
     p2_dist = bucketCentroidDistance(street,kp2,int(round(kp2_ml)))
@@ -129,34 +160,55 @@ for line_num, line in enumerate(ftest.readlines()) :
     sum_p1_weighted_dist_ml += p1_dist * exchanged
     sum_p2_weighted_dist_ml += p2_dist * exchanged
 
+    p1_dist = bucketCentroidDistance(street,kp1,int(round(kp1_bal)))
+    p2_dist = bucketCentroidDistance(street,kp2,int(round(kp2_bal)))
+    sum_p1_dist_bal += p1_dist
+    sum_p2_dist_bal += p2_dist
+    sum_p1_weighted_dist_bal += p1_dist * exchanged
+    sum_p2_weighted_dist_bal += p2_dist * exchanged
+
     ####################################################################
     ##########   Difference Measurement (Winner Prediction)
     ####################################################################
 
-    if abs(diff_avg) < .0001 : diff_avg = 0
+    if abs(diff_pf) < .0001 : diff_pf = 0
     if abs(diff_ml) < .001 : diff_ml = 0
+    if abs(diff_bal) < .001 : diff_bal = 0
+
     if kp1 > kp2 :
         p1_true_win += 1
-        if diff_avg > 0 : #kp1_avg > kp2_avg :
-            sum_winner_avg += 1
-            sum_weighted_winner_avg += 1*exchanged
+        if diff_pf > 0 : #kp1_pf > kp2_pf :
+            sum_winner_pf += 1
+            sum_weighted_winner_pf += 1*exchanged
         else :
             fwrong.write("%d\n" % line_num )
+        
+        if diff_bal > 0 :
+            sum_winner_bal += 1
+            sum_weighted_winner_bal += 1*exchanged
+        else :
+            pass
 
         if diff_ml > 0 :
            sum_winner_ml += 1
            sum_weighted_winner_ml += 1*exchanged
-
         elif diff_ml == 0 :
            sum_winner_ml += .5
            sum_weighted_winner_ml += .5*exchanged
 
+
     elif kp1 < kp2 :
-        if diff_avg < 0 : #kp1_avg < kp2_avg :
-            sum_winner_avg += 1
-            sum_weighted_winner_avg += 1*exchanged
+        if diff_pf < 0 : #kp1_pf < kp2_pf :
+            sum_winner_pf += 1
+            sum_weighted_winner_pf += 1*exchanged
         else :
             fwrong.write("%d\n" % line_num )
+
+        if diff_bal < 0 : #kp1_pf < kp2_pf :
+            sum_winner_bal += 1
+            sum_weighted_winner_bal += 1*exchanged
+        else :
+            pass
 
         if diff_ml < 0 :
             sum_winner_ml += 1
@@ -167,11 +219,12 @@ for line_num, line in enumerate(ftest.readlines()) :
     else :
         ##don't count this example
         #if ntotal > 1 :
-            #neutral = float(ntotal) * sum_winner_avg / float(ntotal-1) \
-                      #- sum_winner_avg 
+            #neutral = float(ntotal) * sum_winner_pf / float(ntotal-1) \
+                      #- sum_winner_pf 
 #
-            #sum_winner_avg += neutral
-        sum_winner_avg += .5
+            #sum_winner_pf += neutral
+        sum_winner_bal += .5
+        sum_winner_pf += .5
         sum_winner_ml += .5
         p1_true_win += .5
 
@@ -180,18 +233,31 @@ for line_num, line in enumerate(ftest.readlines()) :
     ##################################################################
 
     fntotal = float(ntotal)
-    print "AVG:"
+    print "PF:"
     print "    Exactly Pocket Accuracy:"
-    print "        P1: ", sum_p1_correct_pocket_ml / fntotal
-    print "        P2: ", sum_p2_correct_pocket_ml / fntotal
+    print "        P1: ", sum_p1_correct_pocket_pf / fntotal
+    print "        P2: ", sum_p2_correct_pocket_pf / fntotal
     print "    Un Weighted:"
-    print "        avg_p1_dist: ", sum_p1_dist_avg / fntotal
-    print "        avg_p2_dist: ", sum_p2_dist_avg / fntotal
-    print "        percent correct winner: ", sum_winner_avg / fntotal
+    print "        avg_p1_dist: ", sum_p1_dist_pf / fntotal
+    print "        avg_p2_dist: ", sum_p2_dist_pf / fntotal
+    print "        percent correct winner: ", sum_winner_pf / fntotal
     print "    Weighted:"
-    print "        avg_p1_dist: ", sum_p1_weighted_dist_avg / fntotal
-    print "        avg_p2_dist: ", sum_p2_weighted_dist_avg / fntotal
-    print "        Winner: ", sum_weighted_winner_avg / fntotal
+    print "        avg_p1_dist: ", sum_p1_weighted_dist_pf / fntotal
+    print "        avg_p2_dist: ", sum_p2_weighted_dist_pf / fntotal
+    print "        Winner: ", sum_weighted_winner_pf / fntotal
+
+    print "BAL:"
+    print "    Exactly Pocket Accuracy:"
+    print "        P1: ", sum_p1_correct_pocket_bal / fntotal
+    print "        P2: ", sum_p2_correct_pocket_bal / fntotal
+    print "    Un Weighted:"
+    print "        bal_p1_dist: ", sum_p1_dist_bal / fntotal
+    print "        bal_p2_dist: ", sum_p2_dist_bal / fntotal
+    print "        percent correct winner: ", sum_winner_bal / fntotal
+    print "    Weighted:"
+    print "        bal_p1_dist: ", sum_p1_weighted_dist_bal / fntotal
+    print "        bal_p2_dist: ", sum_p2_weighted_dist_bal / fntotal
+    print "        Winner: ", sum_weighted_winner_bal / fntotal
 
     print "ML: "
     print "    Exactly Pocket Accuracy:"
